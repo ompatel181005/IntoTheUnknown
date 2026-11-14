@@ -73,8 +73,15 @@ async function tryGolden(q: ViewQuery, signal: AbortSignal): Promise<LoadedView 
   }
   if (!res.ok || !(res.headers.get("content-type") ?? "").includes("json")) return null;
   const manifest = (await res.json()) as Manifest;
+  // Spectrum and light curve need the backend's id for this view; the golden files only carry the render key.
+  // Ask for it alongside the arrays. With the API down the view still loads, only measuring is unavailable.
+  const { presetId: _presetId, ...body } = q;
+  void _presetId;
+  const viewId = createView(body, AbortSignal.any([signal, AbortSignal.timeout(4000)]))
+    .then((c) => c.view_id)
+    .catch(() => manifest.render_key);
   const arrays = await loadArrays(manifest, base, signal);
-  return { viewId: manifest.render_key, manifest, ...arrays, fromCache: true };
+  return { viewId: await viewId, manifest, ...arrays, fromCache: true };
 }
 
 export const apiSource: ViewSource = {
