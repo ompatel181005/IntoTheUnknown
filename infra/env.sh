@@ -83,6 +83,8 @@ log()  { printf '\n==> %s\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
 die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+# Portable lowercase: macOS ships bash 3.2, which has no ${x,,}.
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 # az.cmd on Windows prints CRLF (the CLI 2.92 Git Bash launcher prints LF); strip CR anyway.
 azq() { az "$@" | tr -d '\r'; }
@@ -157,8 +159,8 @@ require_sub() {
   got=$(azq account show --subscription "$AZ_SUBSCRIPTION_ID" --query "[id, tenantId, name]" -o tsv 2>/dev/null) ||
     die "Subscription $AZ_SUBSCRIPTION_ID is not visible to the signed-in account. Run: az login --tenant $AZ_TENANT_ID"
   { read -r id || true; read -r tenant || true; read -r name || true; } <<<"$got"
-  [[ ${id,,} == "${AZ_SUBSCRIPTION_ID,,}" ]] || die "az returned subscription \"$id\", expected $AZ_SUBSCRIPTION_ID. Aborting."
-  [[ ${tenant,,} == "${AZ_TENANT_ID,,}" ]] || die "Subscription is in tenant \"$tenant\", expected $AZ_TENANT_ID. Aborting."
+  [[ $(lower "$id") == "$(lower "$AZ_SUBSCRIPTION_ID")" ]] || die "az returned subscription \"$id\", expected $AZ_SUBSCRIPTION_ID. Aborting."
+  [[ $(lower "$tenant") == "$(lower "$AZ_TENANT_ID")" ]] || die "Subscription is in tenant \"$tenant\", expected $AZ_TENANT_ID. Aborting."
   [[ $name == "$AZ_SUBSCRIPTION_NAME" ]] || die "Subscription name is \"$name\", expected \"$AZ_SUBSCRIPTION_NAME\". Aborting."
   az account set --subscription "$AZ_SUBSCRIPTION_ID" --only-show-errors >/dev/null
   printf '==> Subscription: %s (id and tenant match infra/.env.local)\n' "$name"
@@ -176,14 +178,14 @@ read_allowed_regions() {
   if [[ -n ${1:-} ]]; then scope=(--resource-group "$1"); fi
   ALLOWED=""
   POLICY_STATE="unreadable"
-  n=$(azsq policy assignment list "${scope[@]}" --filter "$POLICY_FILTER" --query "length(${LOCQ})" -o tsv 2>/dev/null) ||
+  n=$(azsq policy assignment list ${scope[@]+"${scope[@]}"} --filter "$POLICY_FILTER" --query "length(${LOCQ})" -o tsv 2>/dev/null) ||
     return 0
   [[ $n =~ ^[0-9]+$ ]] || return 0
   if [[ $n -eq 0 ]]; then
     POLICY_STATE="none"
     return 0
   fi
-  raw=$(azsq policy assignment list "${scope[@]}" --filter "$POLICY_FILTER" \
+  raw=$(azsq policy assignment list ${scope[@]+"${scope[@]}"} --filter "$POLICY_FILTER" \
     --query "${LOCQ}.join(',', parameters.listOfAllowedLocations.value || parameters.allowedLocations.value || \`[]\`)" \
     -o tsv 2>/dev/null) || return 0
   while IFS= read -r line; do

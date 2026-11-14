@@ -26,7 +26,7 @@ run_case() { # label expected-exit script [ENV=value ...]
     cd "$REPO"
     local args=()
     [[ $script != 30-app.sh ]] || args+=("${APP_MODE:---plan}")
-    bash "infra/$script" "${args[@]}"
+    bash "infra/$script" ${args[@]+"${args[@]}"}  # bash 3.2: empty array + set -u
   ) >"$CASE_DIR/output" 2>&1 || rc=$?
   if [[ $rc -ne $expected ]] || [[ -s $CASE_DIR/calls.unpinned || -s $CASE_DIR/calls.leak ]]; then
     printf 'FAIL: %s (exit %s; expected %s)\n' "$label" "$rc" "$expected"

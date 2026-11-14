@@ -17,7 +17,7 @@ source "$(dirname "$0")/env.sh"
 [[ $ALERT_EMAIL =~ ^[^@[:space:]\"]+@[^@[:space:]\"]+\.[^@[:space:]\"]+$ ]] ||
   die "ALERT_EMAIL does not look like an email address."
 [[ $ALERT_EMAIL != *"'"* ]] || die "ALERT_EMAIL must not contain a single quote."
-ALERT_EMAIL=${ALERT_EMAIL,,}   # compared against the API response, so keep one spelling
+ALERT_EMAIL=$(lower "$ALERT_EMAIL")   # compared against the API response, so keep one spelling
 [[ $BUDGET_AMOUNT =~ ^[0-9]+([.][0-9]+)?$ ]] || die "BUDGET_AMOUNT must be a number (got $BUDGET_AMOUNT)."
 require_az
 exists azs group show -n "$RG" || die "Resource group $RG not found. Run 10-core.sh first."
@@ -60,7 +60,7 @@ ETAG=$(azq rest --method get --url "$URL" --query eTag -o tsv 2>/dev/null) || ET
 if [[ -n $ETAG ]]; then info "exists; updating it"; else info "not found; creating it"; fi
 MONTH_START=$(date -u +%Y-%m-01)
 START="${MONTH_START}T00:00:00Z"
-END=$(date -u -d "$MONTH_START +1 year" +%Y-%m-%dT00:00:00Z)
+END="$(( $(date -u +%Y) + 1 ))-$(date -u +%m)-01T00:00:00Z"   # one year on; no GNU date -d (macOS)
 
 notif() { # percent
   printf '"Actual_GreaterThan_%s_Percent":{"enabled":true,"operator":"GreaterThan","threshold":%s,"thresholdType":"Actual","contactEmails":["%s"],"locale":"en-us"}' \

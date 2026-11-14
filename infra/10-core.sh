@@ -21,7 +21,7 @@ log "Settings: LOC=$LOC SWA_LOC=$SWA_LOC SUF=$SUF RG=$RG"
 
 # Abort when an existing resource differs from what this script would create.
 expect() { # what actual wanted
-  [[ ${2,,} == "${3,,}" ]] ||
+  [[ $(lower "$2") == "$(lower "$3")" ]] ||
     die "$1 is \"$2\" but this script expects \"$3\". Stopping here without touching it; fix it by hand, or change the names/env, then rerun."
 }
 loc_norm() { norm_regions <<<"$1"; }
