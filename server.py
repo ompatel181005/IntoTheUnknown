@@ -14,7 +14,7 @@ never runs into cross-origin (CORS) limits:
 
 Cutouts are cached on disk (./cache) so replaying a target is instant and kind to IRSA.
 """
-import argparse, hashlib, os, sys, urllib.request, urllib.error
+import argparse, hashlib, os, sys, urllib.parse, urllib.request, urllib.error
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 UPSTREAMS = {
@@ -25,6 +25,18 @@ UPSTREAMS = {
 ROOT = os.path.dirname(os.path.abspath(__file__))
 CACHE = os.path.join(ROOT, "cache")
 UA = "SPHEREx-Blink/1.0 (NASA Space Apps demo)"
+MAX_CUTOUT_DEG = 0.7  # 30' FOV x 1.25 margin; AGENTS 9: never pull full SPHEREx frames
+
+
+def cutout_ok(url):
+    """SPHEREx file downloads must be cutouts: a numeric size (degrees) no larger than MAX_CUTOUT_DEG."""
+    if "/ibe/data/spherex/" not in url:
+        return True
+    size = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).get("size", [""])[0]
+    try:
+        return 0 < float(size) <= MAX_CUTOUT_DEG
+    except ValueError:
+        return False
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -45,7 +57,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self._send(200, b"spherex-blink proxy ok", "text/plain")
         for prefix, upstream in UPSTREAMS.items():
             if self.path.startswith(prefix):
-                return self._proxy(upstream + self.path[len(prefix):])
+                url = upstream + self.path[len(prefix):]
+                if not cutout_ok(url):
+                    return self._send(400, b"SPHEREx downloads must be cutouts with size <= 0.7 deg", "text/plain")
+                return self._proxy(url)
         return super().do_GET()
 
     def _send(self, code, body, ctype, extra=None):
@@ -86,8 +101,8 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--port", type=int, default=8000)
-    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8000)))
+    ap.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"))
     a = ap.parse_args()
     print(f"SPHEREx Blink running at http://{a.host}:{a.port}  (Ctrl+C to stop)")
     ThreadingHTTPServer.request_queue_size = 128  # default 5 resets parallel cutout loads
