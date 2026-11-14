@@ -1,10 +1,11 @@
 """SPHEREx new-data watcher (Azure Functions, Python v2 model, Flex Consumption).
 
 Daily at 06:00 UTC, and on demand through POST /api/run-now, it asks IRSA which
-SPHEREx collections exist (TAP) and the newest frame start at two sentinel
-positions (SIA), compares that with frames/meta/catalog.json, and asks the API to
-refresh cached views until the API has accepted the current catalog version. It
-reads IRSA only (no AWS mirror). See docs/PLAN.md §4.5 and docs/DECISIONS.md.
+SPHEREx collections exist (TAP) and the newest frame start at a few fixed
+positions (SIA), keeps its state in the private state/watcher.json, publishes
+frames/meta/catalog.json, and asks the API to refresh cached views until the API
+has accepted the current catalog version. It reads IRSA only (no AWS mirror).
+See docs/PLAN.md §4.5 and docs/DECISIONS.md.
 """
 
 from __future__ import annotations
@@ -19,12 +20,20 @@ import math
 import os
 import re
 import time
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor, wait
+from concurrent.futures import TimeoutError as FutureTimeout
 from typing import NamedTuple
 
 import azure.functions as func
 import requests
-from azure.core.exceptions import AzureError, ResourceNotFoundError
+from azure.core import MatchConditions
+from azure.core.exceptions import (
+    AzureError,
+    ResourceExistsError,
+    ResourceModifiedError,
+    ResourceNotFoundError,
+)
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobClient, ContentSettings
 
@@ -33,25 +42,49 @@ app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 log = logging.getLogger(__name__)
 
 COLL_RE = re.compile(r"^spherex_(dr|qr)\d+(_deep)?$")  # drops e.g. spherex_dr1_cube
-# Newest frame = max(t_min) from SIA at the ecliptic poles, which SPHEREx observes
-# continuously, so their newest frame tracks ingest. TAP MAX(time_bounds_lower) on
-# spherex.plane is unindexed and timed out at 300 s (docs/DECISIONS.md). The SIA
-# index lags ingest by about a day, which is fine for a daily watcher.
+
+# What the watcher guarantees, which is narrower than "any new SPHEREx data": it
+# detects new releases (the collection list) and new frames at these positions.
+# SPHEREx observes the ecliptic poles continuously, so their newest frame tracks
+# ingest; the five pinned targets make a new frame at any pinned view count.
+# Frames elsewhere on the sky are not seen. TAP MAX(time_bounds_lower) over
+# spherex.plane would see everything, but it is unindexed and timed out at 300 s
+# (docs/DECISIONS.md). The SIA index lags ingest by about a day, which is fine
+# for a daily watcher.
 SIA_URL = "https://irsa.ipac.caltech.edu/SIA"
-SENTINELS = {"NEP": (270.0, 66.56), "SEP": (90.0, -66.56)}  # (ra, dec) degrees
-SENTINEL_RADIUS_DEG = 0.01
+POSITIONS = {  # (ra, dec) in degrees
+    "nep": (270.0, 66.56),
+    "sep": (90.0, -66.56),
+    "barnard": (269.44630, 4.76815),
+    "eps_ind_b": (331.09656, -56.80064),
+    "wise0855": (133.75995, -7.24228),
+    "rw_aur": (76.95609, 30.40113),
+    "r_dra": (248.16723, 66.75502),
+}
+POSITION_RADIUS_DEG = 0.01
 SIA_MAXREC = 2000
 SIA_MAX_PAGES = 10
-OVERLAP_DAYS = 2.0  # TIME lower bound = stored latest_frame_mjd minus this
+OVERLAP_DAYS = 2.0  # each position's TIME lower bound = its stored newest minus this
 FIRST_RUN_LOOKBACK_DAYS = 60.0
 MJD_EPOCH = dt.datetime(1858, 11, 17, tzinfo=dt.UTC)
-CONTAINER = "frames"
-STATE_BLOB = "meta/catalog.json"
+
+# The private blob is the source of truth; the public one is derived each run.
+STATE_CONTAINER, STATE_BLOB = "state", "watcher.json"
+PUBLIC_CONTAINER, PUBLIC_BLOB = "frames", "meta/catalog.json"
+PUBLIC_FIELDS = ("catalog_version", "collections", "latest_frame_mjd", "checked_at")
 CACHE_CONTROL = "public, max-age=60"
 STATE_SCHEMA = 1
+WRITE_ATTEMPTS = 3  # optimistic-concurrency retries on the private blob
+
 DEFAULT_IRSA_TIMEOUT_S = 120.0
-# (connect, read) seconds. Container Apps holds a request while it scales up from
-# zero. IRSA (<= IRSA_TIMEOUT_S) plus this stays under the 230 s HTTP limit.
+MAX_IRSA_TIMEOUT_S = 150.0
+# run-now must answer within the 230 s HTTP limit: the handler gives up at
+# RUN_NOW_BUDGET_S, and the stages plan to finish RUN_NOW_MARGIN_S before that.
+RUN_NOW_BUDGET_S = 200.0
+RUN_NOW_MARGIN_S = 15.0
+TIMER_BUDGET_S = 540.0  # under functionTimeout (10 min) in host.json
+# (connect, read) caps in seconds, cut further to what is left of the budget.
+# Container Apps holds a request while it scales up from zero.
 REFRESH_TIMEOUT = (10, 60)
 
 
@@ -80,11 +113,20 @@ class RefreshError(WatcherError):
     http_status = 502
 
 
+class _Conflict(Exception):
+    """Someone else wrote the private blob since we read it (HTTP 412/409)."""
+
+
 class Config(NamedTuple):
     api_base: str
     refresh_key: str
     storage_account_url: str
     irsa_timeout_s: float
+
+
+class Stored(NamedTuple):
+    state: dict
+    etag: str | None  # None: the blob doesn't exist yet
 
 
 # --- Pure core -----------------------------------------------------------------
@@ -94,58 +136,75 @@ def mjd(t: dt.datetime) -> float:
     return (t - MJD_EPOCH).total_seconds() / 86400
 
 
-def _stored_latest(old: dict) -> float | None:
-    value = old.get("latest_frame_mjd")
+def _finite(value) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     return float(value) if math.isfinite(value) else None
 
 
-def time_lower_bound(old: dict, now_mjd: float) -> float:
-    """SIA TIME lower bound: the stored latest frame minus a 2-day overlap.
-
-    With no stored value (first run), look back 60 days from now.
-    """
-    stored = _stored_latest(old)
-    if stored is None:
-        return now_mjd - FIRST_RUN_LOOKBACK_DAYS
-    return stored - OVERLAP_DAYS
+def _positions(state: dict) -> dict:
+    positions = state.get("positions")
+    return positions if isinstance(positions, dict) else {}
 
 
-def catalog_version(collections: list[str], latest_mjd: float | None) -> str:
+def lower_bounds(old: dict, now_mjd: float) -> dict[str, float]:
+    """SIA TIME lower bound per position: its stored newest frame minus 2 days,
+    or 60 days back from now when nothing is stored for it."""
+    stored = _positions(old)
+    bounds = {}
+    for label in POSITIONS:
+        newest = _finite(stored.get(label))
+        if newest is None:
+            bounds[label] = now_mjd - FIRST_RUN_LOOKBACK_DAYS
+        else:
+            bounds[label] = newest - OVERLAP_DAYS
+    return bounds
+
+
+def catalog_version(collections: list[str], positions: dict) -> str:
     """Content address of the catalog: same catalog, same version; any change, new.
 
     json.dumps writes floats with repr, which round-trips exactly, so frames that
     land later on the same day still change the version.
     """
-    payload = json.dumps([sorted(collections), latest_mjd], separators=(",", ":"))
+    payload = json.dumps(
+        {"collections": sorted(collections), "positions": positions},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     return "c" + hashlib.sha256(payload.encode()).hexdigest()[:12]
 
 
 def decide(
-    old: dict, collections: list[str], newest_mjd: float | None, now: str
+    old: dict, collections: list[str], newest: dict, now: str
 ) -> tuple[dict, bool]:
     """Return (new_state, should_refresh) from the stored state and IRSA's answer.
 
-    newest_mjd is the newest frame start SIA returned this run, or None if it
-    returned no frames. SIA is only asked about frames since just before the
-    stored value, so latest_frame_mjd only moves forward: no rows means no new
-    frames, not an error.
+    newest maps each position that answered to its newest frame start (MJD), or
+    None if SIA had no frames there since the lower bound. A position that is
+    missing or None keeps its stored value, and stored values only move forward,
+    so a failed position, an empty answer or a race can't move time backwards.
 
     should_refresh stays True until the API has accepted this exact version
-    (notified_version), so a failed POST is retried on the next run. Any content
+    (notified_version), so a failed POST is retried on later runs. Any content
     change counts, including a collection removed or renamed.
     """
     names = sorted(set(collections))
-    known = [v for v in (_stored_latest(old), newest_mjd) if v is not None]
-    latest_mjd = max(known) if known else None
-    version = catalog_version(names, latest_mjd)
+    stored = _positions(old)
+    positions = {}
+    for label in sorted(set(POSITIONS) | set(newest)):
+        known = [_finite(stored.get(label)), _finite(newest.get(label))]
+        known = [v for v in known if v is not None]
+        positions[label] = max(known) if known else None
+    times = [v for v in positions.values() if v is not None]
+    version = catalog_version(names, positions)
     notified = old.get("notified_version")
     new = {
         "schema": STATE_SCHEMA,
         "catalog_version": version,
         "collections": names,
-        "latest_frame_mjd": latest_mjd,
+        "latest_frame_mjd": max(times) if times else None,
+        "positions": positions,
         "checked_at": now,
         "notified_version": notified,
         "refresh_pending": version != notified,
@@ -153,16 +212,23 @@ def decide(
     return new, new["refresh_pending"]
 
 
-def mark_notified(state: dict) -> dict:
-    """The API returned 2xx for state's version."""
+def mark_notified(state: dict, version: str) -> dict:
+    """The API returned 2xx for `version`. If a newer version was written in the
+    meantime, it stays pending."""
+    if state.get("notified_version") == state.get("catalog_version"):
+        return state  # already up to date, maybe by a concurrent run
     return {
         **state,
-        "notified_version": state["catalog_version"],
-        "refresh_pending": False,
+        "notified_version": version,
+        "refresh_pending": state.get("catalog_version") != version,
     }
 
 
-# --- I/O -----------------------------------------------------------------------
+def public_view(state: dict) -> dict:
+    return {name: state.get(name) for name in PUBLIC_FIELDS}
+
+
+# --- Config --------------------------------------------------------------------
 
 
 def load_config() -> Config:
@@ -178,12 +244,24 @@ def load_config() -> Config:
         timeout = math.nan
     if not (math.isfinite(timeout) and timeout > 0):
         raise ConfigError("IRSA_TIMEOUT_S must be a positive number of seconds")
+    if timeout > MAX_IRSA_TIMEOUT_S:
+        log.warning(
+            "watcher: IRSA_TIMEOUT_S=%g is over %g s; using %g s so run-now fits "
+            "the 230 s HTTP limit",
+            timeout,
+            MAX_IRSA_TIMEOUT_S,
+            MAX_IRSA_TIMEOUT_S,
+        )
+        timeout = MAX_IRSA_TIMEOUT_S
     return Config(
         values["API_BASE"].rstrip("/"),
         values["REFRESH_KEY"],
         values["STORAGE_ACCOUNT_URL"],
         timeout,
     )
+
+
+# --- IRSA ----------------------------------------------------------------------
 
 
 class _TimeoutSession(requests.Session):
@@ -218,10 +296,10 @@ def _list_collections(client) -> list[str]:
 
 def _sia_t_mins(
     ra: float, dec: float, collections: list[str], since: float, timeout: float
-) -> tuple[int, list[float]]:
-    """One SIA query: (rows returned, their finite t_min values)."""
+) -> list[float]:
+    """One SIA query: the finite t_min values of the rows returned."""
     params = [
-        ("POS", f"CIRCLE {ra} {dec} {SENTINEL_RADIUS_DEG}"),
+        ("POS", f"CIRCLE {ra} {dec} {POSITION_RADIUS_DEG}"),
         ("TIME", f"{float(since)!r} +Inf"),  # SIA v2 TIME is an MJD interval
         *(("COLLECTION", name) for name in collections),
         ("RESPONSEFORMAT", "csv"),
@@ -233,42 +311,37 @@ def _sia_t_mins(
     # IRSA's proxy can send an HTML error page; csv would read it as rows.
     if not reader.fieldnames or "t_min" not in reader.fieldnames:
         raise IrsaError("SIA answer is not CSV with a t_min column")
-    rows, t_mins = 0, []
+    t_mins = []
     for row in reader:
-        rows += 1
         try:
             value = float(row["t_min"])
         except (TypeError, ValueError):
             continue
         if math.isfinite(value):
             t_mins.append(value)
-    return rows, t_mins
+    return t_mins
 
 
-def _sentinel_newest(
+def _position_newest(
     ra: float, dec: float, collections: list[str], since: float, deadline: float
 ) -> float | None:
-    """Newest t_min at one sentinel from `since` on, or None if SIA has none.
+    """Newest t_min at one position from `since` on, or None if SIA has none.
 
-    SIA doesn't sort its answer (checked 2026-11-14), so a page cut off at MAXREC
-    may miss the newest frame. Query again from that page's newest t_min until a
-    page comes back short; only then is the max known.
+    A short page doesn't prove the answer is complete (the server may cap below
+    MAXREC), and SIA doesn't sort its answer (checked 2026-11-14). So keep asking
+    from the newest t_min seen until a page brings nothing newer.
     """
     newest = None
     for _ in range(SIA_MAX_PAGES):
         left = deadline - time.monotonic()
         if left <= 0:
             raise IrsaError("deadline passed while paging SIA")
-        rows, t_mins = _sia_t_mins(ra, dec, collections, since, left)
-        page_newest = max(t_mins, default=None)
-        if page_newest is not None and (newest is None or page_newest > newest):
-            newest = page_newest
-        if rows < SIA_MAXREC:
+        page = max(_sia_t_mins(ra, dec, collections, since, left), default=None)
+        if page is None or (newest is not None and page <= newest):
             return newest
-        if page_newest is None or page_newest <= since:
-            raise IrsaError("SIA returned a full page with nothing newer")
-        since = page_newest
-    raise IrsaError(f"SIA answer still full after {SIA_MAX_PAGES} pages")
+        newest = page
+        since = max(since, page)
+    raise IrsaError(f"SIA still had newer frames after {SIA_MAX_PAGES} pages")
 
 
 def _describe(exc: BaseException) -> str:
@@ -289,24 +362,27 @@ def _list_phase(pool, client, deadline: float, timeout: float) -> list[str]:
     return names
 
 
-def fetch_catalog(timeout: float, since: float) -> tuple[list[str], float | None]:
-    """Ask IRSA for the SPHEREx collections, then the newest frame start (MJD)
-    at the sentinels from `since` on (None if there are no frames since then).
+def fetch_catalog(timeout: float, bounds: dict[str, float]) -> tuple[list[str], dict]:
+    """Ask IRSA for the SPHEREx collections, then for the newest frame start at
+    each position from its lower bound on.
 
-    Each HTTP call has a socket timeout, and the whole run has one wall-clock
-    deadline of `timeout`, so a slow or hung IRSA can't keep run-now past the
-    230 s HTTP limit. The sentinels run in parallel; one answer is enough. If
-    list_collections fails, or no sentinel answers, it raises IrsaError.
+    Returns (collections, {position: newest MJD or None}) for the positions that
+    answered. The position queries run in parallel; one answer is enough. The
+    whole call has one wall-clock deadline of `timeout`, and each HTTP call a
+    socket timeout. If list_collections fails, or no position answers, it
+    raises IrsaError.
     """
     deadline = time.monotonic() + timeout
     # Built here, not in the pool, so an import error isn't reported as IRSA_DOWN.
     lister = _irsa_client(timeout)
-    pool = ThreadPoolExecutor(max_workers=1 + len(SENTINELS), thread_name_prefix="irsa")
+    pool = ThreadPoolExecutor(max_workers=1 + len(POSITIONS), thread_name_prefix="irsa")
     try:
         names = _list_phase(pool, lister, deadline, timeout)
         jobs: dict[str, Future] = {
-            label: pool.submit(_sentinel_newest, ra, dec, names, since, deadline)
-            for label, (ra, dec) in SENTINELS.items()
+            label: pool.submit(
+                _position_newest, ra, dec, names, bounds[label], deadline
+            )
+            for label, (ra, dec) in POSITIONS.items()
         }
         wait(jobs.values(), timeout=max(0.0, deadline - time.monotonic()))
     finally:
@@ -321,36 +397,44 @@ def fetch_catalog(timeout: float, since: float) -> tuple[list[str], float | None
         else:
             answers[label] = job.result()
     if not answers:
-        raise IrsaError("no SIA sentinel answered: " + "; ".join(failures))
+        raise IrsaError("no SIA position answered: " + "; ".join(failures))
     if failures:
-        log.warning("watcher: SIA sentinel failed: %s", "; ".join(failures))
-    newest = max((v for v in answers.values() if v is not None), default=None)
+        log.warning("watcher: SIA position failed: %s", "; ".join(failures))
     log.info(
-        "watcher: IRSA answered in %.1f s; newest frame since %.3f: %s",
+        "watcher: IRSA answered in %.1f s; newest frame per position: %s",
         timeout - (deadline - time.monotonic()),
-        since,
         answers,
     )
-    return names, newest
+    return names, answers
 
 
-def _catalog_blob(account_url: str) -> BlobClient:
-    return BlobClient(
-        account_url,
-        CONTAINER,
-        STATE_BLOB,
-        credential=DefaultAzureCredential(),
-        connection_timeout=10,
-        read_timeout=30,
-        retry_total=2,
-    )
+# --- Storage -------------------------------------------------------------------
 
 
-def read_state(blob: BlobClient) -> dict:
+def _blobs(account_url: str) -> tuple[BlobClient, BlobClient]:
+    """(private state blob, public catalog blob)."""
+    credential = DefaultAzureCredential()
+
+    def client(container: str, name: str) -> BlobClient:
+        return BlobClient(
+            account_url,
+            container,
+            name,
+            credential=credential,
+            connection_timeout=5,
+            read_timeout=15,
+            retry_total=1,
+        )
+
+    return client(STATE_CONTAINER, STATE_BLOB), client(PUBLIC_CONTAINER, PUBLIC_BLOB)
+
+
+def read_state(blob: BlobClient) -> Stored:
     try:
-        raw = blob.download_blob().readall()
+        download = blob.download_blob()
+        raw = download.readall()
     except ResourceNotFoundError:
-        return {}  # first run
+        return Stored({}, None)  # first run
     except AzureError as exc:
         # Don't fall back to {}: that would overwrite good state on a transient error.
         raise StorageError(
@@ -361,15 +445,56 @@ def read_state(blob: BlobClient) -> dict:
     except ValueError:
         state = None
     if not isinstance(state, dict):
-        log.warning("watcher: %s is not a JSON object; starting over", STATE_BLOB)
-        return {}
-    return state
+        # Don't start over: a reset would forget what the API was already told.
+        raise StorageError(f"{STATE_BLOB} is not a JSON object; fix or delete it")
+    return Stored(state, download.properties.etag)
 
 
-def write_state(blob: BlobClient, state: dict) -> None:
+def write_state(blob: BlobClient, state: dict, etag: str | None) -> str:
+    """Write only if the blob is unchanged since it was read (If-Match), or still
+    missing on first create (If-None-Match: *). Returns the new ETag."""
+    if etag:
+        condition = {"etag": etag, "match_condition": MatchConditions.IfNotModified}
+    else:
+        condition = {"match_condition": MatchConditions.IfMissing}
+    try:
+        result = blob.upload_blob(
+            json.dumps(state, separators=(",", ":")),
+            overwrite=True,
+            content_settings=ContentSettings(content_type="application/json"),
+            **condition,
+        )
+    except (ResourceModifiedError, ResourceExistsError) as exc:
+        raise _Conflict from exc
+    except AzureError as exc:
+        raise StorageError(
+            f"could not write {STATE_BLOB}: {type(exc).__name__}"
+        ) from exc
+    return result["etag"]
+
+
+def update_state(
+    blob: BlobClient, stored: Stored, change: Callable[[dict], dict]
+) -> Stored:
+    """Apply change() to the private state with optimistic concurrency. On a
+    conflict, re-read and apply change() to the fresh state, a bounded number
+    of times. change() merges, so a race can't lose a newer value."""
+    for _ in range(WRITE_ATTEMPTS):
+        new = change(stored.state)
+        if new == stored.state and stored.etag:
+            return stored
+        try:
+            return Stored(new, write_state(blob, new, stored.etag))
+        except _Conflict:
+            log.warning("watcher: %s changed under us; re-reading", STATE_BLOB)
+            stored = read_state(blob)
+    raise StorageError(f"{STATE_BLOB} kept changing; gave up after {WRITE_ATTEMPTS}")
+
+
+def write_public(blob: BlobClient, state: dict) -> None:
     try:
         blob.upload_blob(
-            json.dumps(state, separators=(",", ":")),
+            json.dumps(public_view(state), separators=(",", ":")),
             overwrite=True,
             content_settings=ContentSettings(
                 content_type="application/json", cache_control=CACHE_CONTROL
@@ -377,18 +502,25 @@ def write_state(blob: BlobClient, state: dict) -> None:
         )
     except AzureError as exc:
         raise StorageError(
-            f"could not write {STATE_BLOB}: {type(exc).__name__}"
+            f"could not write {PUBLIC_BLOB}: {type(exc).__name__}"
         ) from exc
 
 
-def post_refresh(cfg: Config, version: str) -> None:
+# --- API -----------------------------------------------------------------------
+
+
+def post_refresh(cfg: Config, version: str, deadline: float) -> None:
     """POST /internal/refresh. Anything but a 2xx is a RefreshError."""
+    left = deadline - time.monotonic()
+    if left < 1:
+        raise RefreshError("no time left in the run budget")
+    timeout = (min(REFRESH_TIMEOUT[0], left), min(REFRESH_TIMEOUT[1], left))
     try:
         resp = requests.post(
             f"{cfg.api_base}/internal/refresh",
             json={"reason": "catalog_change", "catalog_version": version},
             headers={"X-Refresh-Key": cfg.refresh_key},  # never logged
-            timeout=REFRESH_TIMEOUT,
+            timeout=timeout,
             allow_redirects=False,
         )
         resp.raise_for_status()
@@ -403,56 +535,92 @@ def post_refresh(cfg: Config, version: str) -> None:
     )
 
 
+def _notify(cfg: Config, blob: BlobClient, stored: Stored, deadline: float) -> Stored:
+    version = stored.state["catalog_version"]
+    post_refresh(cfg, version, deadline)
+    return update_state(blob, stored, lambda s: mark_notified(s, version))
+
+
+# --- One run -------------------------------------------------------------------
+
+
 def _utc_now() -> dt.datetime:
     return dt.datetime.now(dt.UTC)
 
 
-def check_catalog(now: dt.datetime | None = None) -> tuple[int, dict]:
-    """One watcher run. Returns (http_status, body) and never raises.
+def _body(ok: bool, state: dict | None, **extra) -> dict:
+    return {
+        "ok": ok,
+        **extra,
+        "refresh_pending": bool(state and state.get("refresh_pending")),
+        "catalog": public_view(state) if state else None,
+    }
 
-    Order: read state, ask IRSA, write the new state, then POST the refresh, then
-    record that the API accepted it. If IRSA fails nothing is written, so
-    checked_at keeps meaning "last successful check". If the POST fails, the
-    blob already says refresh_pending and the next run retries.
+
+def check_catalog(
+    now: dt.datetime | None = None, budget_s: float = TIMER_BUDGET_S
+) -> tuple[int, dict]:
+    """One watcher run within budget_s seconds. Returns (http_status, body) and
+    never raises.
+
+    1. Read the private state. If a refresh is pending, POST it first, so an API
+       outage followed by an IRSA outage still gets the refresh retried.
+    2. Ask IRSA. If that fails, write nothing more: checked_at keeps meaning
+       "last successful check".
+    3. Write the private state (If-Match), then the public projection.
+    4. If the API hasn't accepted this version, POST it and record that it did.
     """
-    stored = None  # what meta/catalog.json holds now, for the response
+    deadline = time.monotonic() + budget_s
     now = now or _utc_now()
+    state = None  # private state as it now stands, for the response
+    refresh_sent = False
     try:
         cfg = load_config()
-        blob = _catalog_blob(cfg.storage_account_url)
-        old = stored = read_state(blob)
-        since = time_lower_bound(old, mjd(now))
-        collections, newest = fetch_catalog(cfg.irsa_timeout_s, since)
+        private, public = _blobs(cfg.storage_account_url)
+        stored = read_state(private)
+        state = stored.state
+        early_error = None
+        if state.get("refresh_pending") and state.get("catalog_version"):
+            try:
+                stored = _notify(cfg, private, stored, deadline)
+                state, refresh_sent = stored.state, True
+            except RefreshError as exc:
+                log.warning("watcher: retry of pending refresh failed: %s", exc)
+                early_error = exc  # still check IRSA; report this at the end
+        irsa_timeout = min(cfg.irsa_timeout_s, deadline - time.monotonic())
+        if irsa_timeout <= 0:
+            raise IrsaError("no time left in the run budget for IRSA")
+        collections, newest = fetch_catalog(irsa_timeout, lower_bounds(state, mjd(now)))
         checked_at = now.isoformat(timespec="seconds")
-        state, should_refresh = decide(old, collections, newest, checked_at)
-        changed = state["catalog_version"] != old.get("catalog_version")
-        write_state(blob, state)
-        stored = state
-        if should_refresh:
-            post_refresh(cfg, state["catalog_version"])
-            state = mark_notified(state)
-            write_state(blob, state)
-            stored = state
+        before = state.get("catalog_version")
+        stored = update_state(
+            private, stored, lambda s: decide(s, collections, newest, checked_at)[0]
+        )
+        state = stored.state
+        write_public(public, state)  # the API may read it while refreshing
+        changed = state["catalog_version"] != before
+        if early_error:
+            raise early_error  # don't POST again to an API that just failed
+        if state["refresh_pending"]:
+            stored = _notify(cfg, private, stored, deadline)
+            state, refresh_sent = stored.state, True
     except WatcherError as exc:
         log.error("watcher: %s: %s", exc.code, exc)
-        body = {"ok": False, "error": {"code": exc.code, "message": str(exc)}}
-        return exc.http_status, {**body, "catalog": stored}
+        error = {"code": exc.code, "message": str(exc)}
+        return exc.http_status, _body(
+            False, state, error=error, refresh_sent=refresh_sent
+        )
     except Exception:
         log.exception("watcher: unexpected error")
-        body = {"ok": False, "error": {"code": "INTERNAL", "message": "see logs"}}
-        return 500, {**body, "catalog": stored}
+        error = {"code": "INTERNAL", "message": "see logs"}
+        return 500, _body(False, state, error=error, refresh_sent=refresh_sent)
     log.info(
         "watcher: version=%s changed=%s refresh_sent=%s",
         state["catalog_version"],
         changed,
-        should_refresh,
+        refresh_sent,
     )
-    return 200, {
-        "ok": True,
-        "changed": changed,
-        "refresh_sent": should_refresh,
-        "catalog": state,
-    }
+    return 200, _body(True, state, changed=changed, refresh_sent=refresh_sent)
 
 
 # --- Triggers ------------------------------------------------------------------
@@ -466,14 +634,42 @@ def check_catalog(now: dt.datetime | None = None) -> tuple[int, dict]:
 def new_data_watcher(timer: func.TimerRequest) -> None:
     if timer.past_due:
         log.warning("watcher: timer is past due")
-    status, body = check_catalog()
+    status, body = check_catalog(budget_s=TIMER_BUDGET_S)
     if status != 200:
         log.error("watcher: timer run failed: %s", json.dumps(body))
 
 
+def _in_invocation(context, fn, *args):
+    # Tie this thread's logs to the invocation in App Insights.
+    if context is not None:
+        context.thread_local_storage.invocation_id = context.invocation_id
+    return fn(*args)
+
+
 @app.route(route="run-now", methods=["POST"], auth_level=func.AuthLevel.FUNCTION)
-def run_now(req: func.HttpRequest) -> func.HttpResponse:
-    status, body = check_catalog()
+def run_now(req: func.HttpRequest, context: func.Context) -> func.HttpResponse:
+    # Runs in a thread so a hang anywhere (credential, Blob, IRSA, API) still
+    # gets an answer at RUN_NOW_BUDGET_S. A run cut off here may still finish
+    # its writes in the background; they are If-Match guarded.
+    pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="run-now")
+    job = pool.submit(
+        _in_invocation,
+        context,
+        check_catalog,
+        None,
+        RUN_NOW_BUDGET_S - RUN_NOW_MARGIN_S,
+    )
+    pool.shutdown(wait=False)
+    try:
+        status, body = job.result(timeout=RUN_NOW_BUDGET_S)
+    except FutureTimeout:
+        log.error("watcher: run-now passed its %g s budget", RUN_NOW_BUDGET_S)
+        status = 504
+        error = {
+            "code": "BUDGET_EXCEEDED",
+            "message": f"no result within {RUN_NOW_BUDGET_S:g} s; see logs",
+        }
+        body = {"ok": False, "error": error}
     return func.HttpResponse(
         json.dumps(body), status_code=status, mimetype="application/json"
     )

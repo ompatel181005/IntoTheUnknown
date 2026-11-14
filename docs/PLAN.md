@@ -188,7 +188,7 @@ POST /internal/refresh  (X-Refresh-Key) ← {"reason":"catalog_change","catalog_
 ### 4.5 How a new release is picked up with zero code changes
 1. **Watcher (daily, 06:00 UTC):**
    - Get `list_collections(servicetype='SIA', filter='spherex')` and keep names matching `^spherex_(dr|qr)\d+(_deep)?$`.
-   - Take the newest frame as max `t_min` from SIA at the ecliptic poles since the stored latest − 2 days (TAP `MAX(time_bounds_lower)` is unindexed and times out; `DECISIONS.md`).
+   - Take the newest `t_min` from SIA at the ecliptic poles and the 5 pinned targets, each since its stored newest − 2 days (TAP `MAX(time_bounds_lower)` is unindexed and times out; `DECISIONS.md`).
    - Compare both with `meta/catalog.json`.
 2. **If anything changed:** write a new `catalog_version`, then `POST /internal/refresh`.
 3. **API:** for the pinned views (the 5 targets plus the top-N most requested), re-query frames. Where the frame set changed, re-render and swap the pointer.

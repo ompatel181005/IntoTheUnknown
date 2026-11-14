@@ -58,6 +58,7 @@ Why: Speed over safety for a 30-hour build. If main breaks, revert the merge via
 Owner: dflow11
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 ## 2026-11-14 13:40 - Mask policy: don't let TRANSIENT/SUR_ERROR mask SOURCE pixels (spike #4)
 Decision: In per-frame cleaning (PLAN §5.3), clear the TRANSIENT and SUR_ERROR bits on pixels that also carry SOURCE before masking. All other masking stays as written.
 Why: A bright star's saturated core is flagged OVERFLOW + TRANSIENT + SUR_ERROR. Under the PLAN policy Barnard's Star was unmasked in only 4.1% of B1-B2 frames (SUR_ERROR masked 115 of 121), so the core went NaN in every stack. With the change it is unmasked in 98.3%, and the measured 1-yr shift matches Gaia to 0.033 px. Masking TRANSIENT everywhere would let cosmic rays through, so we only keep it on SOURCE pixels.
@@ -81,5 +82,10 @@ Owner: dflow11
 ## 2026-11-14 13:51 - Watcher finds the newest frame with SIA at the ecliptic poles, not TAP MAX
 Decision: The watcher takes `latest_frame_mjd` as the max `t_min` from SIA at the north and south ecliptic poles (radius 0.01°, `TIME=<stored latest − 2 d> +Inf`, 60 days back on the first run), not TAP `MAX(time_bounds_lower)` on `spherex.plane`. `list_collections` stays on TAP. Partly supersedes "TAP for the watcher" in the 12:45 SIA/TAP entry.
 Why: `time_bounds_lower` is unindexed (`TAP_SCHEMA.columns`), and the MAX query timed out at 120 s and 300 s. SPHEREx observes the poles continuously, so their newest frame tracks ingest; those SIA queries answer in 2–14 s. The SIA index lags ingest by about a day, which is fine for a daily watcher.
+=======
+## 2026-11-14 13:51 - Watcher finds new frames with SIA at fixed positions, not TAP MAX
+Decision: The watcher asks SIA for the newest `t_min` at 7 positions: the north and south ecliptic poles plus the 5 pinned target centres (radius 0.01°, `TIME=<that position's stored newest − 2 d> +Inf`, 60 days back when nothing is stored). It pages from the newest `t_min` until a page brings nothing newer. The per-position times go into the version hash, not TAP `MAX(time_bounds_lower)` on `spherex.plane`. `list_collections` stays on TAP. The guarantee is narrower than "any new data": the watcher detects new releases (collections) and new frames at the poles and at the pinned views, not frames elsewhere on the sky. State lives in private `state/watcher.json`; `frames/meta/catalog.json` is a public projection of it. Partly supersedes "TAP for the watcher" in the 12:45 SIA/TAP entry.
+Why: `time_bounds_lower` is unindexed (`TAP_SCHEMA.columns`), and the MAX query timed out at 120 s and 300 s. SPHEREx observes the poles continuously, so their newest frame tracks ingest; the pinned targets are what users actually load. Those SIA queries answer in 2–14 s. The SIA index lags ingest by about a day, which is fine for a daily watcher.
+>>>>>>> a1e3caf (fix: watcher review fixes: ETag writes, private state, 7 positions, budget (#24))
 Owner: ompatel
 >>>>>>> 902c7eb (fix: watcher reads the newest frame from SIA at the ecliptic poles (#24))
