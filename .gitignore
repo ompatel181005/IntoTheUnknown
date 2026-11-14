@@ -41,3 +41,4 @@ Thumbs.db
 
 # Claude: keep skills tracked, ignore local settings
 .claude/settings.local.json
+scripts/spike_out/

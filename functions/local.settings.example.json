@@ -1,0 +1,12 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AzureWebJobsStorage": "",
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": "",
+    "API_BASE": "",
+    "REFRESH_KEY": "",
+    "STORAGE_ACCOUNT_URL": "",
+    "IRSA_TIMEOUT_S": ""
+  }
+}

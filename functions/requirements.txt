@@ -1,0 +1,6 @@
+# Installed by the Flex remote build. Lower bounds are the versions tested (Python 3.11).
+azure-functions~=1.26
+azure-identity~=1.27
+azure-storage-blob~=12.31
+astroquery~=0.4.11
+requests~=2.34
