@@ -1,0 +1,18 @@
+// localStorage can throw (private windows, blocked site data). These helpers never do.
+
+export function readFlag(key: string): boolean {
+  try {
+    return window.localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function writeFlag(key: string, value: boolean): void {
+  try {
+    if (value) window.localStorage.setItem(key, "1");
+    else window.localStorage.removeItem(key);
+  } catch {
+    // Not persisted; the session still works.
+  }
+}

@@ -11,31 +11,39 @@ Canonical agent instructions. Claude Code reads this through `CLAUDE.md` (`@AGEN
 SPHEREx releases, IRSA endpoints, and Azure limits change. Before writing code that depends on them, check the official link in `docs/LINKS.md` and record anything surprising in `docs/DECISIONS.md`.
 
 ## 3. Repo map
-- `index.html`: the whole app (HTML, CSS, JS; no build step). `CONFIG` at the top of the script holds endpoints and tunables.
-- `server.py`: Python stdlib server. Serves the page and `demo/`, proxies IRSA/VizieR/CDS, caches cutouts, rejects full-frame downloads.
-- `demo/`: real SPHEREx cutouts of the 5 targets (the golden snapshots). Rebuilt by `tools/fetch_demo.py`.
-- `tests/`: Playwright UI/sim/demo tests, mock IRSA, `test_server.py`.
-- `Dockerfile`: one container for page + proxy (Azure Container Apps).
+- `frontend/`: React + Vite + TypeScript app. Talks only to our backend.
+- `backend/`: Python 3.11 + FastAPI. `app/irsa` (query, cutout fetch, demo reader), `app/processing` (stacking, views), `app/cache`. In production it also serves `frontend/dist`.
+- `demo/`: real SPHEREx cutouts of the 5 targets; the backend builds presets from it, so they work with IRSA down. Rebuilt by `tools/fetch_demo.py`.
+- `Dockerfile`: one container (API + built web app) for Azure Container Apps.
 - `functions/`: Azure Functions (Python), timer-trigger new data watcher.
 - `infra/`: Azure scripts (`az`, `swa`, `func`) and `infra/README.md`.
-- `backend/`, `frontend/`: from the original React/FastAPI plan; only agent notes, no code (`docs/DECISIONS.md`).
-- `docs/`: IDEA, TARGETS, DATA, LINKS, DECISIONS, SUBMISSION. `docs/PLAN.md` §4–5 describe the superseded server-side pipeline.
+- `docs/`: IDEA, PLAN, TARGETS, DATA, LINKS, DECISIONS, SUBMISSION.
 - `scripts/`: `update_status.py` (writes STATUS.md on main via the GitHub API), `spike_barnard.py`.
 - `.claude/skills/`: playbooks (see section 10).
 - `.github/`: PR template, issue template, CI.
 - `STATUS.md`: one row per person, snapshot for agents.
 
 ## 4. Commands
-App (repo root):
+Backend (`backend/`):
 ```
-python3 server.py                     # http://localhost:8000
-python3 tests/test_server.py
-pip install playwright numpy astropy && python -m playwright install chromium
-python3 server.py --port 8811 &
-python3 tests/test_ui.py /tmp/shots --base http://127.0.0.1:8811 --live
-python3 tests/test_sim.py /tmp/shots --base http://127.0.0.1:8811
-python3 tests/test_demo.py /tmp/shots --base http://127.0.0.1:8811
-python3 tools/fetch_demo.py           # rebuild demo/ (needs numpy, astropy)
+python -m venv .venv
+pip install -e ".[dev]"
+ruff check .
+ruff format --check .
+pytest -q
+uvicorn app.main:app --reload --port 8000
+```
+
+Frontend (`frontend/`):
+```
+npm ci
+npm run dev        # http://localhost:5173, proxies /api and /frames to :8000
+npm run lint
+npm run build
+```
+
+Container (repo root):
+```
 docker build -t spherex-blink . && docker run -p 8000:8000 spherex-blink
 ```
 
@@ -50,8 +58,7 @@ Checks pass for every touched area, PR merged, issue closed, STATUS.md row updat
 
 ## 6. Ownership and shared hotspots
 - Work is split by feature slice, one owner per GitHub issue. Only edit files inside your issue's slice.
-- Shared hotspots: `server.py`, `Dockerfile`, `.github/workflows/*`, root `README.md`, `AGENTS.md`.
-- `index.html` is the whole app in one file, so everyone edits it: keep PRs small and run the sync skill often.
+- Shared hotspots: `backend/pyproject.toml`, `frontend/package.json` and lockfile, `backend/app/main.py`, `backend/app/models.py` + `frontend/src/types.ts` (the API contract), `frontend/src/App.tsx`, `Dockerfile`, `.github/workflows/*`, root `README.md`, `AGENTS.md`.
 - Before editing a hotspot, the human posts in team chat: TODO(team) channel.
 - Agents must ask the human before touching a hotspot.
 

@@ -3,10 +3,14 @@
 FastAPI service (Python 3.11). The only component that talks to IRSA, the cache, and Cosmos DB.
 
 ## Layout
-- `app/api`: HTTP routes and request/response models.
-- `app/irsa`: SIA/TAP queries, cutout fetch.
-- `app/processing`: stacking, stretch, differencing, Gaia propagation.
-- `app/cache`: Azure Blob cache.
+- `app/main.py`: HTTP routes (docs/PLAN.md 4.3). `app/models.py`: the contract, mirrored by `frontend/src/types.ts`.
+- `app/irsa`: SIA/TAP queries, cutout fetch, demo-pack reader.
+- `app/processing`: epoch grouping, stacking, stretch (`stack.py`); view jobs, spectrum, light curve (`views.py`).
+- `app/cache`: render cache. Local files today (`backend/.cache/`); Azure Blob replaces it behind the same functions.
+
+## Data sources
+- The five targets build from the real cutouts in `demo/` (from `tools/fetch_demo.py`), so they work while IRSA is down.
+- Any other position queries IRSA live (SIA, TAP fallback) and reports `IRSA_DOWN` when both fail.
 
 ## Commands
 ```

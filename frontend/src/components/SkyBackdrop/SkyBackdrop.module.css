@@ -1,0 +1,26 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition: opacity 400ms var(--ease);
+}
+
+.backdrop[data-dim="true"] {
+  opacity: 0.55;
+  transition-delay: 1.2s; /* stay bright while flying in */
+}
+
+.canvas {
+  position: absolute;
+  left: -24px;
+  top: -24px;
+  transition: translate 600ms var(--ease);
+}
+
+/* Darkens the edges so floating chrome reads cleanly. */
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 45%, var(--space-0) 100%);
+}

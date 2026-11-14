@@ -41,7 +41,10 @@ Thumbs.db
 
 # Claude: keep skills tracked, ignore local settings
 .claude/settings.local.json
+
+# SPHEREx Blink proxy cache
+/cache/
 scripts/spike_out/
 
-# Prototype server cutout cache
-cache/
+# Backend local render cache
+backend/.cache/

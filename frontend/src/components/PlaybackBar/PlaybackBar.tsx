@@ -1,0 +1,159 @@
+import { pad2 } from "../../lib/format";
+import type { ViewMode } from "../../lib/url";
+import type { Epoch } from "../../types";
+import { GlassButton, GlassPanel, Icon, Segmented } from "../glass";
+import s from "./PlaybackBar.module.css";
+
+interface PlaybackBarProps {
+  epochs: Epoch[];
+  index: number;
+  sequence: number[];
+  playing: boolean;
+  canPlay: boolean;
+  mode: ViewMode;
+  status: string | null;
+  customizeOpen: boolean;
+  onToggle: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+  onSeek: (i: number) => void;
+  onMode: (m: ViewMode) => void;
+  onCustomize: () => void;
+}
+
+const W = 720;
+const H = 64;
+const DEPTH = 26;
+/** Point on the time arc for t in [0, 1]: ends high, middle low (NASA Eyes style). */
+const arc = (t: number) => ({ x: 24 + t * (W - 48), y: 10 + DEPTH * (1 - (2 * t - 1) ** 2) });
+const ARC_PATH = Array.from({ length: 41 }, (_, i) => {
+  const p = arc(i / 40);
+  return `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+}).join("");
+
+/** Time controls: transport and readout, then the passes laid out along an arc with a moving crescent knob. */
+export function PlaybackBar(p: PlaybackBarProps) {
+  const ready = p.epochs.length > 0;
+  const multi = p.epochs.length > 1;
+  const e = p.epochs[p.index];
+  const n = ready ? p.epochs.length : 4;
+  const tOf = (i: number) => (n === 1 ? 0.5 : i / (n - 1));
+  const knob = ready ? arc(tOf(p.index)) : null;
+  const stateText = !ready ? "NO TARGET" : !multi ? "ONE PASS" : p.playing ? "PLAYING" : "PAUSED";
+
+  return (
+    <div className={s.dock} data-tour="time">
+      <ModeSwitch mode={p.mode} multi={multi} ready={ready} onMode={p.onMode} />
+      <div className={s.clock}>
+        <div className={s.row}>
+          <div className={s.transport}>
+            <GlassButton variant="ghost" icon="prev" label="Previous pass" onClick={p.onPrev} disabled={!multi} title={titleFor(ready, multi)} />
+            <GlassButton
+              variant="primary"
+              className={s.play}
+              onClick={p.onToggle}
+              disabled={!p.canPlay}
+              aria-label={p.playing ? "Pause" : "Play"}
+              title={!p.canPlay ? (ready ? "Needs two or more passes" : "Pick a target first") : "Play or pause (Space)"}
+              data-tour="play"
+            >
+              <Icon name={p.playing ? "pause" : "play"} size={20} />
+            </GlassButton>
+            <GlassButton variant="ghost" icon="next" label="Next pass" onClick={p.onNext} disabled={!multi} title={titleFor(ready, multi)} />
+          </div>
+          <span className={`display ${s.date}`}>{e ? e.label : "----"}</span>
+          <span className={s.state} aria-live="polite">
+            {stateText}
+          </span>
+          <span className={`mono ${s.epoch}`}>
+            PASS {e ? pad2(e.i + 1) : "--"} / {ready ? pad2(p.epochs.length) : "--"}
+          </span>
+          <GlassButton
+            variant="ghost"
+            className={s.customize}
+            icon="sliders"
+            label="Customize"
+            aria-expanded={p.customizeOpen}
+            aria-controls="customize"
+            onClick={p.onCustomize}
+            data-tour="customize-btn"
+          />
+        </div>
+
+        <nav className={s.arcWrap} aria-label="Passes">
+          <svg viewBox={`0 0 ${W} ${H}`} className={s.arc} aria-hidden="true" preserveAspectRatio="none">
+            <path d={ARC_PATH} className={s.arcLine} />
+          </svg>
+          <ol className={s.ticks}>
+            {Array.from({ length: n }, (_, i) => {
+              const ep = p.epochs[i];
+              const pt = arc(tOf(i));
+              const active = ready && i === p.index;
+              const placeholder = !ep;
+              return (
+                <li key={i} className={s.tickItem} style={{ left: `${(pt.x / W) * 100}%`, top: `${(pt.y / H) * 100}%` }}>
+                  <button
+                    type="button"
+                    className={s.tick}
+                    aria-current={active}
+                    data-out={ready && !placeholder && !p.sequence.includes(i)}
+                    disabled={placeholder}
+                    aria-label={ep ? `Pass ${i + 1}, ${ep.label}` : `Pass ${i + 1}`}
+                    title={placeholder ? (ready ? undefined : "Pick a target first") : undefined}
+                    onClick={() => p.onSeek(i)}
+                  >
+                    <span className={s.dot} />
+                    {ep && <span className={`${s.tickDate} mono`}>{ep.label}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+          {knob && (
+            <span className={s.knob} style={{ left: `${(knob.x / W) * 100}%`, top: `${(knob.y / H) * 100}%` }} aria-hidden="true">
+              <Crescent />
+            </span>
+          )}
+        </nav>
+      </div>
+      <p className={`${s.status} mono`} role="status" title={p.status ?? undefined}>
+        {p.status}
+      </p>
+    </div>
+  );
+}
+
+function titleFor(ready: boolean, multi: boolean) {
+  if (!ready) return "Pick a target first";
+  if (!multi) return "Only one pass so far";
+  return undefined;
+}
+
+function Crescent() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 26 26">
+      <circle cx="13" cy="13" r="11" fill="var(--space-1)" stroke="var(--accent)" strokeWidth="1.5" />
+      <path d="M16 6a7.6 7.6 0 1 0 0 14 6 6 0 0 1 0-14z" fill="var(--accent)" />
+    </svg>
+  );
+}
+
+function ModeSwitch({ mode, multi, ready, onMode }: { mode: ViewMode; multi: boolean; ready: boolean; onMode: (m: ViewMode) => void }) {
+  const why = ready ? "Needs two or more passes" : "Pick a target first";
+  return (
+    <GlassPanel pill className={s.modes} data-tour="modes">
+      <Segmented
+        label="View mode"
+        value={mode}
+        onChange={onMode}
+        className={s.segmented}
+        options={[
+          { value: "all", label: "Play all", disabled: !ready, title: ready ? "Every pass in order" : why },
+          { value: "blink", label: "Blink", disabled: !multi, title: multi ? "Flip between two passes (B)" : why },
+          { value: "diff", label: "Difference", disabled: !multi, title: multi ? "Each pass minus the reference (D)" : why },
+          { value: "inspect", label: "Investigate", disabled: !ready, title: ready ? "Open measurements for this pass" : why },
+        ]}
+      />
+    </GlassPanel>
+  );
+}
