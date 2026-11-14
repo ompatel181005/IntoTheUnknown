@@ -1,0 +1,97 @@
+.shell {
+  position: relative;
+  height: 100dvh;
+  width: 100%;
+  overflow: clip;
+  background: transparent;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  padding: var(--chrome-top) var(--stage-right, var(--gutter)) var(--chrome-bottom) var(--stage-left, var(--gutter));
+  transition: padding var(--dur) var(--ease);
+}
+
+.top {
+  position: absolute;
+  top: var(--gutter);
+  left: var(--gutter);
+  right: var(--gutter);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.top > * {
+  pointer-events: auto;
+}
+
+.bottom {
+  position: absolute;
+  left: var(--gutter);
+  right: var(--gutter);
+  bottom: var(--gutter);
+  display: flex;
+  justify-content: center;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.bottom > * {
+  pointer-events: auto;
+}
+
+/* Cinematic idle fade: chrome steps back while the flipbook plays. Still focusable. */
+.chrome {
+  transition: opacity 220ms var(--ease);
+}
+
+.shell [data-fade] {
+  transition: opacity 220ms var(--ease);
+}
+
+.shell[data-idle="true"] .chrome,
+.shell[data-idle="true"] [data-fade] {
+  opacity: 0.15;
+}
+
+.shell[data-idle="true"] .chrome:hover,
+.shell[data-idle="true"] .chrome:has(:focus-visible),
+.shell[data-idle="true"] [data-fade]:hover,
+.shell[data-idle="true"] [data-fade]:has(:focus-visible) {
+  opacity: 1;
+}
+
+.hiddenOnSheet {
+  display: none;
+}
+
+/* The playback dock rises in when a target loads. */
+.bottomIn {
+  animation: dock-in 600ms var(--ease) 0.5s both;
+}
+
+@keyframes dock-in {
+  from {
+    opacity: 0;
+    translate: 0 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottomIn {
+    animation: dock-fade 150ms linear both !important;
+    animation-duration: 150ms !important;
+  }
+
+  @keyframes dock-fade {
+    from {
+      opacity: 0;
+    }
+  }
+}

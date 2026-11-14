@@ -1,0 +1,59 @@
+.figure {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.gridline {
+  stroke: var(--grid-line);
+  stroke-width: 1;
+}
+
+.axis {
+  stroke: var(--text-2);
+  stroke-opacity: 0.5;
+}
+
+.tick {
+  fill: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.dot {
+  fill: var(--text-1);
+}
+
+.hollow {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-width: 1.25;
+}
+
+.err {
+  stroke: var(--text-2);
+  stroke-width: 1;
+}
+
+.active .dot,
+.active .hollow {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.caption {
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Not uppercased: units like µJy must keep their case. */
+.axisLabel {
+  font-size: 11px;
+  color: var(--text-2);
+}

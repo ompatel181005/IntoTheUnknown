@@ -1,0 +1,278 @@
+import { useEffect, useRef } from "react";
+import type { LoadedView } from "../../data/source";
+import type { AsyncState } from "../../hooks/useAsync";
+import { formatDec, formatRa, mjdToDate } from "../../lib/format";
+import type { RaDec } from "../../lib/sky";
+import { PRESETS, type Preset } from "../../lib/targets";
+import type { Panel } from "../../lib/url";
+import type { LightCurve, Spectrum } from "../../types";
+import { AllSkyMap } from "../AllSkyMap/AllSkyMap";
+import { Scatter } from "../Charts/Scatter";
+import { GlassButton, GlassPanel, Tabs } from "../glass";
+import s from "./Drawer.module.css";
+
+interface DrawerProps {
+  panel: Panel;
+  onPanel: (p: Panel) => void;
+  onClose: () => void;
+  view: LoadedView | null;
+  index: number;
+  target: Preset | null;
+  position: RaDec | null;
+  /** Selected grid pixel (FITS orientation) or null for the target at the centre. */
+  sel: [number, number] | null;
+  spectrum: AsyncState<Spectrum>;
+  lightcurve: AsyncState<LightCurve>;
+  onSelectEpoch: (i: number) => void;
+}
+
+export const DRAWER_ID = "drawer";
+
+const TABS: { value: Panel; label: string }[] = [
+  { value: "pass", label: "This pass" },
+  { value: "colours", label: "Spectrum" },
+  { value: "brightness", label: "Brightness" },
+  { value: "files", label: "Files" },
+  { value: "sky", label: "Sky" },
+];
+
+/** Measurements and data, one tab each (the "Advanced" pages of the prototype on initialammar). */
+export function Drawer(p: DrawerProps) {
+  const tabsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    tabsRef.current?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus({ preventScroll: true });
+  }, []);
+  const panelId = `drawer-panel-${p.panel}`;
+  return (
+    <GlassPanel strong id={DRAWER_ID} className={s.drawer} role="dialog" aria-modal="false" aria-label="Details and measurements" data-tour="details">
+      <div className={s.head} ref={tabsRef}>
+        <Tabs label="Details" value={p.panel} onChange={p.onPanel} tabs={TABS.map((t) => ({ ...t, panelId }))} />
+        <GlassButton variant="ghost" icon="close" label="Close (Esc)" onClick={p.onClose} />
+      </div>
+      <div className={s.body} id={panelId} role="tabpanel" aria-labelledby={`tab-${p.panel}`}>
+        {p.panel === "pass" && <PassTab {...p} />}
+        {p.panel === "colours" && <ColoursTab {...p} />}
+        {p.panel === "brightness" && <BrightnessTab {...p} />}
+        {p.panel === "files" && <FilesTab view={p.view} index={p.index} onSelectEpoch={p.onSelectEpoch} />}
+        {p.panel === "sky" && <SkyTab target={p.target} position={p.position} />}
+      </div>
+    </GlassPanel>
+  );
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p className={s.hint}>{children}</p>;
+}
+
+function where(sel: [number, number] | null) {
+  return sel ? (
+    <>
+      the pixel you picked <span className="mono">({sel[0]}, {sel[1]})</span>
+    </>
+  ) : (
+    "the target at the centre"
+  );
+}
+
+function PassTab({ view, index, target, position }: DrawerProps) {
+  if (!view || view.manifest.epochs.length === 0) return <Empty>Load a target to see details for each pass.</Empty>;
+  const m = view.manifest;
+  const e = m.epochs[index] ?? m.epochs[0];
+  const flagged = Object.entries(e.flagged_px);
+  const flaggedTotal = flagged.reduce((a, [, n]) => a + n, 0);
+  return (
+    <>
+      <section className={s.section} aria-labelledby="d-target">
+        <h3 id="d-target" className={`micro ${s.sectionTitle}`}>
+          {target ? (target.kind === "motion" ? "Moving target" : "Variable target") : "Position"}
+        </h3>
+        <p className={`display ${s.name}`}>{target?.name ?? "Custom position"}</p>
+        {target && <p className={s.hint}>{target.what}</p>}
+        <dl className={s.kv}>
+          {position && (
+            <>
+              <Row k="RA" v={formatRa(position.ra)} />
+              <Row k="Dec" v={formatDec(position.dec)} />
+            </>
+          )}
+          {target?.facts.map((f) => <Row key={f.label} k={f.label} v={f.value} />)}
+        </dl>
+        {target && <p className={s.note}>Catalogue values: Gaia DR3 unless marked (lit.)</p>}
+      </section>
+      <section className={s.section} aria-labelledby="d-epoch">
+        <h3 id="d-epoch" className={`micro ${s.sectionTitle}`}>
+          This pass
+        </h3>
+        <dl className={s.kv}>
+          <Row k="Epoch" v={`${String(e.i + 1).padStart(2, "0")} / ${String(m.epochs.length).padStart(2, "0")}`} />
+          <Row k="Date" v={mjdToDate(e.t_mean_mjd)} />
+          <Row k="Frames" v={String(e.n_frames)} />
+          <Row k="Detector" v={e.detectors.map((d) => `D${d}`).join(" ")} />
+          <Row k="Wavelength" v={`λ ${e.lambda_um[0].toFixed(2)}–${e.lambda_um[1].toFixed(2)} µm`} />
+          <div className={s.row}>
+            <dt className="micro">Flagged px</dt>
+            <dd className="mono">
+              <span className={flaggedTotal ? s.flagCount : undefined}>{flaggedTotal}</span>
+              {flagged.length > 0 && <span className={s.flagList}>{flagged.map(([k, n]) => `${k} ${n}`).join(" · ")}</span>}
+            </dd>
+          </div>
+          <Row k="Release" v={m.catalog.collections.join(" + ")} />
+          {m.bandpass_matched === false && <Row k="Colours" v="not matched across passes" />}
+        </dl>
+      </section>
+      <section className={s.section} aria-labelledby="d-gaia">
+        <h3 id="d-gaia" className={`micro ${s.sectionTitle}`}>
+          Gaia match
+        </h3>
+        <div className={s.slot}>Coming soon: where Gaia says each star should be on this date.</div>
+      </section>
+    </>
+  );
+}
+
+function Row({ k, v }: { k: string; v: string }) {
+  return (
+    <div className={s.row}>
+      <dt className="micro">{k}</dt>
+      <dd className="mono">{v}</dd>
+    </div>
+  );
+}
+
+function Status({ state, what }: { state: AsyncState<unknown>; what: string }) {
+  if (state.kind === "loading") return <div className={`${s.slot} ${s.loading}`}>Measuring {what}…</div>;
+  if (state.kind === "error") return <div className={s.slot}>Could not measure {what}: {state.message}</div>;
+  return null;
+}
+
+function ColoursTab({ view, index, sel, spectrum }: DrawerProps) {
+  if (!view) return <Empty>Load a target first.</Empty>;
+  return (
+    <section className={s.section} aria-labelledby="d-spec">
+      <h3 id="d-spec" className={`micro ${s.sectionTitle}`}>
+        Spectrum · pass {index + 1}
+      </h3>
+      <p className={s.hint}>Brightness of {where(sel)} in every frame of this pass, by wavelength. Click the image to pick another spot.</p>
+      <Status state={spectrum} what="the spectrum" />
+      {spectrum.kind === "ready" &&
+        (spectrum.data.points.some((pt) => pt.flux_mjysr !== null) ? (
+          <Scatter
+            summary={`Spectrum with ${spectrum.data.points.length} points`}
+            xLabel="Wavelength (µm)"
+            yLabel="Surface brightness (MJy/sr)"
+            formatX={(v) => v.toFixed(1)}
+            formatY={(v) => v.toPrecision(3)}
+            points={spectrum.data.points
+              .filter((pt) => pt.flux_mjysr !== null)
+              .map((pt) => ({
+                x: pt.lambda_um,
+                y: pt.flux_mjysr as number,
+                xerr: pt.bw_um / 2,
+                yerr: pt.err,
+                hollow: pt.flagged,
+                title: `${pt.lambda_um.toFixed(3)} µm · D${pt.detector}`,
+              }))}
+          />
+        ) : (
+          <Saturated />
+        ))}
+    </section>
+  );
+}
+
+/** From the prototype: explain saturated cores instead of drawing an empty chart. */
+function Saturated() {
+  return (
+    <div className={s.slot}>
+      Every frame flags this pixel. Bright stars like this one saturate the SPHEREx detector, so their cores can't be measured.
+      Click a fainter star in the image to measure it instead.
+    </div>
+  );
+}
+
+function BrightnessTab({ view, sel, lightcurve, index }: DrawerProps) {
+  if (!view) return <Empty>Load a target first.</Empty>;
+  const epochs = view.manifest.epochs;
+  return (
+    <section className={s.section} aria-labelledby="d-lc">
+      <h3 id="d-lc" className={`micro ${s.sectionTitle}`}>
+        Brightness over time
+      </h3>
+      <p className={s.hint}>Aperture brightness of {where(sel)} in every frame. Hollow points include flagged pixels.</p>
+      <Status state={lightcurve} what="the light curve" />
+      {lightcurve.kind === "ready" &&
+        (lightcurve.data.points.length > 0 && lightcurve.data.points.some((pt) => !pt.flagged) ? (
+          <Scatter
+            summary={`Light curve with ${lightcurve.data.points.length} points`}
+            xLabel="Date"
+            yLabel="Flux (µJy)"
+            formatX={(v) => mjdToDate(v).slice(0, 7)}
+            formatY={(v) => (Math.abs(v) >= 1e4 ? v.toExponential(1) : v.toFixed(0))}
+            points={lightcurve.data.points.map((pt) => {
+              const ep = epochs.findIndex((e) => Math.abs(e.t_mean_mjd - pt.t_mjd) < 25);
+              return {
+                x: pt.t_mjd,
+                y: pt.flux_ujy,
+                yerr: pt.err,
+                hollow: pt.flagged,
+                active: ep === index,
+                title: `${mjdToDate(pt.t_mjd)} · ${pt.lambda_um.toFixed(2)} µm`,
+              };
+            })}
+          />
+        ) : (
+          <Saturated />
+        ))}
+    </section>
+  );
+}
+
+function FilesTab({ view, index, onSelectEpoch }: { view: LoadedView | null; index: number; onSelectEpoch: (i: number) => void }) {
+  if (!view) return <Empty>Load a target first.</Empty>;
+  const frames = view.manifest.frames;
+  return (
+    <section className={s.section} aria-labelledby="d-files">
+      <h3 id="d-files" className={`micro ${s.sectionTitle}`}>
+        {frames.length} frames used
+      </h3>
+      <div className={s.tableWrap}>
+        <table className={`${s.table} mono`}>
+          <thead>
+            <tr>
+              <th scope="col">Pass</th>
+              <th scope="col">Date</th>
+              <th scope="col">Det</th>
+              <th scope="col">λ µm</th>
+            </tr>
+          </thead>
+          <tbody>
+            {frames.map((f) => (
+              <tr key={f.obs + f.t_mjd} data-active={f.epoch === index} title={f.obs}>
+                <td>
+                  <button type="button" className={s.rowButton} onClick={() => onSelectEpoch(f.epoch)} aria-label={`Show pass ${f.epoch + 1}`}>
+                    {f.epoch + 1}
+                  </button>
+                </td>
+                <td>{mjdToDate(f.t_mjd)}</td>
+                <td>D{f.detector}</td>
+                <td>{f.lambda_um.toFixed(3)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function SkyTab({ target, position }: { target: Preset | null; position: RaDec | null }) {
+  return (
+    <section className={s.section} aria-labelledby="d-sky">
+      <h3 id="d-sky" className={`micro ${s.sectionTitle}`}>
+        Where this is on the whole sky
+      </h3>
+      <AllSkyMap targets={PRESETS} activeId={target?.id ?? null} marker={target ? null : position} compact />
+      <p className={s.hint}>Dashed line: the ecliptic, where planets and asteroids travel. Glow: the plane of the Milky Way.</p>
+    </section>
+  );
+}

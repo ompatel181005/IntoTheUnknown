@@ -1,0 +1,17 @@
+.toast {
+  position: absolute;
+  z-index: 40;
+  left: 50%;
+  bottom: calc(var(--chrome-bottom) + 4px);
+  translate: -50% 0;
+  padding: 10px 18px;
+  font-weight: 600;
+  animation: rise var(--dur) var(--ease);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    translate: -50% 8px;
+  }
+}

@@ -1,0 +1,103 @@
+.tour {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  overflow: visible;
+}
+
+.tour::backdrop {
+  background: transparent;
+}
+
+/* The spotlight: everything outside the hole is dimmed by a huge shadow. */
+.hole {
+  position: fixed;
+  border-radius: var(--radius-panel);
+  box-shadow: 0 0 0 9999px rgba(2, 3, 6, 0.74);
+  outline: 1.5px solid var(--accent);
+  outline-offset: 0;
+  pointer-events: none;
+  transition:
+    left 260ms var(--ease),
+    top 260ms var(--ease),
+    width 260ms var(--ease),
+    height 260ms var(--ease);
+}
+
+.card {
+  position: fixed;
+  padding: 18px 18px 14px;
+  border-radius: var(--radius-panel);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-float);
+  transition:
+    left 260ms var(--ease),
+    top 260ms var(--ease);
+}
+
+.count {
+  margin: 0 0 6px;
+  letter-spacing: 0.3em;
+}
+
+.title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: var(--font-display-weight);
+  letter-spacing: -0.01em;
+}
+
+.text {
+  margin: 0 0 14px;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.skip {
+  min-height: var(--target-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.skip:hover {
+  color: var(--text-1);
+}
+
+/* The tour's Next borrows the primary pill shape; it is the action on this layer. */
+.next {
+  min-height: var(--target-min);
+  min-width: 88px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.next:hover {
+  background: var(--text-1);
+}

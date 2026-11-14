@@ -1,0 +1,375 @@
+.stage {
+  position: relative;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  container-type: size;
+}
+
+/* Fixed full-viewport layer: RA/Dec grid across the sky, viewfinder, leader line. */
+.sky {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.gridLine {
+  fill: none;
+  stroke: var(--grid-line);
+  stroke-width: 1;
+}
+
+.gridLabel {
+  fill: var(--text-2);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.gridOnImage {
+  fill: none;
+  stroke: var(--grid-line-strong);
+  stroke-width: 1;
+}
+
+.ticks {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-width: 1;
+}
+
+.ringLine {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-opacity: 0.5;
+  stroke-width: 1;
+}
+
+.cardinal {
+  fill: var(--text-1);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.leader {
+  fill: var(--text-1);
+  stroke: var(--text-1);
+  stroke-opacity: 0.6;
+  stroke-width: 1;
+}
+
+.leader path {
+  fill: none;
+}
+
+/* Frame column: label row, square image, grid-label row. */
+.column {
+  --row: 40px;
+  --side: min(calc(100cqw - 170px), calc(100cqh - var(--row) * 2 - 40px));
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: var(--row) auto var(--row);
+  grid-template-columns: minmax(0, 1fr);
+  width: var(--side);
+}
+
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  padding-bottom: 20px;
+}
+
+.frame {
+  view-transition-name: aperture;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--space-1);
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: crosshair;
+  box-shadow: 0 0 0 1px var(--glass-border);
+}
+
+.canvas,
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas[data-smooth="false"] {
+  image-rendering: pixelated;
+}
+
+.overlay {
+  pointer-events: none;
+}
+
+.scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scaleBar {
+  display: inline-block;
+  height: 6px;
+  border: 1px solid var(--text-2);
+  border-top: 0;
+}
+
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.swatchNeg,
+.swatchPos {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+.swatchNeg {
+  background: var(--text-1);
+}
+
+.swatchPos {
+  background: var(--mover);
+}
+
+/* Target label at the end of the leader line, Eyes style. */
+.targetLabel {
+  position: fixed;
+  z-index: 2;
+  display: grid;
+  gap: 6px;
+  max-width: 260px;
+  translate: 0 -14px;
+  pointer-events: none;
+}
+
+.targetName {
+  font-size: 26px;
+  color: var(--text-1);
+}
+
+.targetCoords {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 12px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-2);
+}
+
+.targetCoords b {
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+.targetSub {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.sourceTag {
+  justify-self: start;
+  padding: 1px 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-1);
+}
+
+/* Home: the live orrery fills the stage under a short heading. */
+.home {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  justify-items: center;
+  gap: 4px;
+  overflow: clip;
+}
+
+.homeText {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  text-align: center;
+  max-width: 640px;
+  position: relative;
+  z-index: 1;
+}
+
+.kicker {
+  margin: 0;
+  letter-spacing: 0.3em;
+}
+
+.homeTitle {
+  margin: 0;
+  font-size: clamp(28px, 3.6vw, 46px);
+}
+
+.homeSub {
+  margin: 0 0 4px;
+  color: var(--text-2);
+  font-size: 15px;
+}
+
+.homeMap {
+  width: 100%;
+  height: 100%;
+}
+
+/* States */
+.loading {
+  position: absolute;
+  inset: 0;
+}
+
+.skeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, var(--hover-wash) 50%, transparent 70%) var(--space-1);
+  background-size: 300% 100%;
+  animation: shimmer 2.4s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+.progress {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+}
+
+.card {
+  max-width: 440px;
+  padding: 28px;
+  text-align: center;
+}
+
+.card h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.card p {
+  margin: 0 0 18px;
+  color: var(--text-2);
+}
+
+.code {
+  display: block;
+  margin-bottom: 18px;
+  font-size: 12px;
+  color: var(--flag);
+}
+
+@media (max-width: 768px) {
+  .hintText {
+    display: none;
+  }
+
+  .column {
+    --side: min(calc(100cqw - 72px), calc(100cqh - var(--row) * 2 - 40px));
+  }
+
+  .gridLabel {
+    display: none;
+  }
+
+  .homeSub {
+    font-size: 13px;
+  }
+}
+
+/* Telescope zoom: the dome swims up out of the starfield. Opacity and scale only (animated blur is slow in Firefox). */
+.zoomIn {
+  animation: telescope 750ms var(--ease-cinematic) both;
+  transform-origin: 50% 50%;
+}
+
+@keyframes telescope {
+  from {
+    opacity: 0;
+    scale: 0.2;
+  }
+}
+
+.labelIn {
+  animation: label-in 400ms var(--ease) 650ms both;
+}
+
+@keyframes label-in {
+  from {
+    opacity: 0;
+    translate: -8px -14px;
+  }
+}
+
+.frame:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+}
+
+.provenance {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--text-2);
+}
+
+/* View Transition: the clicked target ring grows into the dome. */
+:global(::view-transition-group(aperture)) {
+  animation-duration: 650ms;
+  animation-timing-function: var(--ease-cinematic);
+}
+
+:global(::view-transition-old(root)),
+:global(::view-transition-new(root)) {
+  animation-duration: 450ms;
+}
+
+/* Reduced motion: a short dissolve, no scale or travel. */
+@media (prefers-reduced-motion: reduce) {
+  .zoomIn {
+    animation: dissolve 150ms linear both !important;
+    animation-duration: 150ms !important;
+  }
+
+  @keyframes dissolve {
+    from {
+      opacity: 0;
+    }
+  }
+}
