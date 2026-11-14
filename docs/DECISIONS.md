@@ -56,3 +56,8 @@ Owner: TODO(team)
 Decision: The author squash-merges their own PR once CI is green. No second reviewer is required. Supersedes "any teammate other than the author reviews and merges" in the Git workflow entry above. PRs, short-lived branches and "never commit to main" stay.
 Why: Speed over safety for a 30-hour build. If main breaks, revert the merge via a PR first, then debug (`AGENTS.md` §11).
 Owner: dflow11
+
+## 2026-11-14 13:56 - Azure setup is scripted in infra/ and pinned to "Azure for Students"
+Decision: `infra/00-preflight.sh`, `05-oidc-test.sh`, `10-core.sh` and `20-cost-alert.sh` replace the draft runbook's first steps. Names live in `infra/env.sh` with a fixed suffix (`SUF=itu7q4`). Every script selects `AZ_SUBSCRIPTION="Azure for Students"` and aborts on any other subscription (the UIC tenant also holds the university's "UIC-ACCC-WVD"). Region choice is pending the first preflight run.
+Why: Surprises found while checking against Azure CLI 2.92.0: `az policy assignment list` defaults to `atExactScope()` and hides management-group policies, so the preflight uses `--filter "atScope()"`. Cost Management lists Azure for Students (MS-AZR-0170P) as unsupported, so the budget may need the portal fallback. `containerapp env create` changes its `--logs-destination` default in 2.93.0, so it is pinned. Students on a university tenant usually can't register apps, so GitHub OIDC probably falls back to GHCR plan B.
+Owner: ompatel181005
