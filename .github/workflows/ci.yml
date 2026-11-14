@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: has
+        run: |
+          if [ -f backend/pyproject.toml ]; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.has.outputs.run == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - if: steps.has.outputs.run == 'true'
+        working-directory: backend
+        run: |
+          pip install -e ".[dev]"
+          ruff check .
+          ruff format --check .
+          pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: has
+        run: |
+          if [ -f frontend/package.json ]; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.has.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - if: steps.has.outputs.run == 'true'
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+
+  functions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: has
+        run: |
+          if ls functions/*.py >/dev/null 2>&1 || [ -f functions/host.json ]; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.has.outputs.run == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - if: steps.has.outputs.run == 'true'
+        working-directory: functions
+        run: |
+          pip install ruff
+          ruff check .
