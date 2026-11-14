@@ -28,6 +28,39 @@ export interface Target {
   band: Band;
 }
 
+export interface CatalogSource {
+  kind: "local" | "azure_blob";
+  uri: string;
+}
+
+export interface CatalogProvenance {
+  catalog: string;
+  ref: string;
+}
+
+export interface CatalogObject {
+  id: string;
+  name: string;
+  kind: "target" | "star" | "brown_dwarf" | "variable" | (string & {});
+  ra_deg: number;
+  dec_deg: number;
+  ref_epoch: number;
+  parallax_mas: number | null;
+  parallax_err_mas: number | null;
+  distance_pc: number | null;
+  pmra_mas_yr: number | null;
+  pmdec_mas_yr: number | null;
+  preset_id: string | null;
+  provenance: CatalogProvenance;
+}
+
+export interface Catalog {
+  version: string;
+  generated_at: string;
+  source: CatalogSource;
+  objects: CatalogObject[];
+}
+
 /** auto: saved cutouts when available, else live IRSA. saved: bundled cutouts only. live: always IRSA. */
 export type DataSource = "auto" | "saved" | "live";
 

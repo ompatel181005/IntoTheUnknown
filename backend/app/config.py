@@ -10,6 +10,10 @@ IRSA_TIMEOUT_S = int(os.environ.get("IRSA_TIMEOUT_S", "120"))
 CUTOUT_MAX_WORKERS = int(os.environ.get("CUTOUT_MAX_WORKERS", "10"))
 MAX_RENDER_JOBS = int(os.environ.get("MAX_RENDER_JOBS", "2"))
 MAX_FRAMES_PER_VIEW = int(os.environ.get("MAX_FRAMES_PER_VIEW", "300"))
+CATALOG_STORE = os.environ.get("CATALOG_STORE", "local").strip().lower()
+CATALOG_BLOB_URL = os.environ.get("CATALOG_BLOB_URL", "").strip()
+CATALOG_BLOB_TIMEOUT_S = float(os.environ.get("CATALOG_BLOB_TIMEOUT_S", "10"))
+CATALOG_CACHE_TTL_S = float(os.environ.get("CATALOG_CACHE_TTL_S", "60"))
 # DECISIONS 2026-11-14 13:40 drops epochs under 10 frames. The demo pack holds ~50 cutouts per target over all
 # detectors (R Dra: 2 per visit), so the demo path keeps any epoch with 2+ frames until golden capture has full sets.
 MIN_EPOCH_FRAMES_LIVE = int(os.environ.get("MIN_EPOCH_FRAMES", "10"))

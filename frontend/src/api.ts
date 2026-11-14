@@ -1,5 +1,5 @@
 // Client for the backend contract in docs/PLAN.md section 4.3. No mock data here.
-import type { Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus } from "./types";
+import type { Catalog, Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus } from "./types";
 
 export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
@@ -42,6 +42,11 @@ export function getHealth(signal?: AbortSignal): Promise<Health> {
 
 export function getTargets(signal?: AbortSignal): Promise<Target[]> {
   return request("/api/targets", { signal }).then((r) => json<Target[]>(r));
+}
+
+export function getCatalog(setName = "targets", signal?: AbortSignal): Promise<Catalog> {
+  const query = new URLSearchParams({ set: setName });
+  return request(`/api/catalog?${query}`, { signal }).then((r) => json<Catalog>(r));
 }
 
 /** Per-frame values at one grid pixel for one epoch (x, y in FITS orientation, row 0 = south). */

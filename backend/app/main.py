@@ -8,9 +8,11 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import ValidationError
 
 from . import config
-from .models import Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus
+from .catalog import CatalogLoadError, CatalogNotFound, get_catalog_store
+from .models import Catalog, Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus
 from .processing import views
 from .targets import TARGETS
 
@@ -49,6 +51,22 @@ def health():
 @app.get("/api/targets", response_model=list[Target])
 def targets():
     return TARGETS
+
+
+@app.get("/api/catalog", response_model=Catalog)
+def catalog(set_name: str = Query("targets", alias="set")):
+    try:
+        document = get_catalog_store().load(set_name)
+        return Catalog.model_validate(document)
+    except CatalogNotFound:
+        return not_found("UNKNOWN_CATALOG_SET", f"Catalog set '{set_name}' is not available.")
+    except (CatalogLoadError, ValidationError) as exc:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": {"code": "CATALOG_UNAVAILABLE", "message": f"Catalog set '{set_name}' is invalid: {exc}"}
+            },
+        )
 
 
 @app.post("/api/views", response_model=ViewCreated, status_code=202)

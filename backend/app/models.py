@@ -1,5 +1,6 @@
 """API contract (docs/PLAN.md 4.3). Mirrored by frontend/src/types.ts; change both together."""
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -16,6 +17,39 @@ class Health(BaseModel):
     version: str
     irsa: Literal["up", "degraded", "down"]
     catalog_version: str
+
+
+class CatalogSource(BaseModel):
+    kind: Literal["local", "azure_blob"]
+    uri: str
+
+
+class CatalogProvenance(BaseModel):
+    catalog: str
+    ref: str
+
+
+class CatalogObject(BaseModel):
+    id: str
+    name: str
+    kind: str
+    ra_deg: float = Field(ge=0, lt=360)
+    dec_deg: float = Field(ge=-90, le=90)
+    ref_epoch: float
+    parallax_mas: float | None = Field(default=None, gt=0)
+    parallax_err_mas: float | None = Field(default=None, ge=0)
+    distance_pc: float | None = Field(default=None, gt=0)
+    pmra_mas_yr: float | None = None
+    pmdec_mas_yr: float | None = None
+    preset_id: str | None = None
+    provenance: CatalogProvenance
+
+
+class Catalog(BaseModel):
+    version: str
+    generated_at: datetime
+    source: CatalogSource
+    objects: list[CatalogObject]
 
 
 class Target(BaseModel):
