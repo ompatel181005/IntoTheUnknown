@@ -1,5 +1,14 @@
-import { useEffect, useRef } from "react";
-import { setFlightFocus } from "../../lib/flight";
+import { useEffect, useRef, useState } from "react";
+import {
+  finishReturnFlight,
+  getHomeCamera,
+  getReturnFlight,
+  saveHomeCamera,
+  saveTargetCommit,
+  setFlightFocus,
+  startTargetFlight,
+  type OrreryCameraState,
+} from "../../lib/flight";
 import { centuries, PLANETS, position, raDecToEcliptic, skyStars, type Vec3 } from "../../lib/orbits";
 import { galacticToEq } from "../../lib/sky";
 import { tokenRgb } from "../../lib/stretch";
@@ -13,6 +22,8 @@ interface OrreryProps {
   /** Called near the end of the flight (or at once under reduced motion) to open the target.
    *  `from` is the clicked marker's position on screen, so the dome can grow out of it. */
   onPick: (p: Preset, from: { x: number; y: number } | null) => void;
+  /** Called after a reverse flight has restored the whole-sky camera. */
+  onFlightEnd?: () => void;
 }
 
 /** One continuous flight: turn toward the target, then hand off to the dome while still moving. */
@@ -32,23 +43,63 @@ function scale(v: Vec3): Vec3 {
 
 const rgba = (c: [number, number, number], a: number) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
+function buildScene(targets: readonly Preset[]) {
+  const T = centuries(new Date());
+  const onSky = (ra: number, dec: number): Vec3 => {
+    const u = raDecToEcliptic(ra, dec);
+    return [u[0] * SKY_R, u[1] * SKY_R, u[2] * SKY_R];
+  };
+  return {
+    key: targets.map((target) => `${target.id}:${target.ra}:${target.dec}`).join("|"),
+    orbits: PLANETS.map((planet) => Array.from({ length: 129 }, (_, k) => scale(position(planet, T, (k / 128) * Math.PI * 2)))),
+    planets: PLANETS.map((planet) => ({ name: planet.name, pos: scale(position(planet, T)) })),
+    ecliptic: Array.from({ length: 97 }, (_, k): Vec3 => {
+      const angle = (k / 96) * Math.PI * 2;
+      return [Math.cos(angle) * SKY_R, Math.sin(angle) * SKY_R, 0];
+    }),
+    galaxy: Array.from({ length: 145 }, (_, k) => {
+      const point = galacticToEq((k / 144) * 360, 0);
+      return { p: onSky(point.ra, point.dec), w: 0.35 + 0.65 * Math.max(0, Math.cos(((k / 144) * 360 * Math.PI) / 180)) ** 2 };
+    }),
+    sights: targets.map((target) => onSky(target.ra, target.dec)),
+    backgroundStars: skyStars(1500, SKY_R * 1.8),
+  };
+}
+
+let sceneCache: ReturnType<typeof buildScene> | null = null;
+
+function getScene(targets: readonly Preset[]) {
+  const key = targets.map((target) => `${target.id}:${target.ra}:${target.dec}`).join("|");
+  if (!sceneCache || sceneCache.key !== key) sceneCache = buildScene(targets);
+  return sceneCache;
+}
+
 /**
  * Home view: a live orrery in a fixed celestial sky. Planets sit at today's positions (approximate),
  * SPHEREx rides with Earth, and the five targets hang in their real sky directions. Drag to turn it.
  */
-export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
+export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const markerRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const clockRef = useRef<HTMLSpanElement>(null);
-  const cam = useRef({ yaw: -0.6, pitch: 1.05, dist: 3.2, fade: 1 });
-  const fly = useRef<{ start: number; from: typeof cam.current; to: { yaw: number; pitch: number }; p: Preset; k: number } | null>(null);
+  const [returnFlight] = useState(getReturnFlight);
+  const cam = useRef<OrreryCameraState>(returnFlight?.from ?? getHomeCamera());
+  const fly = useRef<
+    | { mode: "forward"; start: number; from: OrreryCameraState; to: { yaw: number; pitch: number }; p: Preset; k: number }
+    | { mode: "return"; start: number; from: OrreryCameraState; to: OrreryCameraState; targetId: string | null; k: number }
+    | null
+  >(null);
   const onPickRef = useRef(onPick);
+  const onFlightEndRef = useRef(onFlightEnd);
   /** Pause the slow spin while a target is hovered or focused, so it holds still to be clicked. */
   const holdRef = useRef(false);
   useEffect(() => {
     onPickRef.current = onPick;
   }, [onPick]);
+  useEffect(() => {
+    onFlightEndRef.current = onFlightEnd;
+  }, [onFlightEnd]);
 
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -61,27 +112,27 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
     const accent = tokenRgb("--accent");
     const text2 = tokenRgb("--text-2");
     const planetColor = PLANETS.map((p) => tokenRgb(`--planet-${p.name.toLowerCase()}`));
-    const T = centuries(new Date());
     // Lower resolution on small machines keeps the loop under a frame budget.
     const dprCap = (navigator.hardwareConcurrency || 8) <= 4 ? 1.25 : 2;
 
-    // Static geometry, built once.
-    const orbits = PLANETS.map((p) => Array.from({ length: 129 }, (_, k) => scale(position(p, T, (k / 128) * Math.PI * 2))));
-    const planets = PLANETS.map((p) => ({ name: p.name, pos: scale(position(p, T)) }));
-    const onSky = (ra: number, dec: number): Vec3 => {
-      const u = raDecToEcliptic(ra, dec);
-      return [u[0] * SKY_R, u[1] * SKY_R, u[2] * SKY_R];
-    };
-    const ecliptic = Array.from({ length: 97 }, (_, k): Vec3 => {
-      const a = (k / 96) * Math.PI * 2;
-      return [Math.cos(a) * SKY_R, Math.sin(a) * SKY_R, 0];
-    });
-    const galaxy = Array.from({ length: 145 }, (_, k) => {
-      const q = galacticToEq((k / 144) * 360, 0);
-      return { p: onSky(q.ra, q.dec), w: 0.35 + 0.65 * Math.max(0, Math.cos(((k / 144) * 360 * Math.PI) / 180)) ** 2 };
-    });
-    const sights = targets.map((t) => onSky(t.ra, t.dec));
-    const backgroundStars = skyStars(1500, SKY_R * 1.8);
+    const { orbits, planets, ecliptic, galaxy, sights, backgroundStars } = getScene(targets);
+    const returning = returnFlight;
+    if (returning) {
+      if (reduce) {
+        cam.current = { ...returning.to };
+        finishReturnFlight(cam.current);
+        queueMicrotask(() => onFlightEndRef.current?.());
+      } else {
+        fly.current = {
+          mode: "return",
+          start: -1,
+          from: { ...returning.from },
+          to: { ...returning.to },
+          targetId: returning.targetId,
+          k: returning.targetId ? targets.findIndex((target) => target.id === returning.targetId) : -1,
+        };
+      }
+    }
 
     let w = 0;
     let h = 0;
@@ -151,25 +202,41 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
         if (f.start < 0) f.start = now;
         const t = Math.min(1, (now - f.start) / FLY_MS);
         const e = cinematic(t);
-        // Turn first (done by ~70% of the flight) so the star is centred when the dome takes over.
-        const turn = cinematic(Math.min(1, t / 0.7));
-        c.yaw = f.from.yaw + (f.to.yaw - f.from.yaw) * turn;
-        c.pitch = f.from.pitch + (f.to.pitch - f.from.pitch) * turn;
-        c.dist = f.from.dist + (0.15 - f.from.dist) * e ** 1.6;
-        c.fade = 1 - e * 0.85;
-        // The starfield warps toward wherever the chosen star is right now.
-        const q = project(sights[f.k], c);
-        setFlightFocus(wrapRect.left + q.x, wrapRect.top + q.y);
-        if (t >= COMMIT_AT) {
-          fly.current = null;
-          // The dome grows out of the clicked ring's current position.
-          const r = markerRefs.current[f.k]?.querySelector("span")?.getBoundingClientRect();
-          onPickRef.current(f.p, r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null);
-          return; // the view takes over
+        if (f.mode === "forward") {
+          // Turn first (done by ~70% of the flight) so the star is centred when the dome takes over.
+          const turn = cinematic(Math.min(1, t / 0.7));
+          c.yaw = f.from.yaw + (f.to.yaw - f.from.yaw) * turn;
+          c.pitch = f.from.pitch + (f.to.pitch - f.from.pitch) * turn;
+          c.dist = f.from.dist + (0.15 - f.from.dist) * e ** 1.6;
+          c.fade = 1 - e * 0.85;
+          const q = project(sights[f.k], c);
+          setFlightFocus(wrapRect.left + q.x, wrapRect.top + q.y);
+          saveTargetCommit(f.p.id, c);
+          if (t >= COMMIT_AT) {
+            fly.current = null;
+            const r = markerRefs.current[f.k]?.querySelector("span")?.getBoundingClientRect();
+            onPickRef.current(f.p, r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null);
+            return;
+          }
+        } else {
+          c.yaw = f.from.yaw + (f.to.yaw - f.from.yaw) * e;
+          c.pitch = f.from.pitch + (f.to.pitch - f.from.pitch) * e;
+          c.dist = f.from.dist + (f.to.dist - f.from.dist) * e;
+          c.fade = f.from.fade + (1 - f.from.fade) * e;
+          if (f.k >= 0) {
+            const q = project(sights[f.k], c);
+            setFlightFocus(wrapRect.left + q.x, wrapRect.top + q.y);
+          }
+          if (t >= 1) {
+            fly.current = null;
+            finishReturnFlight(c);
+            onFlightEndRef.current?.();
+          }
         }
         dirty = true;
       } else if (!reduce && !dragging && !holdRef.current) {
         c.yaw += dt * 0.05;
+        saveHomeCamera(c);
         dirty = true;
       }
       if (!dirty) {
@@ -246,7 +313,7 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
       ctx.arc(sp.x, sp.y, 26, 0, Math.PI * 2);
       ctx.fill();
       // Eyes-style planet labels: a ring in the planet's colour, uppercase name with wide tracking.
-      ctx.font = "600 11px Inter, system-ui, sans-serif";
+      ctx.font = "600 11px 'Manrope Variable', Manrope, system-ui, sans-serif";
       ctx.textBaseline = "middle";
       planets.forEach((p, k) => {
         const q = project(p.pos, c);
@@ -301,6 +368,7 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
       if (!dragging || fly.current) return;
       cam.current.yaw += (e.clientX - px) * 0.006;
       cam.current.pitch = Math.min(1.5, Math.max(0.15, cam.current.pitch + (e.clientY - py) * 0.004));
+      saveHomeCamera(cam.current);
       dirty = true;
       px = e.clientX;
       py = e.clientY;
@@ -321,7 +389,7 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
       wrap.removeEventListener("pointerup", up);
       wrap.removeEventListener("pointercancel", up);
     };
-  }, [targets]);
+  }, [returnFlight, targets]);
 
   const pick = (p: Preset, k: number) => {
     if (fly.current) return;
@@ -332,15 +400,16 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
     // Camera space: the view looks along +y. Put the target straight ahead (x = 0, z = 0, y > 0).
     const v = raDecToEcliptic(p.ra, p.dec);
     const c = cam.current;
+    startTargetFlight(p.id, c);
     let yaw = Math.atan2(v[0], v[1]);
     while (yaw - c.yaw > Math.PI) yaw -= 2 * Math.PI;
     while (c.yaw - yaw > Math.PI) yaw += 2 * Math.PI;
     const pitch = Math.atan2(-v[2], Math.hypot(v[0], v[1]));
-    fly.current = { start: -1, from: { ...c }, to: { yaw, pitch }, p, k }; // the next frame stamps the start
+    fly.current = { mode: "forward", start: -1, from: { ...c }, to: { yaw, pitch }, p, k }; // the next frame stamps the start
   };
 
   return (
-    <div ref={wrapRef} className={s.orrery} aria-label="The solar system today, with the five targets on the sky around it">
+    <div ref={wrapRef} className={s.orrery} aria-label="Solar system and sky targets">
       <canvas ref={canvasRef} className={s.canvas} aria-hidden="true" />
       {targets.map((t, k) => (
         <button
@@ -368,12 +437,11 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
       <p className={`${s.hud} mono`}>
         <span className={s.live}>
           <span className={s.liveDot} aria-hidden="true" />
-          SKY CONTEXT
+          Sky context
         </span>
         <span>
-          UTC NOW <span ref={clockRef} />
+          UTC now <span ref={clockRef} />
         </span>
-        <span className={s.hudNote}>Planet positions approximate · distances compressed · drag to turn</span>
       </p>
     </div>
   );

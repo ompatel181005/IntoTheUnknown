@@ -44,10 +44,20 @@ export function Drawer(p: DrawerProps) {
   }, []);
   const panelId = `drawer-panel-${p.panel}`;
   return (
-    <GlassPanel strong id={DRAWER_ID} className={s.drawer} role="dialog" aria-modal="false" aria-label="Details and measurements" data-tour="details">
+    <GlassPanel
+      strong
+      id={DRAWER_ID}
+      className={s.drawer}
+      role="dialog"
+      aria-modal="false"
+      aria-label="Details"
+      data-tour="details"
+      data-flight-hide
+      style={{ ["--flight-hide-x" as string]: "32px" }}
+    >
       <div className={s.head} ref={tabsRef}>
         <Tabs label="Details" value={p.panel} onChange={p.onPanel} tabs={TABS.map((t) => ({ ...t, panelId }))} />
-        <GlassButton variant="ghost" icon="close" label="Close (Esc)" onClick={p.onClose} />
+        <GlassButton variant="ghost" icon="close" label="Close details" onClick={p.onClose} />
       </div>
       <div className={s.body} id={panelId} role="tabpanel" aria-labelledby={`tab-${p.panel}`}>
         {p.panel === "pass" && <PassTab {...p} />}
@@ -75,7 +85,7 @@ function where(sel: [number, number] | null) {
 }
 
 function PassTab({ view, index, target, position }: DrawerProps) {
-  if (!view || view.manifest.epochs.length === 0) return <Empty>Load a target to see details for each pass.</Empty>;
+  if (!view || view.manifest.epochs.length === 0) return <Empty>Pick a target to see pass details.</Empty>;
   const m = view.manifest;
   const e = m.epochs[index] ?? m.epochs[0];
   const flagged = Object.entries(e.flagged_px);
@@ -97,7 +107,7 @@ function PassTab({ view, index, target, position }: DrawerProps) {
           )}
           {target?.facts.map((f) => <Row key={f.label} k={f.label} v={f.value} />)}
         </dl>
-        {target && <p className={s.note}>Catalogue values: Gaia DR3 unless marked (lit.)</p>}
+        {target && <p className={s.note}>Gaia DR3; (lit.) marks literature values.</p>}
       </section>
       <section className={s.section} aria-labelledby="d-epoch">
         <h3 id="d-epoch" className={`micro ${s.sectionTitle}`}>
@@ -120,12 +130,6 @@ function PassTab({ view, index, target, position }: DrawerProps) {
           {m.bandpass_matched === false && <Row k="Colours" v="not matched across passes" />}
         </dl>
       </section>
-      <section className={s.section} aria-labelledby="d-gaia">
-        <h3 id="d-gaia" className={`micro ${s.sectionTitle}`}>
-          Gaia match
-        </h3>
-        <div className={s.slot}>Coming soon: where Gaia says each star should be on this date.</div>
-      </section>
     </>
   );
 }
@@ -141,7 +145,7 @@ function Row({ k, v }: { k: string; v: string }) {
 
 function Status({ state, what }: { state: AsyncState<unknown>; what: string }) {
   if (state.kind === "loading") return <div className={`${s.slot} ${s.loading}`}>Measuring {what}…</div>;
-  if (state.kind === "error") return <div className={s.slot}>Could not measure {what}: {state.message}</div>;
+  if (state.kind === "error") return <div className={s.slot}>Could not measure {what}. Pick another pixel or try again.</div>;
   return null;
 }
 
@@ -152,7 +156,7 @@ function ColoursTab({ view, index, sel, spectrum }: DrawerProps) {
       <h3 id="d-spec" className={`micro ${s.sectionTitle}`}>
         Spectrum · pass {index + 1}
       </h3>
-      <p className={s.hint}>Brightness of {where(sel)} in every frame of this pass, by wavelength. Click the image to pick another spot.</p>
+      <p className={s.hint}>Brightness of {where(sel)} by wavelength. Click the image to change it.</p>
       <Status state={spectrum} what="the spectrum" />
       {spectrum.kind === "ready" &&
         (spectrum.data.points.some((pt) => pt.flux_mjysr !== null) ? (
@@ -182,12 +186,7 @@ function ColoursTab({ view, index, sel, spectrum }: DrawerProps) {
 
 /** From the prototype: explain saturated cores instead of drawing an empty chart. */
 function Saturated() {
-  return (
-    <div className={s.slot}>
-      Every frame flags this pixel. Bright stars like this one saturate the SPHEREx detector, so their cores can't be measured.
-      Click a fainter star in the image to measure it instead.
-    </div>
-  );
+  return <div className={s.slot}>This pixel is saturated. Pick a fainter star.</div>;
 }
 
 function BrightnessTab({ view, sel, lightcurve, index }: DrawerProps) {
@@ -198,7 +197,7 @@ function BrightnessTab({ view, sel, lightcurve, index }: DrawerProps) {
       <h3 id="d-lc" className={`micro ${s.sectionTitle}`}>
         Brightness over time
       </h3>
-      <p className={s.hint}>Aperture brightness of {where(sel)} in every frame. Hollow points include flagged pixels.</p>
+      <p className={s.hint}>Brightness of {where(sel)}. Hollow points are flagged.</p>
       <Status state={lightcurve} what="the light curve" />
       {lightcurve.kind === "ready" &&
         (lightcurve.data.points.length > 0 && lightcurve.data.points.some((pt) => !pt.flagged) ? (
@@ -269,10 +268,10 @@ function SkyTab({ target, position }: { target: Preset | null; position: RaDec |
   return (
     <section className={s.section} aria-labelledby="d-sky">
       <h3 id="d-sky" className={`micro ${s.sectionTitle}`}>
-        Where this is on the whole sky
+        Whole-sky position
       </h3>
       <AllSkyMap targets={PRESETS} activeId={target?.id ?? null} marker={target ? null : position} compact />
-      <p className={s.hint}>Dashed line: the ecliptic, where planets and asteroids travel. Glow: the plane of the Milky Way.</p>
+      <p className={s.hint}>Dashed: ecliptic. Glow: Milky Way.</p>
     </section>
   );
 }

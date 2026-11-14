@@ -32,7 +32,7 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
     return await fetch(`${API_BASE}${path}`, init);
   } catch (e) {
     if ((e as Error).name === "AbortError") throw e;
-    throw new ApiRequestError("NETWORK", "Could not reach the server. Check your connection and try again.");
+    throw new ApiRequestError("NETWORK", "Could not connect. Check your connection and try again.");
   }
 }
 
@@ -77,8 +77,8 @@ export async function fetchAsset(url: string, signal?: AbortSignal): Promise<Res
     res = await fetch(full, { signal });
   } catch (e) {
     if ((e as Error).name === "AbortError") throw e;
-    throw new ApiRequestError("NETWORK", "Could not download the images. Check your connection and try again.");
+    throw new ApiRequestError("NETWORK", "Could not download images. Check your connection and try again.");
   }
-  if (!res.ok) throw new ApiRequestError(`HTTP_${res.status}`, `An image file is missing (${res.status}).`);
+  if (!res.ok) throw new ApiRequestError(`HTTP_${res.status}`, `An image is missing (${res.status}). Try again later.`);
   return res;
 }

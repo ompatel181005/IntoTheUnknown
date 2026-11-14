@@ -20,7 +20,7 @@ interface TopBarProps {
 export function TopBar(props: TopBarProps) {
   return (
     <header className={s.bar}>
-      <button type="button" className={s.brand} onClick={props.onHome} title="Back to the whole sky">
+      <button type="button" className={s.brand} onClick={props.onHome} title="Whole sky">
         <Mark />
         <span className={s.name}>{APP_NAME}</span>
         {props.crumb && (
@@ -33,16 +33,13 @@ export function TopBar(props: TopBarProps) {
         <TargetSearch onPreset={props.onPreset} onCoords={props.onCoords} />
       </GlassPanel>
       <GlassPanel pill className={s.end} data-tour="help">
-        <GlassButton variant="ghost" icon="tour" onClick={props.onTour} title="A one-minute tour of the screen">
-          <span className={s.shareLabel}>Tour</span>
-        </GlassButton>
-        <GlassButton variant="ghost" icon="help" label="Guide and keyboard shortcuts (?)" onClick={props.onGuide} />
+        <GlassButton variant="ghost" icon="help" label="Guide" onClick={props.onGuide} />
         <GlassButton
           variant="ghost"
           icon="share"
           onClick={props.onShare}
           disabled={props.shareDisabled}
-          title={props.shareDisabled ? "Pick a target first" : "Copy a link to this view"}
+          title={props.shareDisabled ? "Pick a target" : "Share link"}
         >
           <span className={s.shareLabel}>Share</span>
         </GlassButton>
@@ -108,7 +105,7 @@ function TargetSearch({ onPreset, onCoords }: Pick<TopBarProps, "onPreset" | "on
     <div className={s.search} role="search" data-tour="targets">
       <label className={s.field}>
         <Icon name="search" size={16} />
-        <span className="sr-only">Target name or RA, Dec</span>
+        <span className="sr-only">Search targets</span>
         <input
           className={s.input}
           value={text}
@@ -123,7 +120,7 @@ function TargetSearch({ onPreset, onCoords }: Pick<TopBarProps, "onPreset" | "on
           }}
           onBlur={() => setOpen(false)}
           onKeyDown={onKeyDown}
-          placeholder="Search a star, or enter RA, Dec"
+          placeholder="Search name or RA, Dec"
           autoComplete="off"
           spellCheck={false}
           enterKeyHint="search"
@@ -135,7 +132,7 @@ function TargetSearch({ onPreset, onCoords }: Pick<TopBarProps, "onPreset" | "on
         />
       </label>
       {open && (
-        <div id={listboxId} className={s.results} role="listbox" aria-label="Target search suggestions">
+        <div id={listboxId} className={s.results} role="listbox" aria-label="Suggestions">
           {options.length ? (
             options.map((option, index) => (
               <div
@@ -165,7 +162,7 @@ function TargetSearch({ onPreset, onCoords }: Pick<TopBarProps, "onPreset" | "on
             ))
           ) : (
             <div className={`${s.option} ${s.noMatch}`} role="option" aria-selected="false" aria-disabled="true">
-              No match. Try a target name or RA, Dec like 269.45, 4.77
+              No match. Try a name or RA, Dec.
             </div>
           )}
         </div>

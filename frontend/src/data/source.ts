@@ -89,10 +89,10 @@ export const apiSource: ViewSource = {
     let manifestUrl = created.manifest_url;
     const fromCache = created.status === "ready";
     while (!manifestUrl) {
-      if (!created.status_url) throw new ApiRequestError("BAD_RESPONSE", "The server did not say where to check progress.");
+      if (!created.status_url) throw new ApiRequestError("BAD_RESPONSE", "Could not track progress. Try again.");
       await wait(POLL_MS, signal);
       const s = await getViewStatus(created.status_url, signal);
-      if (s.status === "error") throw new ApiRequestError(s.error?.code ?? "ERROR", s.error?.message ?? "The view could not be built.");
+      if (s.status === "error") throw new ApiRequestError(s.error?.code ?? "ERROR", s.error?.message ?? "Could not build this view. Try again.");
       onProgress({ stage: s.status, done: s.progress?.done, total: s.progress?.total });
       if (s.status === "ready") manifestUrl = s.manifest_url;
     }

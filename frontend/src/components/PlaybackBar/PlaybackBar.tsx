@@ -41,7 +41,7 @@ export function PlaybackBar(p: PlaybackBarProps) {
   const n = ready ? p.epochs.length : 4;
   const tOf = (i: number) => (n === 1 ? 0.5 : i / (n - 1));
   const knob = ready ? arc(tOf(p.index)) : null;
-  const stateText = p.loading ? "LOADING" : !ready ? "NO TARGET" : !multi ? "ONE PASS" : p.playing ? "PLAYING" : "PAUSED";
+  const stateText = p.loading ? "Loading" : !ready ? "No target" : !multi ? "One pass" : p.playing ? "Playing" : "Paused";
 
   return (
     <div className={s.dock} data-tour="time">
@@ -56,7 +56,7 @@ export function PlaybackBar(p: PlaybackBarProps) {
               onClick={p.onToggle}
               disabled={!p.canPlay}
               aria-label={p.playing ? "Pause" : "Play"}
-              title={!p.canPlay ? (ready ? "Needs two or more passes" : "Pick a target first") : "Play or pause (Space)"}
+              title={!p.canPlay ? (ready ? "Needs at least two passes" : "Pick a target") : "Play or pause (Space)"}
               data-tour="play"
             >
               <Icon name={p.playing ? "pause" : "play"} size={20} />
@@ -68,7 +68,7 @@ export function PlaybackBar(p: PlaybackBarProps) {
             {stateText}
           </span>
           <span className={`mono ${s.epoch}`}>
-            PASS {e ? pad2(e.i + 1) : "--"} / {ready ? pad2(p.epochs.length) : "--"}
+            Pass {e ? pad2(e.i + 1) : "--"} / {ready ? pad2(p.epochs.length) : "--"}
           </span>
           <GlassButton
             variant="ghost"
@@ -101,7 +101,7 @@ export function PlaybackBar(p: PlaybackBarProps) {
                     data-out={ready && !placeholder && !p.sequence.includes(i)}
                     disabled={placeholder}
                     aria-label={ep ? `Pass ${i + 1}, ${ep.label}` : `Pass ${i + 1}`}
-                    title={placeholder ? (ready ? undefined : "Pick a target first") : undefined}
+                    title={placeholder ? (ready ? undefined : "Pick a target") : undefined}
                     onClick={() => p.onSeek(i)}
                   >
                     <span className={s.dot} />
@@ -126,8 +126,8 @@ export function PlaybackBar(p: PlaybackBarProps) {
 }
 
 function titleFor(ready: boolean, multi: boolean) {
-  if (!ready) return "Pick a target first";
-  if (!multi) return "Only one pass so far";
+  if (!ready) return "Pick a target";
+  if (!multi) return "Needs at least two passes";
   return undefined;
 }
 
@@ -141,7 +141,7 @@ function Crescent() {
 }
 
 function ModeSwitch({ mode, multi, ready, onMode }: { mode: ViewMode; multi: boolean; ready: boolean; onMode: (m: ViewMode) => void }) {
-  const why = ready ? "Needs two or more passes" : "Pick a target first";
+  const why = ready ? "Needs at least two passes" : "Pick a target";
   return (
     <GlassPanel pill className={s.modes} data-tour="modes">
       <Segmented
@@ -150,10 +150,10 @@ function ModeSwitch({ mode, multi, ready, onMode }: { mode: ViewMode; multi: boo
         onChange={onMode}
         className={s.segmented}
         options={[
-          { value: "all", label: "Play all", disabled: !ready, title: ready ? "Every pass in order" : why },
-          { value: "blink", label: "Blink", disabled: !multi, title: multi ? "Flip between two passes (B)" : why },
-          { value: "diff", label: "Difference", disabled: !multi, title: multi ? "Each pass minus the reference (D)" : why },
-          { value: "inspect", label: "Investigate", disabled: !ready, title: ready ? "Open measurements for this pass" : why },
+          { value: "all", label: "Play all", disabled: !ready, title: ready ? "Play every pass" : why },
+          { value: "blink", label: "Blink", disabled: !multi, title: multi ? "Alternate two passes (B)" : why },
+          { value: "diff", label: "Difference", disabled: !multi, title: multi ? "Compare with the reference pass (D)" : why },
+          { value: "inspect", label: "Investigate", disabled: !ready, title: ready ? "Open measurements" : why },
         ]}
       />
     </GlassPanel>

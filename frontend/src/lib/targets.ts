@@ -27,10 +27,10 @@ export interface Preset {
 export const PRESETS: readonly Preset[] = [
   {
     id: "barnard", name: "Barnard's Star", short: "Barnard", kind: "motion", ra: 269.44627, dec: 4.7682, fov: 6, band: "B1-B2",
-    tagline: "Fastest-moving star in the sky",
+    tagline: "Fast-moving nearby red dwarf",
     aliases: ["barnard star", "fastest-moving star"],
-    what: "Nearest single red dwarf and the fastest-moving star on the sky.",
-    watch: "Slides about 1.7 pixels north per year.",
+    what: "Nearby red dwarf with the sky's highest proper motion.",
+    watch: "Moves north between passes.",
     facts: [
       { label: "Motion", value: "10.39″/yr · PA 356°" },
       { label: "Parallax", value: "547.0 mas" },
@@ -39,10 +39,10 @@ export const PRESETS: readonly Preset[] = [
   },
   {
     id: "eps-ind-b", name: "Epsilon Indi B", short: "ε Indi B", kind: "motion", ra: 331.09665, dec: -56.80066, fov: 6, band: "auto",
-    tagline: "Nearby pair of cool brown dwarfs",
+    tagline: "Nearby brown dwarf pair",
     aliases: ["eps indi b", "eps indi", "epsilon indi", "brown dwarf"],
     what: "A pair of T-type brown dwarfs orbiting ε Indi A.",
-    watch: "Moves about 0.8 pixels per year toward the east-southeast.",
+    watch: "Moves east-southeast between passes.",
     facts: [
       { label: "Motion", value: "4.68″/yr · PA 122°" },
       { label: "Parallax", value: "270.7 mas" },
@@ -53,8 +53,8 @@ export const PRESETS: readonly Preset[] = [
     id: "wise-0855", name: "WISE 0855-0714", short: "WISE 0855", kind: "motion", ra: 133.7599, dec: -7.2422, fov: 6, band: "B6",
     tagline: "Coldest known brown dwarf",
     aliases: ["wise 0855", "brown dwarf", "coldest brown dwarf"],
-    what: "The coldest known brown dwarf. Not in Gaia.",
-    watch: "Only visible at 4 to 5 µm. Moves about 1.3 pixels west per year.",
+    what: "Cold brown dwarf not detected by Gaia.",
+    watch: "Brightest at 4 to 5 µm; moves west between passes.",
     facts: [
       { label: "Motion", value: "≈8.15″/yr · PA 275° (lit.)" },
       { label: "Parallax", value: "≈439 mas (lit.)" },
@@ -63,10 +63,10 @@ export const PRESETS: readonly Preset[] = [
   },
   {
     id: "rw-aur", name: "RW Aurigae", short: "RW Aur", kind: "variability", ra: 76.95608, dec: 30.40113, fov: 6, band: "auto",
-    tagline: "Young star with unpredictable dimming",
+    tagline: "Young variable star",
     aliases: ["rw aur", "t tauri", "variable star"],
     what: "A young T Tauri star with a dusty disc.",
-    watch: "Irregular dimming between passes.",
+    watch: "Watch for irregular dimming.",
     facts: [
       { label: "Motion", value: "0.03″/yr (static)" },
       { label: "Parallax", value: "6.4 mas" },
@@ -75,10 +75,10 @@ export const PRESETS: readonly Preset[] = [
   },
   {
     id: "r-dra", name: "R Draconis", short: "R Dra", kind: "variability", ra: 248.16723, dec: 66.75502, fov: 6, band: "auto",
-    tagline: "Mira star that changes brightness",
+    tagline: "Pulsating red giant",
     aliases: ["r dra", "mira", "mira variable", "variable star"],
-    what: "A Mira variable that pulsates over about 246 days (lit.).",
-    watch: "Large brightness change between passes.",
+    what: "A Mira variable with a roughly 246-day period (lit.).",
+    watch: "Watch for large brightness changes.",
     facts: [
       { label: "Motion", value: "0.02″/yr (static)" },
       { label: "Parallax", value: "1.25 mas" },

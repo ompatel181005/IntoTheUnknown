@@ -58,7 +58,7 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
         onClick={() => onOpenChange(true)}
         aria-expanded={false}
         aria-controls="customize"
-        title="Show Customize (C)"
+        title="Show Customize"
         data-fade
         data-flight-hide
         style={{ ["--flight-hide-x" as string]: "-32px" }}
@@ -81,15 +81,15 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
           <h3 id="cz-data" className={s.groupTitle}>
             Data
           </h3>
-          <Field label="Images from">
+          <Field label="Source">
             <Segmented
-              label="Where the images come from"
+              label="Image source"
               value={v.source}
               onChange={(x) => onChange({ source: x })}
               options={[
-                { value: "auto", label: "Auto", title: "Saved cutouts when we have them, otherwise the live archive" },
-                { value: "saved", label: "Saved", title: "Real SPHEREx cutouts bundled with the app. Works offline." },
-                { value: "live", label: "Live", title: "Fresh from NASA/IPAC IRSA. Slower; needs the archive to be up." },
+                { value: "auto", label: "Auto", title: "Use saved cutouts when available, otherwise live" },
+                { value: "saved", label: "Saved", title: "Bundled SPHEREx cutouts" },
+                { value: "live", label: "Live", title: "NASA/IPAC IRSA archive" },
               ]}
             />
           </Field>
@@ -105,7 +105,7 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
                 </span>
               </>
             ) : (
-              "Pick a target to see where its images come from."
+              "Pick a target."
             )}
           </p>
         </section>
@@ -114,7 +114,7 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
           <h3 id="cz-view" className={s.groupTitle}>
             View
           </h3>
-          <Field label="Field of view" note="Wider views catch faster movers but take longer to load.">
+          <Field label="Field of view" note="Wider views load slower.">
             <Segmented
               label="Field of view in arcminutes"
               value={String(v.fov)}
@@ -122,7 +122,7 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
               options={FOV_OPTIONS.map((f) => ({ value: String(f), label: <span className="mono">{f}′</span> }))}
             />
           </Field>
-          <Field label="Speed" hint="passes per second">
+          <Field label="Speed" hint="passes/s">
             <Segmented
               label="Playback speed in passes per second"
               value={String(v.speed)}
@@ -156,7 +156,7 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
           <Switch
             label="Smooth pixels"
             pressed={v.smooth}
-            hint="Off shows SPHEREx's real 6.15″ pixels"
+            hint="6.15″ pixels when off"
             onToggle={() => onChange({ smooth: !v.smooth })}
           />
           <Switch label="Invert" pressed={v.invert} onToggle={() => onChange({ invert: !v.invert })} />
@@ -174,12 +174,12 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
                 value={v.stretch}
                 onChange={(x) => onChange({ stretch: x })}
                 options={[
-                  { value: "asinh", label: "Asinh", title: "Shows faint and bright stars together" },
+                  { value: "asinh", label: "Asinh", title: "Balance faint and bright stars" },
                   { value: "linear", label: "Linear" },
                 ]}
               />
             </Field>
-            <Field label="Compare against" hint="for Blink and Difference">
+            <Field label="Compare against" hint="Blink and Difference">
               <select
                 className={`${s.select} mono`}
                 value={String(v.ref)}
@@ -200,7 +200,6 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
       </div>
 
       <div className={s.foot}>
-        <p className={s.hint}>Saved in the share link</p>
         <GlassButton onClick={onReset}>Reset</GlassButton>
       </div>
     </GlassPanel>

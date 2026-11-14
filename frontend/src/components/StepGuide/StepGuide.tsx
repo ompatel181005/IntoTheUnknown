@@ -1,7 +1,7 @@
 import { GlassButton, Icon } from "../glass";
 import s from "./StepGuide.module.css";
 
-const STEPS = ["Pick a target", "Press Play", "Watch for the dot that moves"] as const;
+const STEPS = ["Pick a target", "Press play", "Watch for movement"] as const;
 
 interface StepGuideProps {
   /** Completed flags, one per step. */
@@ -34,7 +34,7 @@ export function StepGuide({ done, onDismiss }: StepGuideProps) {
           );
         })}
       </ol>
-      <GlassButton variant="ghost" icon="close" label="Hide the getting started steps" onClick={onDismiss} />
+      <GlassButton variant="ghost" icon="close" label="Hide setup steps" onClick={onDismiss} />
     </div>
   );
 }

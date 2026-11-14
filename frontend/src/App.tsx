@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getLightCurve, getSpectrum } from "./api";
 import { AppShell } from "./components/AppShell/AppShell";
 import { CustomizePanel, type CustomizeValues } from "./components/Customize/CustomizePanel";
@@ -20,6 +20,7 @@ import { useMediaQuery } from "./hooks/useMediaQuery";
 import { usePlayback } from "./hooks/usePlayback";
 import { useView } from "./hooks/useView";
 import { DATA_CREDIT } from "./lib/brand";
+import { prepareReturnFlight, shrinkDomeForHome } from "./lib/flight";
 import { readFlag, writeFlag } from "./lib/storage";
 import { findPreset, PRESETS, type Preset } from "./lib/targets";
 import { DEFAULTS, parseUrl, toSearch, type Panel, type ViewMode, type ViewState } from "./lib/url";
@@ -108,6 +109,13 @@ export default function App({ source }: { source: ViewSource }) {
   const pickPreset = (p: Preset) => update({ ra: p.ra, dec: p.dec, fov: p.fov, band: p.band, target: p.id, epoch: 0, sel: null, ref: 0 });
   // Starfield jump starts the instant a flight starts, before the target is committed.
   const [flightKey, setFlightKey] = useState<string | null>(null);
+  const [flightActive, setFlightActive] = useState(false);
+  const returningHome = useRef(false);
+  const finishFlight = useCallback(() => {
+    returningHome.current = false;
+    window.setTimeout(() => setFlightActive(false), reducedMotion ? 0 : 250);
+    if (reducedMotion) delete document.documentElement.dataset.flying;
+  }, [reducedMotion]);
   /** Where on screen the last home flight ended, so the dome can grow out of that spot. */
   const [flightOrigin, setFlightOrigin] = useState<{ x: number; y: number } | null>(null);
   const openFromHome = (p: Preset, from: { x: number; y: number } | null) => {
@@ -116,16 +124,25 @@ export default function App({ source }: { source: ViewSource }) {
   };
   const pickCoords = (ra: number, dec: number) => {
     setFlightOrigin(null);
+    setFlightActive(true);
     update({ ra, dec, target: null, epoch: 0, sel: null, ref: 0 });
   };
   /** Target chips and search: no home flight, so the dome zooms from the centre. */
   const pickFromBar = (p: Preset) => {
     setFlightOrigin(null);
+    setFlightActive(true);
     pickPreset(p);
   };
   const goHome = () => {
-    setFlightKey(null);
-    update({ ra: null, dec: null, target: null, epoch: 0, panel: null, mode: "all", sel: null });
+    if (url.ra === null || url.dec === null || returningHome.current) return;
+    returningHome.current = true;
+    setFlightActive(true);
+    document.documentElement.dataset.flying = "1";
+    prepareReturnFlight({ id: preset?.id ?? null, ra: url.ra, dec: url.dec });
+    void shrinkDomeForHome().then(() => {
+      setFlightKey(null);
+      update({ ra: null, dec: null, target: null, epoch: 0, panel: null, mode: "all", sel: null });
+    });
   };
   const openPanel = (panel: Panel | null) => {
     if (mobile && panel) setSheetOpen(false);
@@ -253,8 +270,7 @@ export default function App({ source }: { source: ViewSource }) {
     ? [
         view.label ?? null,
         view.manifest.catalog.collections.join(" + "),
-        `${epochs.length} ${epochs.length === 1 ? "PASS" : "PASSES"}`,
-        view.fromCache ? "FROM CACHE" : null,
+        `${epochs.length} ${epochs.length === 1 ? "pass" : "passes"}`,
       ]
         .filter(Boolean)
         .join(" · ")
@@ -328,13 +344,17 @@ export default function App({ source }: { source: ViewSource }) {
           onPreset={pickPreset}
           onOpenFromHome={openFromHome}
           flightOrigin={flightOrigin}
-          onFlightStart={(p) => setFlightKey(`${p.ra},${p.dec}`)}
+          onFlightStart={(p) => {
+            setFlightActive(true);
+            setFlightKey(`${p.ra},${p.dec}`);
+          }}
+          onFlightEnd={finishFlight}
           onCursor={(xy) => update({ sel: xy })}
           onTour={startTour}
         />
       }
       bottom={
-        load.kind === "idle" ? null : (
+        load.kind === "idle" || flightActive ? null : (
         <PlaybackBar
           epochs={epochs}
           index={pb.index}
@@ -356,7 +376,7 @@ export default function App({ source }: { source: ViewSource }) {
       }
       overlays={
         <>
-          {(mobile ? sheetOpen : load.kind !== "idle") && (
+          {!flightActive && (mobile ? sheetOpen : load.kind !== "idle") && (
             <CustomizePanel
               open={customizeOpen}
               onOpenChange={setCustomizeOpen}
@@ -370,15 +390,15 @@ export default function App({ source }: { source: ViewSource }) {
               sheet={mobile}
             />
           )}
-          {!mobile && (
+          {!mobile && !flightActive && (
             <Toolbar
               groups={[
                 [
-                  { id: "details", label: "Details and measurements", icon: "info", expanded: drawerOpen, shortcut: "I", onClick: () => openPanel(drawerOpen ? null : "pass") },
+                  { id: "details", label: "Details", icon: "info", expanded: drawerOpen, shortcut: "I", onClick: () => openPanel(drawerOpen ? null : "pass") },
                 ],
                 [
-                  { id: "grid", label: "RA, Dec grid on the image", icon: "grid", pressed: overlays.grid, disabled: !available.grid, onClick: () => toggleOverlay("grid") },
-                  { id: "gaia", label: available.gaia ? "Gaia positions" : "Gaia positions (coming soon)", icon: "gaia", pressed: overlays.gaia, disabled: !available.gaia, onClick: () => toggleOverlay("gaia") },
+                  { id: "grid", label: "Coordinate grid", icon: "grid", pressed: overlays.grid, disabled: !available.grid, onClick: () => toggleOverlay("grid") },
+                  { id: "gaia", label: "Gaia positions", icon: "gaia", pressed: overlays.gaia, disabled: !available.gaia, onClick: () => toggleOverlay("gaia") },
                   { id: "flags", label: "Flagged pixels", icon: "flag", pressed: overlays.flags, disabled: !available.flags, onClick: () => toggleOverlay("flags") },
                   { id: "invert", label: "Invert", icon: "invert", pressed: url.invert, disabled: !view, onClick: () => update({ invert: !url.invert }) },
                 ],
@@ -389,7 +409,7 @@ export default function App({ source }: { source: ViewSource }) {
               ]}
             />
           )}
-          {drawerOpen && url.panel && (
+          {!flightActive && drawerOpen && url.panel && (
             <Drawer
               panel={url.panel}
               onPanel={(p) => openPanel(p)}

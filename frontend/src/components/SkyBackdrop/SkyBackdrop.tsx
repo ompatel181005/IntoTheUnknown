@@ -29,6 +29,7 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
   const draw = useRef<(streak: number) => void>(() => {});
   const lastKey = useRef<string | null | undefined>(undefined);
   const anim = useRef(0);
+  const resizeCanvas = useRef<(flying: boolean) => void>(() => {});
   /** Current vanishing point in canvas pixels (NaN = canvas centre). */
   const focus = useRef({ x: NaN, y: NaN });
 
@@ -49,8 +50,8 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
     const palette = [tokenRgb("--star"), tokenRgb("--sun"), tokenRgb("--accent")];
     let w = 0;
     let h = 0;
-    const resize = () => {
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const resize = (flying = false) => {
+      const dpr = Math.min(flying ? 1.5 : 2, window.devicePixelRatio || 1);
       w = window.innerWidth + 48;
       h = window.innerHeight + 48;
       cv.width = Math.round(w * dpr);
@@ -60,6 +61,7 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       draw.current(0);
     };
+    resizeCanvas.current = resize;
     // `streak` is how far (in z) each star moved this frame; it draws motion trails.
     // Stars are batched into a few paths (tint x depth bin) so a frame is ~20 draw calls, not thousands.
     const BINS = 6;
@@ -72,7 +74,9 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       const moving = Math.abs(streak) > 1e-4;
       for (let k = 0; k < palette.length * BINS; k++) paths[k] = new Path2D();
       const halos = new Path2D();
-      for (const st of stars.current) {
+      const stride = moving ? 2 : 1;
+      for (let starIndex = 0; starIndex < stars.current.length; starIndex += stride) {
+        const st = stars.current[starIndex];
         const px = cx + (st.x / st.z) * f;
         const py = cy + (st.y / st.z) * f;
         if (px < -50 || py < -50 || px > w + 50 || py > h + 50) continue;
@@ -116,8 +120,12 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       }
     };
     resize();
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
+    const onResize = () => resize(document.documentElement.dataset.flying === "1");
+    window.addEventListener("resize", onResize);
+    return () => {
+      resizeCanvas.current = () => {};
+      window.removeEventListener("resize", onResize);
+    };
   }, []);
 
   // Fly when the target changes. Skipped on first render and under reduced motion.
@@ -129,6 +137,7 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
     const dir = travelKey === null ? -1 : 1;
     cancelAnimationFrame(anim.current);
     document.documentElement.dataset.flying = "1";
+    resizeCanvas.current(true);
     const start = performance.now();
     let last = start;
     const PAD = 24; // the canvas overhangs the viewport by 24 px on each side
@@ -163,7 +172,10 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       }
       draw.current(t < 1 ? dir * dz * 6 : 0);
       if (t < 1) anim.current = requestAnimationFrame(step);
-      else delete document.documentElement.dataset.flying;
+      else {
+        delete document.documentElement.dataset.flying;
+        resizeCanvas.current(false);
+      }
     };
     anim.current = requestAnimationFrame(step);
     return () => {

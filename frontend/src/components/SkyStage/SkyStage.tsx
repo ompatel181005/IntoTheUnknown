@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { LoadedView } from "../../data/source";
 import type { ViewState as LoadState } from "../../hooks/useView";
-import { setFlightFocus } from "../../lib/flight";
+import { registerDomeFlight, setFlightFocus } from "../../lib/flight";
 import { formatDec, formatRa } from "../../lib/format";
 import { renderDifference, renderEpoch, tokenRgb } from "../../lib/stretch";
 import { PRESETS, type Preset } from "../../lib/targets";
@@ -40,6 +40,7 @@ interface SkyStageProps {
   onOpenFromHome: (p: Preset, from: { x: number; y: number } | null) => void;
   flightOrigin: { x: number; y: number } | null;
   onFlightStart: (p: Preset) => void;
+  onFlightEnd: () => void;
   /** Move the measuring cursor without opening the drawer (keyboard). */
   onCursor: (xy: [number, number]) => void;
   onTour: () => void;
@@ -47,11 +48,11 @@ interface SkyStageProps {
 
 export function SkyStage(props: SkyStageProps) {
   const { load } = props;
-  if (load.kind === "idle") return <Home onPick={props.onOpenFromHome} onFlightStart={props.onFlightStart} onTour={props.onTour} />;
+  if (load.kind === "idle") return <Home onPick={props.onOpenFromHome} onFlightStart={props.onFlightStart} onFlightEnd={props.onFlightEnd} onTour={props.onTour} />;
   const empty = load.kind === "ready" && load.view.manifest.epochs.length === 0;
   return (
     <section className={s.stage} aria-label="Sky view">
-      {load.kind === "error" && <ErrorCard code={load.code} message={load.message} onRetry={props.onRetry} />}
+      {load.kind === "error" && <ErrorCard message={load.message} onRetry={props.onRetry} />}
       {empty && <NoCoverage onRetry={props.onRetry} />}
       {(load.kind === "loading" || (load.kind === "ready" && !empty)) && (
         // Keyed by position so the telescope zoom plays once per target, not again when data arrives.
@@ -67,26 +68,22 @@ export function SkyStage(props: SkyStageProps) {
 function Home({
   onPick,
   onFlightStart,
-  onTour,
+  onFlightEnd,
 }: {
   onPick: (p: Preset, from: { x: number; y: number } | null) => void;
   onFlightStart: (p: Preset) => void;
+  onFlightEnd: () => void;
   onTour: () => void;
 }) {
   return (
     <section className={s.home} aria-labelledby="home-title">
       <div className={s.homeText}>
-        <p className={`micro ${s.kicker}`}>SPHEREx · the whole sky every six months</p>
         <h2 id="home-title" className={`display ${s.homeTitle}`}>
-          Pick a target to begin
+          Pick a target
         </h2>
-        <p className={s.homeSub}>Click a target on the sky sphere to fly there, or search above. Then press Play and watch for the dot that moves.</p>
-        <GlassButton icon="tour" onClick={onTour}>
-          New here? Take the one-minute tour
-        </GlassButton>
       </div>
       <div className={s.homeMap} data-tour="orrery">
-        <Orrery targets={PRESETS} onPick={onPick} onFlightStart={onFlightStart} />
+        <Orrery targets={PRESETS} onPick={onPick} onFlightStart={onFlightStart} onFlightEnd={onFlightEnd} />
       </div>
     </section>
   );
@@ -111,14 +108,21 @@ function useBox<T extends HTMLElement>() {
     };
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    ro.observe(document.body);
+    const stage = el.closest("section");
+    if (stage) ro.observe(stage);
+    const onTransitionEnd = (event: TransitionEvent) => {
+      if (event.propertyName.startsWith("padding")) measure();
+    };
     window.addEventListener("resize", measure);
-    // Stage padding animates when panels open; measure again once it settles.
-    const t = window.setInterval(measure, 400);
+    window.addEventListener("spherex:dome-landed", measure);
+    document.addEventListener("transitionend", onTransitionEnd);
+    const raf = requestAnimationFrame(measure);
     return () => {
       ro.disconnect();
       window.removeEventListener("resize", measure);
-      window.clearInterval(t);
+      window.removeEventListener("spherex:dome-landed", measure);
+      document.removeEventListener("transitionend", onTransitionEnd);
+      cancelAnimationFrame(raf);
     };
   }, []);
   return [ref, box] as const;
@@ -129,6 +133,10 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
   const { view, ra, dec, index, mode } = props;
   const [frameRef, box] = useBox<HTMLDivElement>();
   const columnRef = useRef<HTMLDivElement>(null);
+  const onFlightEndRef = useRef(props.onFlightEnd);
+  useEffect(() => {
+    onFlightEndRef.current = props.onFlightEnd;
+  }, [props.onFlightEnd]);
   // Captured once at mount: the dome grows out of the spot the flight ended (or the centre).
   const [origin] = useState(props.flightOrigin);
 
@@ -140,36 +148,59 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
       const c = col.getBoundingClientRect();
       setFlightFocus(c.left + c.width / 2, c.top + c.height / 2);
     }
-    if (typeof col.animate !== "function") return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) {
-      col.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: "linear" });
-      return;
-    }
     const r = col.getBoundingClientRect();
     const dx = origin ? origin.x - (r.left + r.width / 2) : 0;
     const dy = origin ? origin.y - (r.top + r.height / 2) : 0;
     col.dataset.zooming = "1";
-    const zoom = col.animate(
-      [
-        { transform: `translate(${dx}px, ${dy}px) scale(0.06)`, opacity: 0 },
-        { opacity: 1, offset: 0.3 },
-        { transform: "translate(0, 0) scale(1)", opacity: 1 },
-      ],
-      { duration: 750, easing: "cubic-bezier(0.65, 0, 0.35, 1)" },
-    );
-    // On landing: measure the real frame; the grid and ring then mount around it and fade in (CSS).
     let cancelled = false;
     const land = () => {
-      if (cancelled) return; // a cancelled zoom (e.g. StrictMode remount) must not end the live one
+      if (cancelled) return;
       delete col.dataset.zooming;
-      window.dispatchEvent(new Event("resize"));
+      window.dispatchEvent(new Event("spherex:dome-landed"));
+      const defer = window.requestIdleCallback ?? ((callback: IdleRequestCallback) => window.setTimeout(callback, 50));
+      defer(() => onFlightEndRef.current?.(), { timeout: 200 });
     };
+    const unregister = registerDomeFlight({
+      centre: () => {
+        const box = col.getBoundingClientRect();
+        return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      },
+      shrink: async () => {
+        if (typeof col.animate !== "function") return;
+        const box = col.getBoundingClientRect();
+        const x = window.innerWidth / 2 - (box.left + box.width / 2);
+        const y = window.innerHeight / 2 - (box.top + box.height / 2);
+        const animation = col.animate(
+          [
+            { transform: "translate(0, 0) scale(1)", opacity: 1 },
+            { transform: `translate(${x}px, ${y}px) scale(0.06)`, opacity: 0 },
+          ],
+          { duration: reduce ? 150 : 300, easing: "cubic-bezier(0.65, 0, 0.35, 1)", fill: "forwards" },
+        );
+        await animation.finished.catch(() => undefined);
+      },
+    });
+    if (typeof col.animate !== "function") {
+      land();
+      return unregister;
+    }
+    const zoom = reduce
+      ? col.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: "linear" })
+      : col.animate(
+          [
+            { transform: `translate(${dx}px, ${dy}px) scale(0.06)`, opacity: 0 },
+            { opacity: 1, offset: 0.3 },
+            { transform: "translate(0, 0) scale(1)", opacity: 1 },
+          ],
+          { duration: 750, easing: "cubic-bezier(0.65, 0, 0.35, 1)" },
+        );
     zoom.finished.then(land, land);
     return () => {
       cancelled = true;
       zoom.cancel();
       delete col.dataset.zooming;
+      unregister();
     };
   }, [origin]);
   const m = view?.manifest;
@@ -197,7 +228,7 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
     <>
       {box && outer && (
         <svg
-          className={s.sky}
+          className={`${s.sky} ${s.skyIn}`}
           width={box.vw}
           height={box.vh}
           aria-hidden="true"
@@ -232,20 +263,20 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
         <div className={`${s.topRow} mono`}>
           <ScaleBar side={box?.side ?? 0} fovArcmin={fovArcmin} />
           {diff ? (
-            <span className={s.legend} aria-label="Difference colors: silver is where something was, amber is where it is now">
+            <span className={s.legend} aria-label="Difference: silver was, amber is now">
               <span>
                 <span className={s.swatchNeg} />
-                WAS −
+                Was −
               </span>
               <span>
                 <span className={s.swatchPos} />
-                NOW +
+                Now +
               </span>
             </span>
           ) : m && m.epochs.length === 1 ? (
-            <span>ONE PASS SO FAR · NOTHING TO COMPARE YET</span>
+            <span>One pass; nothing to compare</span>
           ) : (
-            <span className={s.hintText}>CLICK TO MEASURE</span>
+            <span className={s.hintText}>Click to measure</span>
           )}
         </div>
         <div
@@ -254,7 +285,7 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
           data-tour="dome"
           tabIndex={view ? 0 : -1}
           role="application"
-          aria-label="SPHEREx image. Arrow keys move the measuring cursor, Enter measures there. Click a star to measure it."
+          aria-label="SPHEREx image. Use arrow keys to move the cursor and Enter to measure."
           onKeyDown={(e) => {
             if (!view) return;
             const { nx, ny } = view.manifest.grid;
@@ -321,7 +352,7 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
           dec={dec}
           sub={props.target?.watch ?? null}
           fixture={view?.label ?? null}
-          provenance={view?.manifest.origin ? `REAL SPHEREx LEVEL 2 · ${view.manifest.origin.kind === "saved" ? "SAVED CUTOUTS" : "LIVE ARCHIVE"} · N UP · E LEFT` : null}
+          provenance={view?.manifest.origin ? `SPHEREx Level 2 · ${view.manifest.origin.kind === "saved" ? "Saved cutouts" : "Live archive"} · North up · East left` : null}
         />
       )}
     </>
@@ -450,21 +481,19 @@ function ScaleBar({ side, fovArcmin }: { side: number; fovArcmin: number }) {
 
 function Loading({ load }: { load: Extract<LoadState, { kind: "loading" }> }) {
   const p = load.progress;
-  const line = p ? `${p.stage.toUpperCase()}${p.done !== undefined && p.total ? ` ${p.done} / ${p.total}` : ""}` : "LOADING";
+  const line = p ? `${p.stage.toUpperCase()}${p.done !== undefined && p.total ? ` ${p.done} / ${p.total}` : ""}` : "Loading";
   return (
-    <div className={s.loading} role="status" aria-live="polite" aria-label={`Loading the sky image: ${line.toLowerCase()}`}>
+    <div className={s.loading} role="status" aria-live="polite" aria-label={`Loading sky image: ${line.toLowerCase()}`}>
       <div className={s.skeleton} />
       <span className={`${s.progress} mono`}>{line}</span>
     </div>
   );
 }
 
-function ErrorCard({ code, message, onRetry }: { code: string; message: string; onRetry: () => void }) {
+function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <GlassPanel strong className={s.card} role="alert">
-      <h2>This view did not load</h2>
       <p>{message}</p>
-      <code className={`${s.code} mono`}>{code}</code>
       <GlassButton icon="retry" onClick={onRetry}>
         Retry
       </GlassButton>
@@ -475,8 +504,7 @@ function ErrorCard({ code, message, onRetry }: { code: string; message: string; 
 function NoCoverage({ onRetry }: { onRetry: () => void }) {
   return (
     <GlassPanel strong className={s.card} role="status">
-      <h2>No SPHEREx passes here yet</h2>
-      <p>SPHEREx has not imaged this spot in the releases we searched. Try another position, or check again after the next data release.</p>
+      <p>No SPHEREx passes here yet. Try another position or check again later.</p>
       <GlassButton icon="retry" onClick={onRetry}>
         Check again
       </GlassButton>
@@ -496,7 +524,7 @@ interface CanvasProps {
 }
 
 /** Display upscale for smoothing: the 59 x 59 grid is drawn into a ~1000 px canvas with bilinear filtering. */
-const UPSCALE_TARGET = 1024;
+const UPSCALE_TARGET = 512;
 
 function FrameCanvas({ view, index, mode, stretch, invert, smooth, gain, refIndex }: CanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
