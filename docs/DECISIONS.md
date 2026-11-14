@@ -56,3 +56,12 @@ Owner: TODO(team)
 Decision: The author squash-merges their own PR once CI is green. No second reviewer is required. Supersedes "any teammate other than the author reviews and merges" in the Git workflow entry above. PRs, short-lived branches and "never commit to main" stay.
 Why: Speed over safety for a 30-hour build. If main breaks, revert the merge via a PR first, then debug (`AGENTS.md` §11).
 Owner: dflow11
+
+## 2026-11-14 13:40 - Challenge text and submission rules read (issue #3)
+Decision: Scope follow-ups from the challenge page and the Project Submission Guide.
+- Embedding comes back as a cheap MVP item. The challenge's own "potential considerations" say coordinates in the URL let "users … easily embed it in other websites". Keep URL state, and don't send headers that block framing (no `X-Frame-Options: DENY` or restrictive `frame-ancestors` in `staticwebapp.config.json`). A minimal `?embed=1` layout is optional. This reverses "embed dropped" from the 12:45 docs-PR entry. TODO(team): confirm.
+- Spectrum on click moves later in the cut order, below Front Door, because the challenge says "Extra kudos if your tool can generate spectra on the fly". TODO(team): confirm.
+- The challenge also lists, and we already cover: per-detector co-adds (band presets B1–B6), add/subtract across epochs (difference mode), user-chosen FOV, Gaia/WISE overlays, coordinates in the URL, and contamination-flag metadata (keep the flag overlay: it is named in the challenge).
+- Submission: demo is ≤30 s video or ≤7 slides (hard limit, otherwise ineligible for Global Judging). AI-generated code and data must be acknowledged in descriptive text and metadata, and AI images and video need a visible watermark. Checklist in PLAN §10.
+Why: These come from the official pages, which were unread until now (PLAN §1 "Not verified").
+Owner: ompatel (facts); the team confirms the two scope changes

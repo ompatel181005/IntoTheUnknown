@@ -25,7 +25,7 @@ Markers: **✓** = checked today against a live source. **(lit.)** = from litera
 | CDN | Front Door vs classic | ✓ Classic Azure CDN (Microsoft) accepts **no new profiles since Aug 15 2025** and retires Sep 30 2027. Front Door classic also accepts no new profiles. **Front Door Standard costs $35/month, billed hourly.** | Serve from Blob directly first. Add Front Door Standard on Sunday only if there's time (§4). |
 | Azure for Students | — | ✓ $100 credit for 12 months. Always free: Container Apps 180k vCPU-s + 360k GiB-s + 2M requests per month; Functions 1M requests; Cosmos 1000 RU/s + 25 GB; SWA free; **ACR Standard free for 12 months**. ✓ Flex Consumption is the recommended Functions plan; students get **15 cores per region**; `WEBSITE_TIME_ZONE` is **not supported** (use UTC cron). Region policy: not stated in the docs we read, so check it with the CLI. Azure OpenAI is mentioned, but no free amount is listed and availability is unverified. | §8 runbook |
 | Local tools | — | python 3.13, node, gh and uv are installed. **az, func, swa and docker are missing.** | Install them or use Azure Cloud Shell. Build images in GitHub Actions. |
-| Not verified | — | The Space Apps challenge and resources tabs render with JavaScript, so we got no content. The submission form fields are unread. WiseView refused connections. The SPHEREx acknowledgement is now captured verbatim in `DATA.md`; the IRSA, Gaia and SIMBAD wordings are not. Cutout `size` units are implied to be degrees by the tutorial. | One person opens these in a browser at H0 (§7). |
+| Not verified | — | ✓ The challenge page, resources tab and submission form fields were read in a browser on 2026-11-14 (`LINKS.md`, §10, `DECISIONS.md` 13:40). ✓ The SPHEREx and Gaia acknowledgements are verbatim in `DATA.md`; IRSA has no separate wording. Still open: the SIMBAD wording (CDS down), and whether cutout `size` is in degrees (the tutorial implies it). | Issue #4 confirms the cutout units. |
 
 ---
 
@@ -378,8 +378,8 @@ Moved to [`infra/README.md`](../infra/README.md), with the environment-variable 
 
 ## 10. Demo and submission
 
-**30-second video script.** Label any AI-generated media according to Space Apps rules.
-- **0–3 s:** Title card: "Wanderer — watch the infrared sky move."
+**30-second video script.** The hard limit is 30 s (or use a deck of 7 slides or fewer instead). Any AI-generated image or video needs a visible watermark.
+- **0–3 s:** Team name, the challenge ("Planet X and SPHEREx"), and the title card: "Wanderer — watch the infrared sky move." The submission guide's template opens with the team name and challenge.
 - **3–10 s:** Pick **Barnard's Star** and blink the 2025 and 2026 epochs. The star hops north and the Gaia arrow lands on it. Caption with the measured vs predicted numbers from `validation.md`.
 - **10–16 s:** **WISE 0855**, B6 stack. A faint dot moves and is labelled **"no Gaia match"**. Caption: "this is how the coldest known brown dwarf would be found." If WISE 0855 is not detected by the H24 check, use ε Ind B here (0.76 px shift, in Gaia) and drop that caption. Never show a label the data doesn't support.
 - **16–22 s:** **R Dra** light-curve panel. The Mira brightens and fades between visits.
@@ -414,17 +414,22 @@ Moved to [`infra/README.md`](../infra/README.md), with the environment-variable 
 10. Team
 11. License
 
-**Citations:** in [`DATA.md`](DATA.md). The SPHEREx acknowledgement there is verbatim from IRSA. The IRSA, Gaia and SIMBAD wordings are still TODO.
+**Citations:** in [`DATA.md`](DATA.md). The SPHEREx and Gaia DR3 acknowledgements there are verbatim. IRSA asks only for the DOIs plus the SPHEREx text. SIMBAD's wording is still TODO (CDS was down).
 
-**Submission checklist.** Confirm every item on the actual form; the page wasn't readable today.
-- [ ] Team registered at the local event, with challenge "Planet X and SPHEREx" selected
-- [ ] Title and high-level summary
-- [ ] Demo: 30 s video (or the slide limit on the form)
-- [ ] Final project link: live URL plus public GitHub repo
-- [ ] Detailed description, NASA data used (SPHEREx via IRSA), partner data (ESA Gaia), references
-- [ ] AI-use disclosure
+**Submission checklist.** These are the form fields from the Project Submission Guide (read 2026-11-14). The form is on the team page under My Team → Project → Edit. Use "Save Progress" often, and turn on the edit Lock so two people don't overwrite each other.
+- [ ] Every team member is a confirmed participant at the **same Local Event**; otherwise the project isn't eligible for awards
+- [ ] **Project Name**
+- [ ] **High-Level Project Summary:** what we built, how it addresses the challenge, why it matters
+- [ ] **Link to Project Demo:** a public link (YouTube, Drive, GitHub…) to a video of **30 s or less** or a deck of **7 slides or fewer** (title and intro slides included). Going over either limit makes us ineligible for Global Judging. Everything is in English (a video in another language needs English subtitles).
+- [ ] **Link to Final Project:** the live URL plus the public GitHub repo, with no login, permission or registration. Optional but recommended: request a FortiGuard Web Filter Classification for the site so judges' networks don't block it.
+- [ ] **Detailed Project Description:** what it does, how it works, benefits, goals, tools and languages
+- [ ] **Use of Super Intelligence (SI):** how we used AI tools. Judges don't see this answer, but they do see any SI markers in the project. The rules: AI-generated images and video carry a **visible watermark**; AI-generated **code and data are acknowledged in descriptive text and metadata** (README section plus a note in the repo). SI must not have been used to come up with the idea.
+- [ ] **NASA Data:** SPHEREx via IRSA (at least one NASA source is required for a Global Award)
+- [ ] **Space Agency Partner Data and Other References:** ESA Gaia DR3 (ESA is a 2026 partner), plus every library, tool, image and code source (`DATA.md`)
+- [ ] No images, video or audio of anyone under 18
+- [ ] Tick "Terms and Conditions" and "Confirm All Work is Original", then **Submit for Judging** before **Sun Nov 15, 23:59** in the Local Event's time zone. Resubmitting is allowed until then; the last save is what gets judged. A success banner confirms it.
 - [ ] All links tested in incognito and on a phone; the 5 targets work with the API stopped
-- [ ] Submitted before **Sun Nov 15, 23:59 local**
+- [ ] Judging criteria to aim the demo at: Impact, Creativity, Validity, Relevance, Presentation
 
 ---
 
