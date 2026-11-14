@@ -239,11 +239,11 @@ def build(t, per, fov_arcmin):
     slug = t["slug"]; d = os.path.join(ROOT, slug); os.makedirs(d, exist_ok=True)
     cra, cdec = propagate(t, 2026.0)  # same grid centre as the viewer
     log(f"\n== {t['name']}  centre {cra:.5f} {cdec:+.5f}")
-    try:
-        rows = search_tap(cra, cdec)
-    except Exception as e:
-        log("   TAP failed, trying SIA:", e)
+    try:  # SIA first, TAP as fallback (docs/DECISIONS.md: SIA answers in seconds, TAP takes 20-37 s)
         rows = search_sia(cra, cdec)
+    except Exception as e:
+        log("   SIA failed, trying TAP:", e)
+        rows = search_tap(cra, cdec)
     rows = normalise(rows)
     chosen = pick(rows, per)
     log(f"   {len(rows)} exposures in archive, {len(seasons(rows))} seasons; downloading {len(chosen)}")

@@ -17,7 +17,7 @@ from .. import config
 from ..cache import local
 from ..irsa import fetch
 from ..models import ViewRequest
-from . import stack
+from . import photometry, stack
 
 log = logging.getLogger("views")
 
@@ -33,8 +33,6 @@ BAND_DETECTORS = {
     "all": {1, 2, 3, 4, 5, 6},
     "auto": {1, 2, 3, 4, 5, 6},
 }
-PIX_SR = (stack.PIX_ARCSEC / 206264.806) ** 2  # pixel solid angle
-UJY_PER_MJYSR_PIX = PIX_SR * 1e12  # MJy/sr x sr -> uJy
 
 
 class ViewError(Exception):
@@ -65,7 +63,8 @@ POOL = cf.ThreadPoolExecutor(max_workers=config.MAX_RENDER_JOBS)
 
 
 def query_key(req: ViewRequest) -> str:
-    key = f"q1|{req.ra:.4f}|{req.dec:+.4f}|{req.fov_arcmin}|{req.band}"
+    # q2 invalidates pointers made before dense saved captures used the ten-frame gate.
+    key = f"q2|{config.PIPELINE_VERSION}|{req.ra:.4f}|{req.dec:+.4f}|{req.fov_arcmin}|{req.band}"
     if req.source != "auto":
         key += f"|{req.source}"
     return hashlib.sha256(key.encode()).hexdigest()[:20]
@@ -177,6 +176,16 @@ def _flag_counts(ep: list[dict]) -> dict[str, int]:
     return {k: round(v / len(ep)) for k, v in sorted(totals.items(), key=lambda kv: -kv[1]) if v / len(ep) >= 0.5}
 
 
+def select_epochs(groups: list[list[dict]], minimum: int, saved: bool) -> list[list[dict]]:
+    """Apply the science floor to rich captures and retain the legacy sparse-demo fallback."""
+    if saved and sum(len(ep) >= config.MIN_EPOCH_FRAMES_LIVE for ep in groups) >= 2:
+        minimum = max(minimum, config.MIN_EPOCH_FRAMES_LIVE)
+    selected = [ep for ep in groups if len(ep) >= minimum]
+    if len(selected) != len(groups):
+        log.info("Dropped %d underfilled epochs (minimum %d frames)", len(groups) - len(selected), minimum)
+    return selected
+
+
 def build(job: Job) -> None:
     req = job.req
     saved = demo_frames(req, job) if req.source != "live" else None
@@ -205,7 +214,11 @@ def build(job: Job) -> None:
     for f in frames:
         f["_grid"] = stack.to_grid(f, w, shape)
         job.done += 1
-    epochs = [ep for ep in stack.group_epochs(frames) if len(ep) >= min_frames]
+    groups = stack.group_epochs(frames)
+    # Dense captured demos follow the same ten-frame science gate as live data. Keeping a
+    # thin tail can reduce the channel intersection and bias the whole sequence. Legacy
+    # sparse packs retain the small fallback until richer captures are available.
+    epochs = select_epochs(groups, min_frames, saved is not None)
 
     job.status = "render"
     collections = sorted({f["collection"] for f in frames})
@@ -359,28 +372,19 @@ def spectrum(job: Job, x: int, y: int, epoch: int) -> list[dict]:
 
 
 def lightcurve(job: Job, x: float, y: float, r_px: float = 2.0) -> list[dict]:
-    """Forced aperture photometry on every frame (PLAN 5.9): r = r_px, background annulus 4-7 px."""
+    """Forced aperture photometry on every frame (PLAN 5.9): r = r_px, background annulus 4-7 px.
+
+    The position is the clicked grid pixel. Propagating a mover's position per epoch needs Gaia (#8, #29).
+    """
     ensure_frames(job)
-    ny, nx = job.shape
-    yy, xx = np.mgrid[0:ny, 0:nx]
-    d = np.hypot(xx - x, yy - y)
-    ap, ann = d <= r_px, (d >= 4) & (d <= 7)
-    pts = []
-    for ep in job.epochs:
-        for f in ep:
-            im = f["_grid"][0]
-            bkg_px = im[ann & np.isfinite(im)]
-            if bkg_px.size < 5:
-                continue
-            bkg = float(np.median(bkg_px))
-            vals = im[ap]
-            flagged = bool((~np.isfinite(vals)).any())
-            npix = int(np.isfinite(vals).sum())
-            if npix == 0:
-                continue
-            flux = (float(np.nansum(vals)) - npix * bkg) * UJY_PER_MJYSR_PIX
-            err = float(np.std(bkg_px)) * np.sqrt(npix) * UJY_PER_MJYSR_PIX
-            pts.append(
-                {"t_mjd": f["t_mjd"], "lambda_um": f["lam_um"], "flux_ujy": flux, "err": err, "flagged": flagged}
-            )
+    w, _ = stack.common_grid(job.req.ra, job.req.dec, job.req.fov_arcmin)
+    world = SkyCoord.from_pixel(x, y, w)
+    pts = [p for ep in job.epochs for f in ep if (p := photometry.measure(f, x, y, r_px, world)) is not None]
     return sorted(pts, key=lambda p: p["t_mjd"])
+
+
+def comparison(job: Job, x: float, y: float, r_px: float = 2.0) -> dict | None:
+    """Calibration floor for the light curve: scatter of 3-6 field stars (None if the field has too few)."""
+    ensure_frames(job)
+    w, _ = stack.common_grid(job.req.ra, job.req.dec, job.req.fov_arcmin)
+    return photometry.comparison([f for ep in job.epochs for f in ep], (x, y), r_px, w)
