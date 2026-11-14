@@ -286,6 +286,7 @@ export default function App({ source }: { source: ViewSource }) {
         <>
           <TopBar
             activeTarget={url.target}
+            crumb={url.ra === null ? null : (preset?.name ?? "Custom position")}
             onHome={goHome}
             onPreset={pickFromBar}
             onCoords={pickCoords}
@@ -343,6 +344,7 @@ export default function App({ source }: { source: ViewSource }) {
           canPlay={pb.canPlay}
           mode={url.mode}
           status={status}
+          loading={load.kind === "loading"}
           customizeOpen={customizeOpen}
           onToggle={pb.toggle}
           onPrev={pb.prev}

@@ -7,6 +7,8 @@ import s from "./TopBar.module.css";
 
 interface TopBarProps {
   activeTarget: string | null;
+  /** Shown as a breadcrumb after the app name. */
+  crumb: string | null;
   onHome: () => void;
   onPreset: (p: Preset) => void;
   onCoords: (ra: number, dec: number) => void;
@@ -22,6 +24,11 @@ export function TopBar(props: TopBarProps) {
       <button type="button" className={s.brand} onClick={props.onHome} title="Back to the whole sky">
         <Mark />
         <span className={s.name}>{APP_NAME}</span>
+        {props.crumb && (
+          <span className={s.crumb}>
+            <span aria-hidden="true">›</span> {props.crumb}
+          </span>
+        )}
       </button>
       <GlassPanel pill className={s.center}>
         <TargetSearch onPreset={props.onPreset} onCoords={props.onCoords} />

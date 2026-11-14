@@ -25,6 +25,18 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Eyes on the Solar System motion: fades 500 ms, panel moves 800 ms after a 200 ms beat. */
+  --ease-ui: cubic-bezier(0.2, 0.2, 0, 1);
+  --ease-panel: cubic-bezier(0.2, 0.75, 0, 1);
+  /* Planet colours for the home orrery (decorative, never data). Values as used by NASA Eyes. */
+  --planet-mercury: #9768ac;
+  --planet-venus: #b07919;
+  --planet-earth: #0099cc;
+  --planet-mars: #9a4e19;
+  --planet-jupiter: #da8b72;
+  --planet-saturn: #d5c187;
+  --planet-uranus: #68ccda;
+  --planet-neptune: #708ce3;
   /* One curve for the whole target flight (cubic in-out). */
   --ease-cinematic: cubic-bezier(0.65, 0, 0.35, 1);
   --dur: 180ms;

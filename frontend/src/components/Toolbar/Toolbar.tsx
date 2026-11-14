@@ -18,7 +18,7 @@ export interface ToolbarItem {
 /** Vertical rail of round icon buttons on the right edge (Stellarium style). */
 export function Toolbar({ groups }: { groups: ToolbarItem[][] }) {
   return (
-    <nav className={s.rail} aria-label="View tools" data-fade data-tour="tools">
+    <nav className={s.rail} aria-label="View tools" data-fade data-flight-hide style={{ ["--flight-hide-x" as string]: "32px" }} data-tour="tools">
       {groups.map((items, gi) => (
         <div key={gi} className={s.group}>
           {items.map((it) => (

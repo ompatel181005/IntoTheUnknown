@@ -100,3 +100,17 @@ html[data-flying] *::after {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
+
+/* Eyes pattern: chrome that is not the target steps aside during a flight, then returns. */
+[data-flight-hide] {
+  transition:
+    opacity 500ms var(--ease-ui),
+    translate 800ms var(--ease-panel) 200ms;
+}
+
+html[data-flying] [data-flight-hide] {
+  opacity: 0 !important;
+  translate: var(--flight-hide-x, 0) 0;
+  pointer-events: none;
+  transition: opacity 150ms linear;
+}

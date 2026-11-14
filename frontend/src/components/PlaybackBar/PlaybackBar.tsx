@@ -12,6 +12,8 @@ interface PlaybackBarProps {
   canPlay: boolean;
   mode: ViewMode;
   status: string | null;
+  /** A target is chosen but its passes are still loading. */
+  loading: boolean;
   customizeOpen: boolean;
   onToggle: () => void;
   onPrev: () => void;
@@ -39,7 +41,7 @@ export function PlaybackBar(p: PlaybackBarProps) {
   const n = ready ? p.epochs.length : 4;
   const tOf = (i: number) => (n === 1 ? 0.5 : i / (n - 1));
   const knob = ready ? arc(tOf(p.index)) : null;
-  const stateText = !ready ? "NO TARGET" : !multi ? "ONE PASS" : p.playing ? "PLAYING" : "PAUSED";
+  const stateText = p.loading ? "LOADING" : !ready ? "NO TARGET" : !multi ? "ONE PASS" : p.playing ? "PLAYING" : "PAUSED";
 
   return (
     <div className={s.dock} data-tour="time">
@@ -62,7 +64,7 @@ export function PlaybackBar(p: PlaybackBarProps) {
             <GlassButton variant="ghost" icon="next" label="Next pass" onClick={p.onNext} disabled={!multi} title={titleFor(ready, multi)} />
           </div>
           <span className={`display ${s.date}`}>{e ? e.label : "----"}</span>
-          <span className={s.state} aria-live="polite">
+          <span className={s.state} data-playing={p.playing} aria-live="polite">
             {stateText}
           </span>
           <span className={`mono ${s.epoch}`}>

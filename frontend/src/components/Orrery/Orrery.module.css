@@ -61,12 +61,12 @@
 
 .ring::before {
   content: "";
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  border: 1.5px solid var(--accent);
-  box-shadow: 0 0 12px var(--accent);
-  transition: scale var(--dur) var(--ease);
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 10px var(--accent-wash);
+  transition: scale 250ms ease-out;
 }
 
 .ring::after {
@@ -80,7 +80,7 @@
 
 .target:hover .ring::before,
 .target:focus-visible .ring::before {
-  scale: 1.6;
+  scale: 1.2;
 }
 
 /* One outward pulse on the target you picked. */
@@ -103,11 +103,20 @@
   white-space: nowrap;
 }
 
+/* Eyes label style: uppercase, wide tracking, dimmed until hovered. */
 .name {
-  font-size: 15px;
-  font-weight: var(--font-display-weight);
-  letter-spacing: 0.04em;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  opacity: 0.75;
   text-shadow: 0 0 10px var(--space-0);
+  transition: opacity 250ms ease-out;
+}
+
+.target:hover .name,
+.target:focus-visible .name {
+  opacity: 1;
 }
 
 .kind {

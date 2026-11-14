@@ -50,11 +50,20 @@
   letter-spacing: 0.04em;
 }
 
+/* Eyes time control: a large, light status word that glows while playing. */
 .state {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.3em;
-  color: var(--text-1);
+  font-size: 22px;
+  font-weight: 300;
+  letter-spacing: 0.18em;
+  color: var(--text-2);
+  transition:
+    color 500ms var(--ease-ui),
+    filter 500ms var(--ease-ui);
+}
+
+.state[data-playing="true"] {
+  color: var(--accent);
+  filter: drop-shadow(0 0 2px var(--accent));
 }
 
 .epoch {
@@ -147,13 +156,20 @@
 
 /* The current pass rides the arc. */
 .knob {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-wash) 37%, transparent 70%);
+  box-shadow: 0 0 12px 4px rgba(0, 0, 0, 0.4);
   position: absolute;
   translate: -50% -50%;
   margin-top: 0;
   pointer-events: none;
   transition:
-    left var(--dur) var(--ease),
-    top var(--dur) var(--ease);
+    left 150ms var(--ease-ui),
+    top 150ms var(--ease-ui);
   filter: drop-shadow(0 0 8px var(--accent-wash));
 }
 

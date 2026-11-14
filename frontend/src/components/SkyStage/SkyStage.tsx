@@ -159,12 +159,15 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
       { duration: 750, easing: "cubic-bezier(0.65, 0, 0.35, 1)" },
     );
     // On landing: measure the real frame; the grid and ring then mount around it and fade in (CSS).
+    let cancelled = false;
     const land = () => {
+      if (cancelled) return; // a cancelled zoom (e.g. StrictMode remount) must not end the live one
       delete col.dataset.zooming;
       window.dispatchEvent(new Event("resize"));
     };
     zoom.finished.then(land, land);
     return () => {
+      cancelled = true;
       zoom.cancel();
       delete col.dataset.zooming;
     };

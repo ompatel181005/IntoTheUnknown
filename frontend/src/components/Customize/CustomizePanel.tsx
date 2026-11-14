@@ -60,6 +60,8 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
         aria-controls="customize"
         title="Show Customize (C)"
         data-fade
+        data-flight-hide
+        style={{ ["--flight-hide-x" as string]: "-32px" }}
         data-tour="customize"
       >
         <Icon name="sliders" size={16} />
@@ -68,7 +70,7 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
     );
   }
   return (
-    <GlassPanel strong={sheet} id="customize" className={`${s.panel} ${sheet ? s.sheet : ""}`} role="region" aria-label="Customize" data-fade data-tour="customize">
+    <GlassPanel strong={sheet} id="customize" className={`${s.panel} ${sheet ? s.sheet : ""}`} role="region" aria-label="Customize" data-fade data-flight-hide style={{ ["--flight-hide-x" as string]: "-32px" }} data-tour="customize">
       <div className={s.head}>
         <h2 className={`${s.title} micro`}>Customize</h2>
         <GlassButton variant="ghost" icon={sheet ? "close" : "collapse"} label={sheet ? "Close Customize" : "Hide Customize"} onClick={() => onOpenChange(false)} />

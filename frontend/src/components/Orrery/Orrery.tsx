@@ -59,6 +59,7 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
     const holo = tokenRgb("--holo");
     const star = tokenRgb("--star");
     const sun = tokenRgb("--sun");
+    const planetColor = PLANETS.map((p) => tokenRgb(`--planet-${p.name.toLowerCase()}`));
     const band = tokenRgb("--holo");
     const T = centuries(new Date());
     // Lower resolution on small machines keeps the loop under a frame budget.
@@ -181,8 +182,8 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
       ctx.clearRect(0, 0, w, h);
       ctx.globalAlpha = c.fade;
       // Celestial sphere: grid, galactic band, ecliptic.
-      meridians.forEach((m) => line(m, c, holo, 0.14));
-      parallels.forEach((p, k) => line(p, c, holo, k === 2 ? 0.3 : 0.14, k === 2 ? 1.2 : 1));
+      meridians.forEach((m) => line(m, c, holo, 0.1));
+      parallels.forEach((p, k) => line(p, c, holo, k === 2 ? 0.24 : 0.1, k === 2 ? 1.2 : 1));
       // Galactic band as stacked translucent strokes (no shadowBlur, which is slow in Firefox),
       // bucketed by brightness so each layer is a few paths.
       ctx.lineCap = "round";
@@ -218,9 +219,9 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
       line(ecliptic, c, holo, 0.35, 1, [4, 6]);
 
       // Orbits, sun, planets.
-      orbits.forEach((o) => {
-        line(o, c, holo, 0.08, 4);
-        line(o, c, holo, 0.42, 1);
+      orbits.forEach((o, k) => {
+        line(o, c, planetColor[k], 0.12, 4);
+        line(o, c, planetColor[k], 0.7, 1);
       });
       const sp = project([0, 0, 0], c);
       const g = ctx.createRadialGradient(sp.x, sp.y, 0, sp.x, sp.y, 26);
@@ -231,26 +232,26 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
       ctx.beginPath();
       ctx.arc(sp.x, sp.y, 26, 0, Math.PI * 2);
       ctx.fill();
-      ctx.font = "600 10px 'JetBrains Mono', monospace";
+      // Eyes-style planet labels: a ring in the planet's colour, uppercase name with wide tracking.
+      ctx.font = "600 11px Inter, system-ui, sans-serif";
       ctx.textBaseline = "middle";
-      for (const p of planets) {
+      planets.forEach((p, k) => {
         const q = project(p.pos, c);
-        if (q.depth < 0.05) continue;
+        if (q.depth < 0.05) return;
         const isEarth = p.name === "Earth";
-        ctx.fillStyle = rgba(star, 0.95);
+        ctx.fillStyle = rgba(planetColor[k], 1);
         ctx.beginPath();
-        ctx.arc(q.x, q.y, isEarth ? 3.4 : 2.6, 0, Math.PI * 2);
+        ctx.arc(q.x, q.y, isEarth ? 3 : 2.4, 0, Math.PI * 2);
         ctx.fill();
-        if (isEarth) {
-          ctx.strokeStyle = rgba(holo, 0.9);
-          ctx.lineWidth = 1.2;
-          ctx.beginPath();
-          ctx.arc(q.x, q.y, 8, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-        ctx.fillStyle = rgba(star, isEarth ? 0.95 : 0.6);
-        ctx.fillText((isEarth ? "EARTH · SPHEREx" : p.name.toUpperCase()).split("").join(" "), q.x + (isEarth ? 13 : 8), q.y);
-      }
+        ctx.strokeStyle = rgba(planetColor[k], 0.9);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(q.x, q.y, isEarth ? 9 : 7, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = rgba(star, isEarth ? 0.95 : 0.75);
+        const text = (isEarth ? "EARTH · SPHEREx" : p.name.toUpperCase()).split("").join("\u2009");
+        ctx.fillText(text, q.x + (isEarth ? 15 : 12), q.y - 5);
+      });
 
       // Lines of sight from Earth to each target, and the HTML target markers.
       const eq = project(earth, c);
