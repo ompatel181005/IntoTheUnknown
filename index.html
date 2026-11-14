@@ -871,13 +871,16 @@ function pickSubset(rows, maxPer){
   }
   return out.sort((a,b)=>a.mjd-b.mjd);
 }
-// FLAGS bitmap. SPHEREx files define each bit in the FLAGS header (cards like MP_HOT = 10). Bits are looked up by
+// FLAGS bitmap. SPHEREx files name each bit in the FLAGS header (cards like MSKN0010 = 'HOT'). Bits are looked up by
 // *name* from the file itself, so nothing here depends on a hard-coded bit layout. Pixels with a bit named in
 // FLAG_MASK_NAMES are blanked; every bit is counted and listed in the Exposures tab. SOURCE-type bits mark pixels
 // on a detected star and are not a quality problem, so they are not counted as "bad".
-const FLAG_MASK_NAMES = ["NONFUNC","MISSING_DATA","HOT","COLD","OVERFLOW","SUR_ERROR"];
+// OVERFLOW is not blanked (PLAN §5.3): it would erase bright stars' cores. SUR_ERROR and TRANSIENT also mark
+// saturated cores, so they only blank pixels that are not on a SOURCE (docs/DECISIONS.md, spike #4).
+const FLAG_MASK_NAMES = ["NONFUNC","MISSING_DATA","HOT","COLD"];
+const FLAG_MASK_OFF_SOURCE = ["SUR_ERROR","TRANSIENT"];
 const FLAG_NOT_BAD = ["SOURCE","FULLSAMPLE"];
-function flagDefs(cards){ const d={}; for(const [k,v] of Object.entries(cards)) if(/^MP_/.test(k) && Number.isInteger(v) && v>=0 && v<32) d[v]=k.slice(3); return d; }
+function flagDefs(cards){ const d={}; for(const [k,v] of Object.entries(cards)){ const m=/^MSKN(\d{4})$/.exec(k); if(m && +m[1]<32 && typeof v==="string") d[+m[1]]=v.trim(); } return d; }
 
 // Download (or read from the demo pack) one cutout, parse its extensions and resample it onto the common north-up grid.
 async function loadCutout(row){
@@ -894,12 +897,14 @@ async function loadCutout(row){
   let flagInfo = fh? "tile-compressed" : "absent", flagTip = "";
   if(flags && flags.data.length===img.data.length){
     const defs=flagDefs(fh.cards), named=Object.keys(defs).length>0;
-    let mask=0, notBad=0; for(const [b,n] of Object.entries(defs)){ if(FLAG_MASK_NAMES.includes(n)) mask|=1<<b; if(FLAG_NOT_BAD.includes(n)) notBad|=1<<b; }
+    let mask=0, offSrc=0, src=0, notBad=0;
+    for(const [b,n] of Object.entries(defs)){ if(FLAG_MASK_NAMES.includes(n)) mask|=1<<b; if(FLAG_MASK_OFF_SOURCE.includes(n)) offSrc|=1<<b; if(n==="SOURCE") src|=1<<b; if(FLAG_NOT_BAD.includes(n)) notBad|=1<<b; }
     const perBit=new Array(32).fill(0); let bad=0, any=0, n=flags.data.length;
-    for(let i=0;i<n;i++){ const v=flags.data[i]; if(!v) continue; any++; if(v & ~notBad) bad++; for(let b=0;b<32;b++) if(v & (1<<b)) perBit[b]++; if(v & mask) img.data[i]=NaN; }
+    for(let i=0;i<n;i++){ const v=flags.data[i]; if(!v) continue; any++; if(v & ~notBad) bad++; for(let b=0;b<32;b++) if(v & (1<<b)) perBit[b]++;
+      if((v & mask) || ((v & offSrc) && !(v & src))) img.data[i]=NaN; }
     flagInfo = named? `${(100*bad/n).toFixed(1)}% bad` : `${(100*any/n).toFixed(1)}% any bit`;
     flagTip = perBit.map((c,b)=>c? `${defs[b]||"bit "+b}: ${(100*c/n).toFixed(1)}%` : null).filter(Boolean).join("\n")
-            + (named? `\nBlanked: ${FLAG_MASK_NAMES.filter(x=>Object.values(defs).includes(x)).join(", ")||"none"}` : "\nNo bit definitions in this file; nothing blanked.");
+            + (named? `\nBlanked: ${[...FLAG_MASK_NAMES, ...FLAG_MASK_OFF_SOURCE.map(x=>x+" (off SOURCE)")].filter(x=>Object.values(defs).includes(x.split(" ")[0])).join(", ")||"none"}` : "\nNo bit definitions in this file; nothing blanked.");
   }
   const wcs = makeWCS(ih.cards);
   const wave = makeWaveFn(ih.cards, hduByName(hdus,"WCS-WAVE"), row.det);

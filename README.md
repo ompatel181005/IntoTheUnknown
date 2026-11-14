@@ -155,9 +155,9 @@ python3 tests/run_test.py /tmp/shots                                     # live 
 
 ## Known limits
 
-- **FLAGS.** Bit meanings are read *by name* from each file's own FLAGS header (cards such as `MP_HOT`), not
-  from a hard-coded layout. Pixels whose bits are named in `FLAG_MASK_NAMES` (non-functional, missing, hot, cold,
-  overflow) are blanked. Every bit is counted, and hovering the *flags* cell in the Exposures tab shows the
+- **FLAGS.** Bit meanings are read *by name* from each file's own FLAGS header (cards such as `MSKN0010 = 'HOT'`), not
+  from a hard-coded layout. Pixels whose bits are named in `FLAG_MASK_NAMES` (non-functional, missing, hot, cold)
+  are blanked; SUR_ERROR and TRANSIENT are blanked only off SOURCE pixels, and OVERFLOW is kept so bright cores survive. Every bit is counted, and hovering the *flags* cell in the Exposures tab shows the
   breakdown. `SOURCE` pixels (on a detected star) are not counted as bad. If a file carries no bit definitions,
   flags are reported but nothing is blanked.
 - **Per-pixel wavelength.** It comes from the file's `WCS-WAVE` table: a 9×9 grid of [wavelength, bandwidth]
