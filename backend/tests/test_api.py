@@ -66,3 +66,28 @@ def test_saved_only_rejects_unknown_position():
             break
         time.sleep(0.1)
     assert body["error"]["code"] == "NOT_SAVED"
+
+
+def test_measurement_errors_use_the_api_error_shape():
+    for path in ("/api/views/nope", "/api/views/nope/spectrum?x=1&y=1", "/api/views/nope/lightcurve?x=1&y=1"):
+        r = client.get(path)
+        assert r.status_code == 404 and r.json()["error"]["code"] == "UNKNOWN_VIEW", path
+
+
+def test_measurement_inputs_are_bounded():
+    for q in ("x=30&y=30&r_px=4", "x=30&y=30&r_px=-1", "x=nan&y=30", "x=-1&y=30"):
+        assert client.get(f"/api/views/{view_id}/lightcurve?{q}").status_code == 422, q
+    assert client.get(f"/api/views/{view_id}/spectrum?x=-1&y=0").status_code == 422
+
+
+def test_rebuild_failure_is_not_a_bare_500(monkeypatch):
+    from app.processing import views
+
+    def down(job):
+        raise views.ViewError("IRSA_DOWN", "archive down")
+
+    job = views.JOBS[view_id]
+    monkeypatch.setattr(job, "epochs", [])  # as after a restart
+    monkeypatch.setattr(views, "build", down)
+    r = client.get(f"/api/views/{view_id}/spectrum?x=1&y=1")
+    assert r.status_code == 503 and r.json()["error"]["code"] == "IRSA_DOWN"
