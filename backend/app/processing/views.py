@@ -224,6 +224,9 @@ def build(job: Job) -> None:
         if stacks and any(np.isfinite(s).any() for s in stacks)
         else {"kind": "asinh", "vmin": 0.0, "vmax": 1.0, "beta": 1.0}
     )
+    # Field-star ratios only measure calibration when every epoch covers the same channels; across different
+    # bandpasses they measure colour, so unmatched stacks keep 1.0 (PLAN 5.5).
+    scales = stack.phot_scales(stacks) if info["bandpass_matched"] else [1.0] * len(stacks)
 
     epoch_rows = []
     for i, (ep, img) in enumerate(zip(epochs, stacks)):
@@ -245,7 +248,7 @@ def build(job: Job) -> None:
                 "channels": len(info["channels"]),
                 "flagged_px": _flag_counts(ep),
                 "astrom_resid_px": None,
-                "phot_scale": 1.0,
+                "phot_scale": round(scales[i], 4),
                 "image": f"e{i}.f32",
                 "mask": f"e{i}.mask.u8",
                 "png": None,
