@@ -4,7 +4,7 @@ Single source for target astrometry and pass criteria (moved here from PLAN §6)
 
 - Astrometry is **Gaia DR3 at J2016.0**, queried 2026-11-14 (✓). It is not from SIMBAD: SIMBAD was down, and J2000 or designation coordinates are arcminutes off for the movers.
 - **(lit.)** = from literature or memory; confirm before quoting it in the pitch.
-- Nothing has been tested yet. Update the Status column as `scripts/validate.py` results land.
+- Barnard's captured B1-B2 pack has been tested in the adopted browser app: 10 and 40 images per detector pass the astrometry checks; the default 3 fails. See `validation.md` for measurements, settings and limits. The other targets still await science validation.
 
 Shifts are computed at 6.15″/px.
 
@@ -20,7 +20,7 @@ Shifts are computed at 6.15″/px.
 
 | Target | Test type | RA | Dec | Status | Note |
 |---|---|---|---|---|---|
-| Barnard's Star | motion | 269.44627 | +4.76820 | not tested |  |
+| Barnard's Star | motion | 269.44627 | +4.76820 | conditional astrometry pass | Captured B1-B2 demo: max-per 10 gives 0.078 px vector error; full capture 0.108 px. Default 3 fails at 0.304 px. Saturated photometry and channel matching remain unvalidated; see `validation.md`. |
 | ε Ind B | motion | 331.09665 | −56.80066 | not tested |  |
 | WISE 0855 | motion | ≈133.7599 | ≈−7.2422 | not tested | Assumes the designation epoch is ≈2010.5. Replace with SIMBAD's value when it's back, and use FOV ≥ 6′ until then. |
 | RW Aur | variability | 76.95608 | +30.40113 | not tested |  |
