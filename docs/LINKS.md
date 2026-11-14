@@ -5,7 +5,7 @@ Do not guess URLs. Fill the placeholders from the official pages.
 Every URL below was checked on 2026-11-14: it either returned HTTP 200 with a matching page title, or (the six tutorials) is linked from IRSA's SPHEREx DR1 and mission pages. `TODO(team)` means not found or not reachable.
 
 ## Space Apps
-- Challenge page: https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/ (read in a browser 2026-11-14; scope notes in `DECISIONS.md` 13:40)
+- Challenge page: https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/ (read in a browser 2026-11-14; scope notes in `DECISIONS.md` 13:20)
 - Challenge resources tab: https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/?tab=resources. It links four things for this challenge: the IRSA mission page, the SPHEREx tutorial notebooks, WiseView, and Gaia at MAST (https://archive.stsci.edu/missions-and-data/gaia, "use the latest data release (DR3)"). The rest of the tab is CSA NEOSSat material we don't use.
 - Project Submission Guide: https://www.spaceappschallenge.org/resources/project-submission-guide/
 - Judging & Awards Guide: https://www.spaceappschallenge.org/resources/judging-awards-guide/

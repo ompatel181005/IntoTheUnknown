@@ -25,7 +25,7 @@ Markers: **✓** = checked today against a live source. **(lit.)** = from litera
 | CDN | Front Door vs classic | ✓ Classic Azure CDN (Microsoft) accepts **no new profiles since Aug 15 2025** and retires Sep 30 2027. Front Door classic also accepts no new profiles. **Front Door Standard costs $35/month, billed hourly.** | Serve from Blob directly first. Add Front Door Standard on Sunday only if there's time (§4). |
 | Azure for Students | — | ✓ $100 credit for 12 months. Always free: Container Apps 180k vCPU-s + 360k GiB-s + 2M requests per month; Functions 1M requests; Cosmos 1000 RU/s + 25 GB; SWA free; **ACR Standard free for 12 months**. ✓ Flex Consumption is the recommended Functions plan; students get **15 cores per region**; `WEBSITE_TIME_ZONE` is **not supported** (use UTC cron). Region policy: not stated in the docs we read, so check it with the CLI. Azure OpenAI is mentioned, but no free amount is listed and availability is unverified. | §8 runbook |
 | Local tools | — | python 3.13, node, gh and uv are installed. **az, func, swa and docker are missing.** | Install them or use Azure Cloud Shell. Build images in GitHub Actions. |
-| Not verified | — | ✓ The challenge page, resources tab and submission form fields were read in a browser on 2026-11-14 (`LINKS.md`, §10, `DECISIONS.md` 13:40). ✓ The SPHEREx and Gaia acknowledgements are verbatim in `DATA.md`; IRSA has no separate wording. Still open: the SIMBAD wording (CDS down), and whether cutout `size` is in degrees (the tutorial implies it). | Issue #4 confirms the cutout units. |
+| Not verified | — | ✓ The challenge page, resources tab and Project Submission Guide were read in a browser on 2026-11-14 (`LINKS.md`, §10, `DECISIONS.md` 13:20). ✓ The SPHEREx and Gaia acknowledgements are verbatim in `DATA.md`; no separate IRSA wording was found. Still open: the live submission form (§10 lists the fields as the guide describes them), the SIMBAD wording (CDS down), and whether cutout `size` is in degrees (the tutorial implies it). | Someone opens My Team → Project once; issue #4 confirms the cutout units. |
 
 ---
 
@@ -414,9 +414,9 @@ Moved to [`infra/README.md`](../infra/README.md), with the environment-variable 
 10. Team
 11. License
 
-**Citations:** in [`DATA.md`](DATA.md). The SPHEREx and Gaia DR3 acknowledgements there are verbatim. IRSA asks only for the DOIs plus the SPHEREx text. SIMBAD's wording is still TODO (CDS was down).
+**Citations:** in [`DATA.md`](DATA.md). The SPHEREx and Gaia DR3 acknowledgements there are verbatim. IRSA's DR1 page asks for the DOIs plus the SPHEREx text; no separate IRSA wording was found. SIMBAD's wording is still TODO (CDS was down).
 
-**Submission checklist.** These are the form fields from the Project Submission Guide (read 2026-11-14). The form is on the team page under My Team → Project → Edit. Use "Save Progress" often, and turn on the edit Lock so two people don't overwrite each other.
+**Submission checklist.** These are the form fields as the Project Submission Guide describes them (read 2026-11-14); check them against the live form once. The form is on the team page under My Team → Project → Edit. Use "Save Progress" often, and turn on the edit Lock so two people don't overwrite each other.
 - [ ] Every team member is a confirmed participant at the **same Local Event**; otherwise the project isn't eligible for awards
 - [ ] **Project Name**
 - [ ] **High-Level Project Summary:** what we built, how it addresses the challenge, why it matters
