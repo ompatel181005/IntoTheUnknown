@@ -57,6 +57,26 @@ Decision: The author squash-merges their own PR once CI is green. No second revi
 Why: Speed over safety for a 30-hour build. If main breaks, revert the merge via a PR first, then debug (`AGENTS.md` §11).
 Owner: dflow11
 
+## 2026-11-14 13:40 - Mask policy: don't let TRANSIENT/SUR_ERROR mask SOURCE pixels (spike #4)
+Decision: In per-frame cleaning (PLAN §5.3), clear the TRANSIENT and SUR_ERROR bits on pixels that also carry SOURCE before masking. All other masking stays as written.
+Why: A bright star's saturated core is flagged OVERFLOW + TRANSIENT + SUR_ERROR. Under the PLAN policy Barnard's Star was unmasked in only 4.1% of B1-B2 frames (SUR_ERROR masked 115 of 121), so the core went NaN in every stack. With the change it is unmasked in 98.3%, and the measured 1-yr shift matches Gaia to 0.033 px. Masking TRANSIENT everywhere would let cosmic rays through, so we only keep it on SOURCE pixels.
+Owner: dflow11
+
+## 2026-11-14 13:40 - Drop epochs with fewer than 10 frames (spike #4)
+Decision: After `group_epochs`, drop epochs with fewer than 10 frames before channel-matched stacking, and report what was dropped.
+Why: Barnard's B1-B2 grouping gave epochs of 37, 5, 36, 42 and 1 frames. The 5- and 1-frame epochs left no channel common to all epochs (`bandpass_matched=false`, 34-channel union). Without them it gives 3 epochs, 31 common channels and `bandpass_matched=true`.
+Owner: dflow11
+
+## 2026-11-14 13:40 - Measured centroid scatter replaces the 0.2 px estimate (spike #4)
+Decision: Use the measured per-epoch field-star centroid scatter, 0.021 px per axis (11 Gaia stars, G 10-16, B1-B2 epoch stacks), in place of the estimated 0.2 px. Epoch-to-epoch shift scatter is 0.027 px per axis. Alignment offsets were at most 0.023 px, well under the 0.15 px re-reprojection threshold.
+Why: The PLAN §5.8 candidate rule `max(0.5 px, 3 × scatter)` therefore floors at 0.5 px for bright stars. Scatter will be larger for faint sources, so keep computing it per view.
+Owner: dflow11
+
+## 2026-11-14 13:40 - IRSA facts confirmed live (spike #4)
+Decision: Cutout `size` defaults to degrees and also accepts units (`0.1`, `0.1deg`, `6arcmin` and `360arcsec` all give 58 px). The backend must cap `size`, because `size=360` returned a full 2040×2040 frame. The `list_collections` column is `collection`, and the call is TAP-backed, so it fails whenever TAP is down; hard-code `spherex_dr1`/`spherex_qr3` as the fallback. A cutout is 4.02 MB, mostly the EPSF table. One cutout took 6.5 s from IRSA and 4.0 s from S3 range-reads; 121 cutouts with 10 workers took 199 s with no failures. The SIA `energy_bandpassname` value is `SPHEREx-D<n>` (detector), not a band name. IRSA SIA/TAP flapped between 200 and 502 within minutes.
+Why: These are the open unknowns from PLAN §1 and §11.
+Owner: dflow11
+
 ## 2026-11-14 13:20 - Challenge text and submission rules read (issue #3)
 Decision: Facts from the challenge page and the Project Submission Guide, plus two scope **proposals** that are not yet applied to PLAN §7.
 - Proposal 1, embedding: the challenge's "potential considerations" say coordinates in the URL let "users … easily embed it in other websites". URL state is already MVP. The proposal is to also allow framing, i.e. `staticwebapp.config.json` sends no `X-Frame-Options: DENY` and no restrictive `frame-ancestors`, with an optional minimal `?embed=1` layout. Docs PR #2 dropped embed from the plan (PR body; the 12:45 entries don't mention it). It's a consideration, not a requirement. TODO(team): confirm or reject. Apply nothing until then.
