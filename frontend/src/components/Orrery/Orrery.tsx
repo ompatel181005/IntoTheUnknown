@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { setFlightFocus } from "../../lib/flight";
 import { centuries, PLANETS, position, raDecToEcliptic, type Vec3 } from "../../lib/orbits";
 import { galacticToEq } from "../../lib/sky";
 import { tokenRgb } from "../../lib/stretch";
@@ -149,10 +150,16 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
         if (f.start < 0) f.start = now;
         const t = Math.min(1, (now - f.start) / FLY_MS);
         const e = cinematic(t);
-        c.yaw = f.from.yaw + (f.to.yaw - f.from.yaw) * e;
-        c.pitch = f.from.pitch + (f.to.pitch - f.from.pitch) * e;
+        // Turn first (done by ~70% of the flight) so the star is centred when the dome takes over.
+        const turn = cinematic(Math.min(1, t / 0.7));
+        c.yaw = f.from.yaw + (f.to.yaw - f.from.yaw) * turn;
+        c.pitch = f.from.pitch + (f.to.pitch - f.from.pitch) * turn;
         c.dist = f.from.dist + (0.15 - f.from.dist) * e ** 1.6;
         c.fade = 1 - e * 0.85;
+        // The starfield warps toward wherever the chosen star is right now.
+        const q = project(sights[f.k], c);
+        const wr = wrap.getBoundingClientRect();
+        setFlightFocus(wr.left + q.x, wr.top + q.y);
         if (t >= COMMIT_AT) {
           fly.current = null;
           // The dome grows out of the clicked ring's current position.

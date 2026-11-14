@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { LoadedView } from "../../data/source";
 import type { ViewState as LoadState } from "../../hooks/useView";
+import { setFlightFocus } from "../../lib/flight";
 import { formatDec, formatRa } from "../../lib/format";
 import { renderDifference, renderEpoch, tokenRgb } from "../../lib/stretch";
 import { PRESETS, type Preset } from "../../lib/targets";
@@ -134,7 +135,12 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
   // Telescope zoom on the real DOM (stays crisp, unlike a scaled snapshot), one easing for the whole move.
   useLayoutEffect(() => {
     const col = columnRef.current;
-    if (!col || typeof col.animate !== "function") return;
+    if (!col) return;
+    {
+      const c = col.getBoundingClientRect();
+      setFlightFocus(c.left + c.width / 2, c.top + c.height / 2);
+    }
+    if (typeof col.animate !== "function") return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) {
       col.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: "linear" });

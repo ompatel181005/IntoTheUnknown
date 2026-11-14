@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { flightFocus } from "../../lib/flight";
 import { seeded } from "../../lib/sky";
 import { tokenRgb } from "../../lib/stretch";
 import s from "./SkyBackdrop.module.css";
@@ -28,6 +29,8 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
   const draw = useRef<(streak: number) => void>(() => {});
   const lastKey = useRef<string | null | undefined>(undefined);
   const anim = useRef(0);
+  /** Current vanishing point in canvas pixels (NaN = canvas centre). */
+  const focus = useRef({ x: NaN, y: NaN });
 
   // Build the field and the painter once; repaint on resize.
   useEffect(() => {
@@ -63,8 +66,8 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
     const paths: Path2D[] = [];
     draw.current = (streak: number) => {
       ctx.clearRect(0, 0, w, h);
-      const cx = w / 2;
-      const cy = h / 2;
+      const cx = Number.isFinite(focus.current.x) ? focus.current.x : w / 2;
+      const cy = Number.isFinite(focus.current.y) ? focus.current.y : h / 2;
       const f = Math.max(w, h) * 0.5;
       const moving = Math.abs(streak) > 1e-4;
       for (let k = 0; k < palette.length * BINS; k++) paths[k] = new Path2D();
@@ -128,8 +131,23 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
     document.documentElement.dataset.flying = "1";
     const start = performance.now();
     let last = start;
+    const PAD = 24; // the canvas overhangs the viewport by 24 px on each side
     const step = (now: number) => {
       const t = Math.min(1, (now - start) / TRAVEL_MS);
+      // Ease the vanishing point toward the star or dome the camera is flying at.
+      if (Number.isFinite(flightFocus.tx)) {
+        const fx = focus.current;
+        const tx = flightFocus.tx + PAD;
+        const ty = flightFocus.ty + PAD;
+        if (!Number.isFinite(fx.x)) {
+          fx.x = tx;
+          fx.y = ty;
+        } else {
+          const k = Math.min(1, ((now - last) / 1000) * 10);
+          fx.x += (tx - fx.x) * k;
+          fx.y += (ty - fx.y) * k;
+        }
+      }
       const speed = Math.sin(Math.PI * t) ** 2 * 1.6; // ease in and out, in z-units per second
       const dz = (speed * (now - last)) / 1000;
       last = now;
