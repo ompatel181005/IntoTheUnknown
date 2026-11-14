@@ -19,15 +19,6 @@
   height: 100%;
 }
 
-/* Faint scanlines: the projection reads as a hologram, not a photo. */
-.scan {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(to bottom, var(--holo-scan) 0 1px, transparent 1px 4px);
-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
-}
-
 .target {
   position: absolute;
   left: 0;
@@ -64,8 +55,9 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  border: 1px solid var(--accent);
-  box-shadow: 0 0 10px var(--accent-wash);
+  border: 1px solid var(--text-1);
+  box-shadow: 0 0 6px var(--glass-highlight);
+  opacity: 0.85;
   transition: scale 250ms ease-out;
 }
 
@@ -75,7 +67,8 @@
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--text-1);
+  opacity: 0.85;
 }
 
 .target:hover .ring::before,
@@ -124,7 +117,7 @@
   font-weight: 600;
   letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: var(--holo);
+  color: var(--text-2);
 }
 
 .hud {
@@ -155,15 +148,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--holo);
-  box-shadow: 0 0 8px var(--holo);
-  animation: blink 2s ease-in-out infinite;
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0.3;
-  }
+  background: var(--text-2);
 }
 
 .hudNote {
@@ -178,5 +163,16 @@
 
   .name {
     font-size: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring::before,
+  .name {
+    transition: none;
+  }
+
+  .target[data-picked="true"] .ring::before {
+    animation: none;
   }
 }

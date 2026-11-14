@@ -2,6 +2,8 @@
 // "Keplerian Elements for Approximate Positions of the Major Planets" (Standish), table 1, valid 1800-2050.
 // Accurate to well under a degree: fine for a picture, not for science.
 
+import { galacticToEq, seeded } from "./sky";
+
 const D2R = Math.PI / 180;
 
 interface Elements {
@@ -26,6 +28,13 @@ export const PLANETS: Elements[] = [
 ];
 
 export type Vec3 = [number, number, number];
+
+export interface SkyStar {
+  pos: Vec3;
+  size: number;
+  brightness: number;
+  tone: 0 | 1 | 2;
+}
 
 /** Julian centuries since J2000.0 for a JS date. */
 export function centuries(date: Date): number {
@@ -69,4 +78,31 @@ export function raDecToEcliptic(raDeg: number, decDeg: number): Vec3 {
   const z = Math.sin(dec);
   const eps = 23.4393 * D2R;
   return [x, y * Math.cos(eps) + z * Math.sin(eps), -y * Math.sin(eps) + z * Math.cos(eps)];
+}
+
+/** A deterministic sky with most stars concentrated around the galactic plane. */
+export function skyStars(count: number, radius: number): SkyStar[] {
+  const random = seeded(0x53504858);
+  const normal = () => {
+    const u = Math.max(Number.EPSILON, random());
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * random());
+  };
+
+  return Array.from({ length: count }, () => {
+    const lon = random() * 360;
+    const nearPlane = random() < 0.78;
+    const lat = nearPlane
+      ? Math.max(-55, Math.min(55, normal() * 11))
+      : Math.asin(random() * 2 - 1) / D2R;
+    const eq = galacticToEq(lon, lat);
+    const unit = raDecToEcliptic(eq.ra, eq.dec);
+    const brightness = random() ** 3.4;
+    const tint = random();
+    return {
+      pos: [unit[0] * radius, unit[1] * radius, unit[2] * radius],
+      size: 0.4 + brightness * 1.4,
+      brightness,
+      tone: tint < 0.025 ? 1 : tint < 0.07 ? 2 : 0,
+    };
+  });
 }

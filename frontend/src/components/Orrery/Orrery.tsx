@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { setFlightFocus } from "../../lib/flight";
-import { centuries, PLANETS, position, raDecToEcliptic, type Vec3 } from "../../lib/orbits";
+import { centuries, PLANETS, position, raDecToEcliptic, skyStars, type Vec3 } from "../../lib/orbits";
 import { galacticToEq } from "../../lib/sky";
 import { tokenRgb } from "../../lib/stretch";
 import type { Preset } from "../../lib/targets";
@@ -33,8 +33,8 @@ function scale(v: Vec3): Vec3 {
 const rgba = (c: [number, number, number], a: number) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
 /**
- * Home view: a live holographic orrery. Planets sit at today's positions (approximate), SPHEREx rides with
- * Earth, and the five targets hang on a wireframe celestial sphere in their real directions. Drag to turn it.
+ * Home view: a live orrery in a fixed celestial sky. Planets sit at today's positions (approximate),
+ * SPHEREx rides with Earth, and the five targets hang in their real sky directions. Drag to turn it.
  */
 export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -56,11 +56,11 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
     const ctx = cv?.getContext("2d");
     if (!wrap || !cv || !ctx) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const holo = tokenRgb("--holo");
     const star = tokenRgb("--star");
     const sun = tokenRgb("--sun");
+    const accent = tokenRgb("--accent");
+    const text2 = tokenRgb("--text-2");
     const planetColor = PLANETS.map((p) => tokenRgb(`--planet-${p.name.toLowerCase()}`));
-    const band = tokenRgb("--holo");
     const T = centuries(new Date());
     // Lower resolution on small machines keeps the loop under a frame budget.
     const dprCap = (navigator.hardwareConcurrency || 8) <= 4 ? 1.25 : 2;
@@ -68,13 +68,10 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
     // Static geometry, built once.
     const orbits = PLANETS.map((p) => Array.from({ length: 129 }, (_, k) => scale(position(p, T, (k / 128) * Math.PI * 2))));
     const planets = PLANETS.map((p) => ({ name: p.name, pos: scale(position(p, T)) }));
-    const earth = planets.find((p) => p.name === "Earth")!.pos;
     const onSky = (ra: number, dec: number): Vec3 => {
       const u = raDecToEcliptic(ra, dec);
       return [u[0] * SKY_R, u[1] * SKY_R, u[2] * SKY_R];
     };
-    const meridians = Array.from({ length: 12 }, (_, m) => Array.from({ length: 49 }, (_, k) => onSky(m * 30, -90 + (k / 48) * 180)));
-    const parallels = [-60, -30, 0, 30, 60].map((d) => Array.from({ length: 97 }, (_, k) => onSky((k / 96) * 360, d)));
     const ecliptic = Array.from({ length: 97 }, (_, k): Vec3 => {
       const a = (k / 96) * Math.PI * 2;
       return [Math.cos(a) * SKY_R, Math.sin(a) * SKY_R, 0];
@@ -84,12 +81,15 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
       return { p: onSky(q.ra, q.dec), w: 0.35 + 0.65 * Math.max(0, Math.cos(((k / 144) * 360 * Math.PI) / 180)) ** 2 };
     });
     const sights = targets.map((t) => onSky(t.ra, t.dec));
+    const backgroundStars = skyStars(1500, SKY_R * 1.8);
 
     let w = 0;
     let h = 0;
     let dirty = true;
+    let wrapRect = wrap.getBoundingClientRect();
     const resize = () => {
       const r = wrap.getBoundingClientRect();
+      wrapRect = r;
       const dpr = Math.min(dprCap, window.devicePixelRatio || 1);
       w = r.width;
       dirty = true;
@@ -159,8 +159,7 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
         c.fade = 1 - e * 0.85;
         // The starfield warps toward wherever the chosen star is right now.
         const q = project(sights[f.k], c);
-        const wr = wrap.getBoundingClientRect();
-        setFlightFocus(wr.left + q.x, wr.top + q.y);
+        setFlightFocus(wrapRect.left + q.x, wrapRect.top + q.y);
         if (t >= COMMIT_AT) {
           fly.current = null;
           // The dome grows out of the clicked ring's current position.
@@ -181,16 +180,12 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
 
       ctx.clearRect(0, 0, w, h);
       ctx.globalAlpha = c.fade;
-      // Celestial sphere: grid, galactic band, ecliptic.
-      meridians.forEach((m) => line(m, c, holo, 0.1));
-      parallels.forEach((p, k) => line(p, c, holo, k === 2 ? 0.24 : 0.1, k === 2 ? 1.2 : 1));
-      // Galactic band as stacked translucent strokes (no shadowBlur, which is slow in Firefox),
-      // bucketed by brightness so each layer is a few paths.
+      // The Milky Way is a broad neutral glow with the dense galactic star field over it.
       ctx.lineCap = "round";
       for (const [widthK, alphaK, color] of [
-        [22, 0.035, band],
-        [11, 0.06, star],
-        [4, 0.1, star],
+        [38, 0.018, star],
+        [20, 0.028, star],
+        [7, 0.05, star],
       ] as const) {
         for (let bucket = 0; bucket < 4; bucket++) {
           const lo = bucket / 4;
@@ -216,7 +211,25 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
         }
       }
       ctx.lineCap = "butt";
-      line(ecliptic, c, holo, 0.35, 1, [4, 6]);
+
+      // Batch the fixed sky into a small set of paths, including the far hemisphere.
+      const starPaths = Array.from({ length: 4 }, () => [new Path2D(), new Path2D(), new Path2D()]);
+      for (const point of backgroundStars) {
+        const q = project(point.pos, c);
+        if (q.depth < 0.05) continue;
+        const bin = Math.min(3, Math.floor(point.brightness * 4));
+        starPaths[bin][point.tone].moveTo(q.x + point.size, q.y);
+        starPaths[bin][point.tone].arc(q.x, q.y, point.size, 0, Math.PI * 2);
+      }
+      const starAlpha = [0.24, 0.42, 0.68, 0.95];
+      const starTone = [star, sun, accent];
+      starPaths.forEach((paths, bin) => {
+        paths.forEach((path, tone) => {
+          ctx.fillStyle = rgba(starTone[tone], starAlpha[bin]);
+          ctx.fill(path);
+        });
+      });
+      line(ecliptic, c, text2, 0.16, 1, [4, 7]);
 
       // Orbits, sun, planets.
       orbits.forEach((o, k) => {
@@ -253,18 +266,9 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
         ctx.fillText(text, q.x + (isEarth ? 15 : 12), q.y - 5);
       });
 
-      // Lines of sight from Earth to each target, and the HTML target markers.
-      const eq = project(earth, c);
+      // Position the HTML target markers in their fixed sky directions.
       sights.forEach((v, k) => {
         const q = project(v, c);
-        ctx.strokeStyle = rgba(holo, 0.22);
-        ctx.setLineDash([2, 5]);
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(eq.x, eq.y);
-        ctx.lineTo(q.x, q.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
         const el = markerRefs.current[k];
         if (el) {
           el.style.transform = `translate(${q.x}px, ${q.y}px)`;
@@ -338,7 +342,6 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
   return (
     <div ref={wrapRef} className={s.orrery} aria-label="The solar system today, with the five targets on the sky around it">
       <canvas ref={canvasRef} className={s.canvas} aria-hidden="true" />
-      <div className={s.scan} aria-hidden="true" />
       {targets.map((t, k) => (
         <button
           key={t.id}
