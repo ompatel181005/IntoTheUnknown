@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # 20-cost-alert.sh (issue #7): monthly cost budget on the resource group, emailing ALERT_EMAIL
-# when actual cost passes 50%, 80% and 100% of BUDGET_AMOUNT (default $20). Safe to rerun.
+# when actual cost passes 50%, 80% and 100% of BUDGET_AMOUNT (default $20). Safe to rerun:
+# each run sets the start to the first day of the current month and the end one year later.
 #
 # Usage:  ALERT_EMAIL=you@example.com bash infra/20-cost-alert.sh
 #
-# Uses `az rest` PUT on the Budgets REST API: `az consumption budget create` has no
-# notifications flag, and create-with-rg (preview) does not document its --notifications keys.
-# Azure for Students is listed as unsupported by Cost Management, so the API may refuse; the
-# script then prints the portal fallback and exits 3.
+# Uses `az rest` PUT on the Budgets REST API (subscription ID explicit in the URL):
+# `az consumption budget create` has no notifications flag, and create-with-rg (preview) does
+# not document its --notifications keys. Azure for Students may not be supported for budgets;
+# if the API refuses, the script prints the portal fallback and exits 3.
 set -euo pipefail
 # shellcheck source=infra/env.sh
 source "$(dirname "$0")/env.sh"
@@ -17,13 +18,12 @@ source "$(dirname "$0")/env.sh"
   die "ALERT_EMAIL does not look like an email address."
 [[ $BUDGET_AMOUNT =~ ^[0-9]+([.][0-9]+)?$ ]] || die "BUDGET_AMOUNT must be a number (got $BUDGET_AMOUNT)."
 require_az
-exists az group show -n "$RG" || die "Resource group $RG not found. Run 10-core.sh first."
+exists azs group show -n "$RG" || die "Resource group $RG not found. Run 10-core.sh first."
 
-SUB_ID=$(azq account show --query id -o tsv)
-QUOTA_ID=$(azq rest --method get --url "https://management.azure.com/subscriptions/${SUB_ID}?api-version=2022-12-01" \
+QUOTA_ID=$(azq rest --method get --url "https://management.azure.com/subscriptions/${AZ_SUBSCRIPTION_ID}?api-version=2022-12-01" \
   --query subscriptionPolicies.quotaId -o tsv) || QUOTA_ID="unknown"
 API_VERSION="2024-08-01"
-URL="https://management.azure.com/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Consumption/budgets/${BUDGET_NAME}?api-version=${API_VERSION}"
+URL="https://management.azure.com/subscriptions/${AZ_SUBSCRIPTION_ID}/resourceGroups/${RG}/providers/Microsoft.Consumption/budgets/${BUDGET_NAME}?api-version=${API_VERSION}"
 ERR=$(mktemp)
 trap 'rm -f "$ERR"' EXIT
 
@@ -31,15 +31,14 @@ fallback() {
   cat <<EOF
 
 ------------------------------------------------------------------------------------------
-The budget API refused the request (offer quotaId: $QUOTA_ID).
+The budget API refused the request (offer quotaId: $QUOTA_ID). API response:
 $(sed 's/^/  /' "$ERR")
 
 Portal fallback:
   1. portal.azure.com > Cost Management > Budgets > + Add. Scope: resource group $RG.
      Monthly, \$$BUDGET_AMOUNT, alerts at 50/80/100% of actual cost to your email.
-  2. If the portal also says the offer is not supported (expected on Azure for Students),
-     check the remaining credit on the Azure Sponsorships portal:
-     https://www.microsoftazuresponsorships.com/  (sign in with the student account)
+  2. If the portal also says the offer is not supported, check the remaining credit on the
+     Azure Sponsorships portal: https://www.microsoftazuresponsorships.com/ (student account).
      The subscription is cancelled when the credit runs out: no surprise bill, but the demo dies.
   3. Either way: delete Front Door after local judging, and set Container Apps
      min-replicas back to 0 after judging (infra/README.md).
@@ -50,19 +49,15 @@ EOF
 }
 
 if [[ $QUOTA_ID == AzureForStudents* ]]; then
-  warn "Azure for Students: Cost Management lists this offer as unsupported. Trying the API anyway."
+  info "Azure for Students may not be supported for budgets. Trying the API; the fallback follows if it refuses."
 fi
 
 log "Budget $BUDGET_NAME on $RG: \$$BUDGET_AMOUNT/month, alerts at 50/80/100% (actual cost)"
-# On rerun keep the existing start date (it must stay inside the current period) and send the eTag.
+# An existing budget is updated in place; its eTag is sent for concurrency control.
 ETAG=$(azq rest --method get --url "$URL" --query eTag -o tsv 2>/dev/null) || ETAG=""
-START=""
-if [[ -n $ETAG ]]; then
-  START=$(azq rest --method get --url "$URL" --query properties.timePeriod.startDate -o tsv)
-  info "exists; updating in place"
-fi
+if [[ -n $ETAG ]]; then info "exists; updating it"; else info "not found; creating it"; fi
 MONTH_START=$(date -u +%Y-%m-01)
-: "${START:=${MONTH_START}T00:00:00Z}"
+START="${MONTH_START}T00:00:00Z"
 END=$(date -u -d "$MONTH_START +1 year" +%Y-%m-%dT00:00:00Z)
 
 notif() { # percent
@@ -74,12 +69,14 @@ ETAG_PART=""
 BODY=$(printf '{%s"properties":{"category":"Cost","amount":%s,"timeGrain":"Monthly","timePeriod":{"startDate":"%s","endDate":"%s"},"notifications":{%s,%s,%s}}}' \
   "$ETAG_PART" "$BUDGET_AMOUNT" "$START" "$END" "$(notif 50)" "$(notif 80)" "$(notif 100)")
 
-azq rest --method put --url "$URL" --body "$BODY" \
-  --query "{name:name, amount:properties.amount, timeGrain:properties.timeGrain, start:properties.timePeriod.startDate, end:properties.timePeriod.endDate}" \
-  -o table 2>"$ERR" || fallback
+# Report what the API actually stored, not what we sent.
+RESULT=$(azq rest --method put --url "$URL" --body "$BODY" \
+  --query "{name:name, amount:properties.amount, timeGrain:properties.timeGrain, start:properties.timePeriod.startDate, end:properties.timePeriod.endDate, alerts:length(values(properties.notifications || \`{}\`))}" \
+  -o table 2>"$ERR") || fallback
+printf '%s\n' "$RESULT"
 
 cat <<EOF
 
-Budget OK: $BUDGET_NAME on $RG, \$$BUDGET_AMOUNT/month, emails at 50/80/100% of actual cost.
+Budget OK (as returned by the API above): $BUDGET_NAME on $RG, emails at 50/80/100% of actual cost.
 Cost data can lag 8-72 h, so alerts are a backstop, not a live meter. Post "cost alert set" on issue #7.
 EOF

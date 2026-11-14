@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # 00-preflight.sh (issue #7): read-only Azure preflight. Safe to run any time.
-# The one Azure change it makes is registering resource providers (idempotent, free). Locally it
-# selects $AZ_SUBSCRIPTION as the CLI default, like every script here.
+# The one Azure change it makes is registering resource providers (idempotent, free).
+# Every call is pinned to $AZ_SUBSCRIPTION_ID (infra/.env.local).
 # Ends with a block to paste into issue #7 and docs/DECISIONS.md.
 #
 # Usage:  bash infra/00-preflight.sh
+# Exit:   0 region recommended; 4 allowed regions could not be confirmed (choose LOC by hand).
 set -euo pipefail
 # shellcheck source=infra/env.sh
 source "$(dirname "$0")/env.sh"
@@ -14,8 +15,6 @@ require_az
 PREFERRED="westus2 westus3"
 # Fallback search order (US west first), then anything else alphabetically.
 ORDER="westus2 westus3 westus centralus southcentralus westcentralus northcentralus eastus2 eastus canadacentral"
-# Built-in "Allowed locations" policy definition.
-ALLOWED_LOC_DEF="e56962a6-4747-49cd-b67b-bf8b01975c4c"
 
 csv() { local v; v=$(sed '/^$/d' <<<"$1" | paste -sd, - | sed 's/,/, /g'); echo "${v:-(none)}"; }
 pick_first() {
@@ -29,98 +28,74 @@ pick_first() {
 # --- 1. Account ---------------------------------------------------------------------------
 log "1/8 Account"
 info "azure-cli $(azq version --query '"azure-cli"' -o tsv)"
-az account show --query "{subscription:name, id:id, tenant:tenantId, user:user.name, state:state}" -o table
-SUB_ID=$(azq account show --query id -o tsv)
+az account show --subscription "$AZ_SUBSCRIPTION_ID" --query "{subscription:name, user:user.name, state:state}" -o table
 # quotaId names the offer, e.g. AzureForStudents_2018-01-01 (REST: Subscriptions - Get).
-SUB_URL="https://management.azure.com/subscriptions/${SUB_ID}?api-version=2022-12-01"
+SUB_URL="https://management.azure.com/subscriptions/${AZ_SUBSCRIPTION_ID}?api-version=2022-12-01"
 QUOTA_ID=$(azq rest --method get --url "$SUB_URL" --query subscriptionPolicies.quotaId -o tsv) || QUOTA_ID="unknown"
 SPEND_LIMIT=$(azq rest --method get --url "$SUB_URL" --query subscriptionPolicies.spendingLimit -o tsv) || SPEND_LIMIT="unknown"
 info "offer quotaId: $QUOTA_ID   spendingLimit: $SPEND_LIMIT"
 if [[ $QUOTA_ID == AzureForStudents* ]]; then
-  info "Azure for Students: Cost Management lists this offer as unsupported, so 20-cost-alert.sh will probably need the portal fallback."
+  info "Azure for Students: Cost Management may not support budgets for this offer; 20-cost-alert.sh tries and falls back."
 fi
-info "Scripts only touch AZ_SUBSCRIPTION=\"$AZ_SUBSCRIPTION\" (override the env var to change it)."
 
 # --- 2. Providers (the one mutating step) -------------------------------------------------
 log "2/8 Resource providers (registering is idempotent and free; the only change this script makes)"
 for ns in "${REQUIRED_PROVIDERS[@]}"; do
-  state=$(azq provider show -n "$ns" --query registrationState -o tsv)
+  state=$(azsq provider show -n "$ns" --query registrationState -o tsv)
   if [[ $state == Registered ]]; then
     info "$ns: Registered"
   else
-    az provider register -n "$ns" --only-show-errors >/dev/null
+    azs provider register -n "$ns" --only-show-errors >/dev/null
     info "$ns: $state -> registration requested (10-core.sh waits for it)"
   fi
 done
 
 # --- 3. Policy: allowed locations ---------------------------------------------------------
-log "3/8 Policy assignments (including ones inherited from management groups)"
-# --filter "atScope()" = every assignment that applies at subscription scope, including ones
-# inherited from management groups (tenant-level policies). Check the scope column to see where
-# each comes from. The CLI default sends atExactScope() (made at the subscription only) and
-# --disable-scope-strict-match sends atScopeAndBelow(); both can miss an inherited region policy.
-POLICY_FILTER="atScope()"
-az policy assignment list --filter "$POLICY_FILTER" \
+log "3/8 Policy assignments at subscription scope (management-group ones included; see the scope column)"
+azs policy assignment list --filter "$POLICY_FILTER" \
   --query "[].{displayName:displayName, name:name, scope:scope}" -o table || warn "could not list policy assignments"
-
-# Azure for Students carries "Allowed resource deployment regions" (parameter "Allowed locations").
-LOCQ="[?contains(displayName || '', 'region') || contains(displayName || '', 'Region') || contains(displayName || '', 'location') || contains(displayName || '', 'Location') || ends_with(policyDefinitionId || '', '${ALLOWED_LOC_DEF}')]"
-NPOL=$(azq policy assignment list --filter "$POLICY_FILTER" --query "length(${LOCQ})" -o tsv) || NPOL=0
-ALLOWED=""
-ALLOWED_SRC=""
-if [[ $NPOL -gt 0 ]]; then
-  info "Location-type assignments ($NPOL):"
-  az policy assignment list --filter "$POLICY_FILTER" \
-    --query "${LOCQ}.{displayName:displayName, scope:scope, enforcementMode:enforcementMode, parameters:parameters}" -o json
-  RAW=$(azq policy assignment list --filter "$POLICY_FILTER" \
-    --query "${LOCQ}.join(',', parameters.listOfAllowedLocations.value || parameters.allowedLocations.value || \`[]\`)" -o tsv) || RAW=""
-  got=0
-  while IFS= read -r line; do
-    [[ -z $line ]] && continue
-    list=$(tr ',' '\n' <<<"$line" | norm_regions)
-    if [[ $got -eq 0 ]]; then ALLOWED=$list; else ALLOWED=$(intersect "$ALLOWED" "$list"); fi
-    got=$((got + 1))
-  done <<<"$RAW"
-  if [[ $got -gt 0 ]]; then
-    ALLOWED_SRC="policy"
-    info "Allowed regions (intersection of $got list(s)): $(csv "$ALLOWED")"
-  else
-    warn "Found location policies but could not read their region list. Read it from the JSON above"
-    warn "(portal: Policy > Assignments > the assignment > Parameters) and set LOC/SWA_LOC by hand."
-  fi
-fi
-if [[ -z $ALLOWED_SRC ]]; then
-  [[ $NPOL -eq 0 ]] && warn "No allowed-locations policy visible. Azure for Students normally shows one named
-      'Allowed resource deployment regions'. If a create later fails with RequestDisallowedByAzure or
-      RequestDisallowedByPolicy, check the portal: Policy > Assignments."
-  ALLOWED=$(azq account list-locations --query "[?metadata.regionType=='Physical'].name" -o tsv | norm_regions)
-  ALLOWED_SRC="no readable policy; using all subscription regions"
-fi
+read_allowed_regions
+case $POLICY_STATE in
+  ok)
+    info "Location-type assignments:"
+    azs policy assignment list --filter "$POLICY_FILTER" \
+      --query "${LOCQ}.{displayName:displayName, scope:scope, enforcementMode:enforcementMode, parameters:parameters}" -o json
+    info "Allowed regions: $(csv "$ALLOWED")"
+    ;;
+  none)
+    warn "No allowed-locations policy is visible. Azure for Students normally has one named
+      'Allowed resource deployment regions'; a hidden restriction (RequestDisallowedByAzure) may still apply."
+    ;;
+  *)
+    warn "Location policies exist but their region list could not be read or parsed:"
+    azs policy assignment list --filter "$POLICY_FILTER" \
+      --query "${LOCQ}.{displayName:displayName, scope:scope, parameters:parameters}" -o json || true
+    ;;
+esac
 
 # --- 4. Flex Consumption ------------------------------------------------------------------
 log "4/8 Functions Flex Consumption regions (python)"
-FLEX=$(azq functionapp list-flexconsumption-locations --runtime python --query "[].name" -o tsv | norm_regions) || {
+FLEX=$(azsq functionapp list-flexconsumption-locations --runtime python --query "[].name" -o tsv | norm_regions) || {
   warn "list-flexconsumption-locations failed (Microsoft.Web may still be registering; rerun in a minute)"
   FLEX=""
 }
-info "Flex (python) and allowed: $(csv "$(intersect "$ALLOWED" "$FLEX")")"
+info "Flex (python): $(csv "$FLEX")"
 
 # --- 5. Container Apps --------------------------------------------------------------------
 log "5/8 Container Apps environment regions"
-ACA=$(azq provider show -n Microsoft.App \
+ACA=$(azsq provider show -n Microsoft.App \
   --query "resourceTypes[?resourceType=='managedEnvironments'].locations | [0]" -o tsv | norm_regions)
-info "Container Apps and allowed: $(csv "$(intersect "$ALLOWED" "$ACA")")"
+info "Container Apps: $(csv "$ACA")"
 
 # --- 6. Static Web Apps -------------------------------------------------------------------
 log "6/8 Static Web Apps regions"
-SWA_REGIONS=$(azq provider show -n Microsoft.Web \
+SWA_REGIONS=$(azsq provider show -n Microsoft.Web \
   --query "resourceTypes[?resourceType=='staticSites'].locations | [0]" -o tsv | norm_regions)
-info "SWA regions: $(csv "$SWA_REGIONS")"
-info "SWA and allowed: $(csv "$(intersect "$ALLOWED" "$SWA_REGIONS")")"
+info "SWA: $(csv "$SWA_REGIONS")"
 
 # --- 7. Cosmos DB free tier ---------------------------------------------------------------
 log "7/8 Cosmos DB free tier (one per subscription)"
-if FT=$(azq cosmosdb list --query "[?enableFreeTier].name" -o tsv 2>/dev/null); then
+if FT=$(azsq cosmosdb list --query "[?enableFreeTier].name" -o tsv 2>/dev/null); then
   if [[ -n $FT ]]; then COSMOS_FREE="already used by: $(csv "$FT")"; else COSMOS_FREE="available"; fi
 else
   COSMOS_FREE="unknown (cosmosdb list failed; Microsoft.DocumentDB may still be registering)"
@@ -129,7 +104,29 @@ info "$COSMOS_FREE"
 
 # --- 8. Recommendation --------------------------------------------------------------------
 log "8/8 Recommendation"
-A_F_C=$(intersect "$(intersect "$ALLOWED" "$FLEX")" "$ACA")
+STAMP=$(date '+%Y-%m-%d %H:%M')
+F_C=$(intersect "$FLEX" "$ACA")
+
+if [[ $POLICY_STATE != ok ]]; then
+  cat <<EOF
+
+==================== paste into issue #7 and docs/DECISIONS.md ====================
+## ${STAMP} - Azure region and subscription preflight
+Decision: none yet. Could not confirm allowed regions (policy: ${POLICY_STATE}); LOC must be set by hand.
+Why: offer quotaId=${QUOTA_ID}, spendingLimit=${SPEND_LIMIT}. Flex (python) + Container Apps: $(csv "$F_C").
+SWA regions: $(csv "$SWA_REGIONS"). Cosmos free tier: ${COSMOS_FREE}.
+Owner: TODO(team)
+====================================================================================
+
+Could not confirm allowed regions; set LOC manually after checking the portal
+(Policy > Assignments > "Allowed resource deployment regions" > Parameters). Pick one that is
+also in "Flex (python) + Container Apps" above, and an SWA_LOC from the SWA list that the policy allows:
+  export LOC=<region> SWA_LOC=<region>
+EOF
+  exit 4
+fi
+
+A_F_C=$(intersect "$ALLOWED" "$F_C")
 A_F_C_S=$(intersect "$A_F_C" "$SWA_REGIONS")
 A_C=$(intersect "$ALLOWED" "$ACA")
 A_S=$(intersect "$ALLOWED" "$SWA_REGIONS")
@@ -163,13 +160,12 @@ elif [[ -n $A_S ]]; then
   REC_SWA=$(pick_first "$A_S")
 fi
 
-STAMP=$(date '+%Y-%m-%d %H:%M')
 cat <<EOF
 
 ==================== paste into issue #7 and docs/DECISIONS.md ====================
 ## ${STAMP} - Azure region and subscription preflight
-Decision: LOC=${REC_LOC:-NONE}, SWA_LOC=${REC_SWA:-NONE}. ${WHY:-No region satisfies allowed + Container Apps.}
-Why: offer quotaId=${QUOTA_ID}, spendingLimit=${SPEND_LIMIT}. Allowed regions (${ALLOWED_SRC}): $(csv "$ALLOWED").
+Decision: LOC=${REC_LOC:-NONE}, SWA_LOC=${REC_SWA:-NONE}. ${WHY:-No allowed region supports Container Apps.}
+Why: offer quotaId=${QUOTA_ID}, spendingLimit=${SPEND_LIMIT}. Allowed regions (policy): $(csv "$ALLOWED").
 Allowed + Flex (python): $(csv "$(intersect "$ALLOWED" "$FLEX")"). Allowed + Container Apps: $(csv "$A_C").
 Allowed + SWA: $(csv "$A_S"). Cosmos free tier: ${COSMOS_FREE}.
 Owner: TODO(team)

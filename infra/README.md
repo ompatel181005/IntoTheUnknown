@@ -24,28 +24,39 @@ None of these scripts has been run yet. They are re-runnable: each one checks be
 **Prerequisites (once)**
 - Azure CLI 2.92.0 or later: `winget install -e --id Microsoft.AzureCLI`, then open a **new** Git Bash so `az` is on PATH. Or use **Azure Cloud Shell** (Bash), which already has `az` and `gh`; clone the repo there.
 - Call plain `az`. Calling `az.cmd` by its full path from Git Bash goes through cmd.exe, which breaks `--query` strings that contain `{}` or `|`.
-- `az login`. The UIC tenant has two subscriptions. **"Azure for Students" is ours**; "UIC-ACCC-WVD" is university-managed, never touch it. Every script selects `AZ_SUBSCRIPTION` (default `Azure for Students`), prints it, and aborts if another subscription is active.
-- `gh auth login` (as a repo admin) before step 3, so it can set the Actions secrets. Without it, the script prints the `gh secret set` commands instead.
+- `az login`. The UIC tenant has two subscriptions. **"Azure for Students" is ours**; "UIC-ACCC-WVD" is university-managed, never touch it.
+- Create `infra/.env.local` (git-ignored by `.env*`; check with `git check-ignore -v infra/.env.local`) with the "Azure for Students" IDs. They are not in git because the repo is public:
+  ```
+  AZ_SUBSCRIPTION_ID=<subscription guid>
+  AZ_TENANT_ID=<tenant guid>
+  ```
+  Every script checks that `az account show --subscription $AZ_SUBSCRIPTION_ID` returns that id, that tenant and the name "Azure for Students", and aborts otherwise. Every subscription-scoped call passes `--subscription "$AZ_SUBSCRIPTION_ID"` (through `azs`/`azsq` in `env.sh`), so the CLI default never decides. `bash infra/check-scripts.sh` fails if a script calls a subscription-scoped command without it.
+- `gh auth login` (as a repo admin) before `05-oidc-test.sh`, so it can set the Actions secrets. Without it, the script prints the `gh secret set` commands instead.
 
 **Order** (from the repo root):
 
 | # | Command | What it changes | Paste back on issue #7 |
 |---|---|---|---|
 | 1 | `bash infra/00-preflight.sh` | Registers resource providers only (idempotent, free). Everything else is read-only. | The block between the `=====` lines. It also goes in `docs/DECISIONS.md`. |
-| 2 | `export LOC=<rec> SWA_LOC=<rec>` | Nothing. Use the values step 1 recommends. | — |
-| 3 | `bash infra/05-oidc-test.sh` | App registration `gh-planetx` with a federated credential for `main`, the resource group, Contributor on it, 3 GitHub secrets | "OIDC allowed", or "OIDC blocked → GHCR plan B" (exit code 2) |
+| 2 | `export LOC=<region> SWA_LOC=<region>` | Nothing. Required: `10-core.sh` refuses to run without them. | — |
+| 3 | `bash infra/05-oidc-test.sh` | App registration `gh-planetx-itu7q4` (appId saved to `infra/.env.local` as `AZ_OIDC_APP_ID`), federated credential for `main`, 3 GitHub secrets | "OIDC allowed", or "OIDC blocked → GHCR plan B" (exit code 2) |
 | 4 | `bash infra/10-core.sh` | Resource group, Log Analytics, App Insights, storage (`frames` public read, `state` private, Blob CORS), ACR, Container Apps environment, Static Web App | The "core resources" block (names and URLs only) |
-| 5 | `ALERT_EMAIL=you@example.com bash infra/20-cost-alert.sh` | $20/month budget on the resource group, email at 50/80/100 % of actual cost | "cost alert set", or which fallback you used (exit code 3) |
+| 5 | `bash infra/05-oidc-test.sh` again | AcrPush for the OIDC app on the registry (only once the registry exists) | — |
+| 6 | `ALERT_EMAIL=you@example.com bash infra/20-cost-alert.sh` | $20/month budget on the resource group, email at 50/80/100 % of actual cost | The budget table it prints, or which fallback you used (exit code 3) |
 
+- **Region.** The preflight recommends `LOC`/`SWA_LOC` only when it could read every allowed-locations policy. Otherwise it prints "could not confirm allowed regions; set LOC manually after checking the portal" and exits 4: check Policy > Assignments > "Allowed resource deployment regions" > Parameters, then export both values by hand. `10-core.sh` re-checks them against the policy whenever the policy is readable.
+- **Reruns** verify instead of trusting: if a resource exists with another location, ACR SKU, workspace link or blob public-access setting, `10-core.sh` stops with a clear message. CORS adds our rule only if an identical rule isn't there, and leaves other rules alone.
 - Keep `SUF`, `LOC` and `SWA_LOC` the same on every run (export them once per shell). `SUF` is fixed in `env.sh`. Change it only if `10-core.sh` says a name is taken.
-- Exit codes: 0 ok, 1 error, 2 OIDC blocked (use plan B), 3 budget API refused (use the portal fallback).
-- Step 3 will probably fail on this university tenant: students usually can't register apps (403 `Authorization_RequestDenied`). That's fine. Plan B (below) needs no Azure secrets in GitHub.
-- Step 5 will probably fail too: Cost Management lists Azure for Students (MS-AZR-0170P) as unsupported. The script then prints the portal fallback and the credit-balance link.
+- Exit codes: 0 ok, 1 error, 2 OIDC blocked (use plan B), 3 budget API refused (use the portal fallback), 4 regions not confirmed (set `LOC` by hand).
+- `05-oidc-test.sh` will probably fail on this university tenant: students usually can't register apps (403 `Authorization_RequestDenied`). That's fine. Plan B (below) needs no Azure secrets in GitHub. It only ever reuses the app whose ID is in `infra/.env.local`, after checking you own it; it never adopts an app by name.
+- `20-cost-alert.sh` may fail too: Azure for Students may not be supported for budgets. The script tries the API, and if it refuses, prints the portal fallback and the credit-balance link.
 - The scripts never print keys or connection strings. The Container App, Function app and Cosmos DB are not created here (#23, #24, T3).
+
+**Least privilege for CI.** The OIDC app gets **AcrPush on the registry only**, not Contributor on the resource group. TODO(#23): once the Container App exists, grant the app a role scoped to that Container App only (for `az containerapp update`), and Reader on the registry if `az acr login` needs it.
 
 ## Runbook for later issues (draft, not yet run)
 
-Moved here from `docs/PLAN.md` §8. Steps 0–4, the environment in step 6 and the SWA in step 7 are now the scripts above. What follows is still a draft for #23 (Container App, deploys), #24 (Function) and T3 (Cosmos). Run it in Git Bash or Cloud Shell after `source infra/env.sh`.
+Moved here from `docs/PLAN.md` §8. Steps 0–4, the environment in step 6 and the SWA in step 7 are now the scripts above. What follows is still a draft for #23 (Container App, deploys), #24 (Function) and T3 (Cosmos). Run it in Git Bash or Cloud Shell after `source infra/env.sh && require_sub` (that checks the IDs in `infra/.env.local` and sets them as the CLI default). When a block becomes a script, call subscription-scoped commands through `azs`/`azsq` (or add `--subscription "$AZ_SUBSCRIPTION_ID"`); `infra/check-scripts.sh` enforces it.
 
 **Corrections to the original draft** (checked on 2026-11-14 against Azure CLI 2.92.0 `-h` and learn.microsoft.com):
 - `SUF=$RANDOM` created new resources on every run. Names now come from `infra/env.sh` with a fixed `SUF`.
@@ -53,14 +64,15 @@ Moved here from `docs/PLAN.md` §8. Steps 0–4, the environment in step 6 and t
 - `az policy assignment list` without a filter sends `atExactScope()`, so a region policy inherited from a management group stays hidden. Use `--filter "atScope()"`.
 - `az functionapp list-flexconsumption-locations` takes `--runtime python`, which lists only regions with Python on Flex.
 - `az storage container create --auth-mode key` → `az storage container-rm create` (goes through ARM, needs no account key).
-- `az storage cors add` appends a rule on every run. Clear first (`az storage cors clear --services b`).
+- `az storage cors add` (data plane, uses the account key) appends a rule on every run. The script uses ARM instead (`az storage account blob-service-properties show` / `cors-rule add`) and adds our rule only if an identical one is missing.
+- The subscription was chosen by name and the CLI default. It is now pinned by ID and tenant from the git-ignored `infra/.env.local`, on every call.
 - `az containerapp env create`: the `--logs-destination` default changes from `log-analytics` to `azure-monitor` in CLI 2.93.0. Pass `--logs-destination log-analytics` with the workspace ID and key.
 - `ENV=cae-planetx` is renamed `CAE`: `ENV` is a special shell variable.
 - The SWA is created without `--source`/`--login-with-github`, so no workflow or token is generated; the deploy pipeline is #23. Its `-l` was hard-coded to `westus2`. It must be an SWA region (`westus2, centralus, eastus2, westeurope, eastasia`) that the region policy also allows.
-- OIDC role assignment: `--assignee $APP_ID` → `--assignee-object-id <SP object id> --assignee-principal-type ServicePrincipal`, which avoids Graph lookups and propagation errors on a new SP.
+- OIDC: the display name is now unique (`gh-planetx-$SUF`) and the app is reused only by its saved ID, after an owner check. The role is AcrPush on the registry instead of Contributor on the RG. `--assignee $APP_ID` → `--assignee-object-id <SP object id> --assignee-principal-type ServicePrincipal`, which avoids Graph lookups and propagation errors on a new SP.
 - `Microsoft.Cdn` is dropped from the provider list. Register it only before step 10 (Front Door).
 - `az extension add -n containerapp` is optional: `containerapp env create` is in the core CLI. `application-insights` is still an extension; `10-core.sh` installs it.
-- Cost alert: Azure for Students is not supported by Cost Management, so a budget may be impossible. The credit balance is on https://www.microsoftazuresponsorships.com/.
+- Cost alert: Cost Management's offer list marks Azure for Students as unsupported, so a budget may be impossible; the script tries anyway. The credit balance is on https://www.microsoftazuresponsorships.com/.
 
 ```bash
 source infra/env.sh   # names, fixed SUF, MSYS_NO_PATHCONV; then load IDs (never echo AI_CONN)
@@ -140,7 +152,7 @@ az afd route create -g $RG --profile-name afd-planetx --endpoint-name frames-$SU
 az containerapp update -g $RG -n $API --min-replicas 1      # set back to 0 afterwards
 ```
 
-**GitHub OIDC for CI.** `infra/05-oidc-test.sh` does this idempotently: app registration `gh-planetx`, federated credential with subject `repo:ompatel181005/IntoTheUnknown:ref:refs/heads/main` (issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`), Contributor on `rg-planetx`, then the GitHub secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`. If the tenant blocks app registration, use **plan B**: CI pushes a public image to GHCR (`ghcr.io/ompatel181005/planetx-api:<sha>`, built-in `GITHUB_TOKEN` with `packages: write`), and a laptop or Cloud Shell runs `az containerapp update -g rg-planetx -n ca-planetx-api --image ghcr.io/ompatel181005/planetx-api:<sha>`. That needs no Azure secrets in GitHub and no local Docker.
+**GitHub OIDC for CI.** `infra/05-oidc-test.sh` does this idempotently: app registration `gh-planetx-itu7q4` (appId kept in `infra/.env.local`), federated credential with subject `repo:ompatel181005/IntoTheUnknown:ref:refs/heads/main` (issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`), AcrPush on the registry, then the GitHub secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`. The `az containerapp update` step in the workflow below needs a role on the Container App, which #23 grants once the app exists. If the tenant blocks app registration, use **plan B**: CI pushes a public image to GHCR (`ghcr.io/ompatel181005/planetx-api:<sha>`, built-in `GITHUB_TOKEN` with `packages: write`), and a laptop or Cloud Shell runs `az containerapp update -g rg-planetx -n ca-planetx-api --image ghcr.io/ompatel181005/planetx-api:<sha>`. That needs no Azure secrets in GitHub and no local Docker.
 
 `.github/workflows/api.yml` (a hotspot: the infra owner adds it in #23, ask the human first):
 ```yaml

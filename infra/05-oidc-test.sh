@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # 05-oidc-test.sh (issue #7): can this tenant hold an app registration with a GitHub OIDC
-# federated credential? Idempotent: reuses the app named $OIDC_APP_NAME if it exists.
+# federated credential? Safe to rerun.
 #
-# On success: grants the app Contributor on $RG and sets the GitHub repo secrets
-#   AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID (IDs, not passwords) with gh.
-# If blocked: prints the GHCR plan B and exits 2.
+# - App "gh-planetx-$SUF". Its appId is saved to infra/.env.local (AZ_OIDC_APP_ID) on creation,
+#   and only that ID is ever reused, after checking you are one of its owners.
+# - Federated credential for repo:ompatel181005/IntoTheUnknown:ref:refs/heads/main.
+# - Least privilege: AcrPush on the registry only (if 10-core.sh has created it; else rerun later).
+#   No Contributor on the resource group. TODO(#23): grant a role scoped to the Container App.
+# - Sets GitHub secrets AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID with gh
+#   (or prints the commands if gh is missing or logged out).
+# If the tenant blocks app registration: prints the GHCR plan B and exits 2.
 #
-# Usage:  LOC=<from 00-preflight> bash infra/05-oidc-test.sh
-# Needs: az login (Owner on the subscription for the role assignment); gh auth login for the
-#        secrets step (if gh is missing or logged out, the gh commands are printed instead).
+# Usage:  bash infra/05-oidc-test.sh      (run again after 10-core.sh to grant AcrPush)
 set -euo pipefail
 # shellcheck source=infra/env.sh
 source "$(dirname "$0")/env.sh"
@@ -16,6 +19,7 @@ require_az
 
 ISSUER="https://token.actions.githubusercontent.com"
 SUBJECT="repo:${GH_REPO}:ref:refs/heads/${GH_BRANCH}"
+GHCR_IMAGE="ghcr.io/${GH_REPO%%/*}/planetx-api"
 ERR=$(mktemp)
 trap 'rm -f "$ERR"' EXIT
 
@@ -36,29 +40,43 @@ plan_b() {
 GitHub OIDC is BLOCKED here: $1
 Use plan B (infra/README.md, "GitHub OIDC for CI"):
   - CI builds backend/ and pushes a PUBLIC image to GHCR with the built-in GITHUB_TOKEN
-    (permissions: packages: write): ghcr.io/${GH_REPO%%/*}/planetx-api:<sha>
+    (permissions: packages: write): ${GHCR_IMAGE}:<sha>
   - A laptop or Cloud Shell deploys it (no Azure secrets in GitHub, no local Docker):
-      az containerapp update -g ${RG} -n ${API} --image ghcr.io/${GH_REPO%%/*}/planetx-api:<sha>
+      source infra/env.sh
+      az containerapp update -g ${RG} -n ${API} --image ${GHCR_IMAGE}:<sha> --subscription "\$AZ_SUBSCRIPTION_ID"
   - Record "OIDC blocked -> GHCR plan B" in docs/DECISIONS.md and on issue #7.
 ------------------------------------------------------------------------------------------
 EOF
   exit 2
 }
 
+log "Signed-in user"
+ME=$(azq ad signed-in-user show --query id -o tsv 2>"$ERR") || plan_b "$(reason "Reading the signed-in user")"
+info "object id $ME"
+
 log "App registration $OIDC_APP_NAME"
-# --display-name may match by prefix, so filter for the exact name too.
-EXACT="[?displayName=='${OIDC_APP_NAME}']"
-N=$(azq ad app list --display-name "$OIDC_APP_NAME" --query "length(${EXACT})" -o tsv 2>"$ERR") ||
-  plan_b "$(reason "Listing app registrations")"
-if [[ $N -gt 0 ]]; then
-  APP_ID=$(azq ad app list --display-name "$OIDC_APP_NAME" --query "${EXACT} | [0].appId" -o tsv)
-  [[ $N -gt 1 ]] && warn "$N apps are named $OIDC_APP_NAME; using the first ($APP_ID)."
-  info "reusing appId $APP_ID"
+if [[ -n ${AZ_OIDC_APP_ID:-} ]]; then
+  [[ $AZ_OIDC_APP_ID =~ $GUID_RE ]] || die "AZ_OIDC_APP_ID in infra/.env.local is not a GUID: $AZ_OIDC_APP_ID"
+  azq ad app show --id "$AZ_OIDC_APP_ID" --query appId -o tsv >/dev/null 2>"$ERR" ||
+    die "App AZ_OIDC_APP_ID=$AZ_OIDC_APP_ID (infra/.env.local) is not readable: $(tr '\n' ' ' <"$ERR")
+       Remove that line from infra/.env.local only if the app is really gone."
+  OWNED=$(azq ad app owner list --id "$AZ_OIDC_APP_ID" --query "length([?id=='${ME}'])" -o tsv 2>"$ERR") ||
+    die "Cannot list owners of app $AZ_OIDC_APP_ID: $(tr '\n' ' ' <"$ERR")"
+  [[ $OWNED -gt 0 ]] || die "You are not an owner of app $AZ_OIDC_APP_ID. Refusing to reuse it."
+  APP_ID=$AZ_OIDC_APP_ID
+  info "reusing appId $APP_ID (from infra/.env.local; you are an owner)"
 else
+  # Never adopt an existing app by name: if one already has our name, a human decides.
+  N=$(azq ad app list --display-name "$OIDC_APP_NAME" --query "length([?displayName=='${OIDC_APP_NAME}'])" \
+    -o tsv 2>"$ERR") || plan_b "$(reason "Listing app registrations")"
+  [[ $N -eq 0 ]] ||
+    die "An app named $OIDC_APP_NAME exists but infra/.env.local has no AZ_OIDC_APP_ID. If it is yours,
+       add AZ_OIDC_APP_ID=<its appId> to infra/.env.local and rerun (ownership is checked); otherwise change SUF."
   APP_ID=$(azq ad app create --display-name "$OIDC_APP_NAME" --sign-in-audience AzureADMyOrg \
-    --query appId -o tsv 2>"$ERR") ||
-    plan_b "$(reason "Creating the app registration")"
-  info "created appId $APP_ID"
+    --query appId -o tsv 2>"$ERR") || plan_b "$(reason "Creating the app registration")"
+  set_env_local AZ_OIDC_APP_ID "$APP_ID" ||
+    die "Created app $APP_ID but could not save it. Add AZ_OIDC_APP_ID=$APP_ID to infra/.env.local by hand."
+  info "created appId $APP_ID (saved to infra/.env.local as AZ_OIDC_APP_ID)"
 fi
 
 log "Service principal"
@@ -91,52 +109,46 @@ else
   info "created"
 fi
 
-# The role assignment needs the resource group as its scope (same idempotent create as 10-core.sh).
-log "Resource group $RG"
-if exists az group show -n "$RG"; then
-  info "exists"
-else
-  az group create -n "$RG" -l "$LOC" -o none
-  info "created in $LOC"
-fi
-RG_ID=$(azq group show -n "$RG" --query id -o tsv)
-
-log "Role assignment: Contributor on $RG"
-# --assignee-object-id + principal type avoids Graph lookups and new-SP propagation errors.
-HAVE=$(azq role assignment list --assignee-object-id "$SP_OID" --role Contributor --scope "$RG_ID" \
-  --fill-principal-name false --query "length(@)" -o tsv)
-if [[ $HAVE -gt 0 ]]; then
-  info "exists"
-else
-  if ! az role assignment create --assignee-object-id "$SP_OID" --assignee-principal-type ServicePrincipal \
-    --role Contributor --scope "$RG_ID" -o none 2>"$ERR"; then
-    cat "$ERR" >&2
-    die "Role assignment failed. The app registration and federated credential work, but you need Owner
-       (or User Access Administrator) on the subscription to grant access. Ask the subscription owner to run this."
+log "Role assignment: AcrPush on registry $ACR (least privilege)"
+ROLE_STATE="pending"
+if ACR_ID=$(azsq acr show -g "$RG" -n "$ACR" --query id -o tsv 2>/dev/null) && [[ -n $ACR_ID ]]; then
+  # --assignee-object-id + principal type avoids Graph lookups and new-SP propagation errors.
+  HAVE=$(azsq role assignment list --assignee-object-id "$SP_OID" --role AcrPush --scope "$ACR_ID" \
+    --fill-principal-name false --query "length(@)" -o tsv)
+  if [[ $HAVE -gt 0 ]]; then
+    info "exists"
+  else
+    if ! azs role assignment create --assignee-object-id "$SP_OID" --assignee-principal-type ServicePrincipal \
+      --role AcrPush --scope "$ACR_ID" -o none 2>"$ERR"; then
+      cat "$ERR" >&2
+      die "AcrPush assignment failed. You need Owner (or User Access Administrator) on the subscription."
+    fi
+    info "created"
   fi
-  info "created"
+  ROLE_STATE="AcrPush on $ACR"
+else
+  warn "Registry $ACR does not exist yet. Run 10-core.sh, then rerun this script to grant AcrPush."
 fi
-# TODO(#23): pushing to ACR may also need AcrPush on $ACR; check when the deploy workflow first runs.
-
-TENANT_ID=$(azq account show --query tenantId -o tsv)
-SUB_ID=$(azq account show --query id -o tsv)
+# TODO(#23): once Container App $API exists, grant this app a role scoped to that app only (so CI can
+#            run `az containerapp update`), e.g. Contributor at the app's resource ID. Not the RG.
+#            If `az acr login` in CI needs registry read, add Reader on $ACR only.
 
 log "GitHub secrets on $GH_REPO"
 if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
   gh secret set AZURE_CLIENT_ID --repo "$GH_REPO" --body "$APP_ID"
-  gh secret set AZURE_TENANT_ID --repo "$GH_REPO" --body "$TENANT_ID"
-  gh secret set AZURE_SUBSCRIPTION_ID --repo "$GH_REPO" --body "$SUB_ID"
+  gh secret set AZURE_TENANT_ID --repo "$GH_REPO" --body "$AZ_TENANT_ID"
+  gh secret set AZURE_SUBSCRIPTION_ID --repo "$GH_REPO" --body "$AZ_SUBSCRIPTION_ID"
   info "set AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID"
 else
-  warn "gh is missing or not logged in. Run these where gh works (they are IDs, not passwords):"
+  warn "gh is missing or not logged in. Run these where gh works (IDs, not passwords):"
   echo "  gh secret set AZURE_CLIENT_ID --repo $GH_REPO --body $APP_ID"
-  echo "  gh secret set AZURE_TENANT_ID --repo $GH_REPO --body $TENANT_ID"
-  echo "  gh secret set AZURE_SUBSCRIPTION_ID --repo $GH_REPO --body $SUB_ID"
+  echo "  gh secret set AZURE_TENANT_ID --repo $GH_REPO --body $AZ_TENANT_ID"
+  echo "  gh secret set AZURE_SUBSCRIPTION_ID --repo $GH_REPO --body $AZ_SUBSCRIPTION_ID"
 fi
 
 cat <<EOF
 
-OIDC: OK. App $OIDC_APP_NAME, credential subject $SUBJECT, Contributor on $RG.
+OIDC: OK. App $OIDC_APP_NAME, credential subject $SUBJECT. Role: ${ROLE_STATE}.
 Post "OIDC allowed" on issue #7 (no IDs needed there). The real proof is the first azure/login
 run in the deploy workflow (#23): a wrong subject fails there, not here.
 EOF

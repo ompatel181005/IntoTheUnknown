@@ -1,25 +1,29 @@
 # shellcheck shell=bash
-# infra/env.sh: sourced by every infra script. Resource names and helpers only, no secrets.
+# infra/env.sh: sourced by every infra script. Names and helpers only, no secrets, no IDs.
 #
-# Override with env vars before running a script, e.g.
-#   LOC=westus3 SWA_LOC=westus2 bash infra/10-core.sh
-# Use the same SUF/LOC/SWA_LOC on every run, or the scripts will look for different resources.
+# IDs live in infra/.env.local (git-ignored, never committed):
+#   AZ_SUBSCRIPTION_ID=<guid>   AZ_TENANT_ID=<guid>   (required; the "Azure for Students" IDs)
+#   AZ_OIDC_APP_ID=<guid>       (written by 05-oidc-test.sh)
+# Exported env vars win over the file. Example:
+#   LOC=westus3 SWA_LOC=centralus bash infra/10-core.sh
 
-# --- Settings you may override ------------------------------------------------------------
-# The ONLY subscription these scripts may touch. The tenant also holds a university-managed
-# subscription (UIC-ACCC-WVD) that is not ours; every script aborts unless this one is active.
-: "${AZ_SUBSCRIPTION:=Azure for Students}"
-# Fixed suffix for globally unique names (storage, ACR, ...). NOT random, so reruns hit the
-# same resources. Change it only if 10-core.sh says a name is taken, then keep the new value.
+INFRA_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ENV_LOCAL_DEFAULT="$INFRA_DIR/.env.local"
+ENV_LOCAL="${AZ_ENV_LOCAL:-$ENV_LOCAL_DEFAULT}"   # AZ_ENV_LOCAL: only for offline tests
+
+# --- Settings ---------------------------------------------------------------------------
+# The only subscription these scripts may touch. The tenant also holds the university-managed
+# "UIC-ACCC-WVD"; require_sub aborts unless id, tenant and name all match.
+AZ_SUBSCRIPTION_NAME="Azure for Students"
+# Fixed suffix for globally unique names. NOT random, so reruns hit the same resources.
+# Change it only if 10-core.sh says a name is taken, then keep the new value.
 : "${SUF:=itu7q4}"
-# Region for everything except the Static Web App. Pick it from 00-preflight.sh output.
-: "${LOC:=westus2}"
-# Static Web Apps only exist in a few regions; 00-preflight.sh prints a valid, allowed one.
-: "${SWA_LOC:=westus2}"
+# LOC and SWA_LOC have no default: 10-core.sh refuses to run until you export them
+# (from 00-preflight.sh, or chosen by hand after checking Policy > Assignments in the portal).
 # Monthly budget (USD) for 20-cost-alert.sh.
 : "${BUDGET_AMOUNT:=20}"
 
-# --- Names (one place) --------------------------------------------------------------------
+# --- Names (one place) ------------------------------------------------------------------
 RG="rg-planetx"
 LAW="log-planetx"                 # Log Analytics workspace
 AI="appi-planetx"                 # Application Insights (workspace-based)
@@ -37,7 +41,7 @@ BUDGET_NAME="budget-planetx"
 # GitHub OIDC (05-oidc-test.sh)
 GH_REPO="ompatel181005/IntoTheUnknown"
 GH_BRANCH="main"
-OIDC_APP_NAME="gh-planetx"
+OIDC_APP_NAME="gh-planetx-${SUF}"
 OIDC_CRED_NAME="gh-main"
 
 REQUIRED_PROVIDERS=(
@@ -50,31 +54,76 @@ REQUIRED_PROVIDERS=(
   Microsoft.DocumentDB
 )
 
-# --- Shell environment --------------------------------------------------------------------
-# Git Bash rewrites arguments that start with "/" into Windows paths, which breaks
-# --scope /subscriptions/... and similar. Harmless in Cloud Shell.
+# Region policy lookup (00-preflight.sh, 10-core.sh).
+# atScope() = every assignment that applies at subscription scope, including ones inherited from
+# management groups. The CLI default sends atExactScope() and --disable-scope-strict-match sends
+# atScopeAndBelow(); both can miss an inherited region policy.
+POLICY_FILTER="atScope()"
+ALLOWED_LOC_DEF="e56962a6-4747-49cd-b67b-bf8b01975c4c"   # built-in "Allowed locations"
+LOCQ="[?contains(displayName || '', 'region') || contains(displayName || '', 'Region') || contains(displayName || '', 'location') || contains(displayName || '', 'Location') || ends_with(policyDefinitionId || '', '${ALLOWED_LOC_DEF}')]"
+
+GUID_RE='^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$'
+
+# --- Shell environment ------------------------------------------------------------------
+# Git Bash rewrites arguments that start with "/" into Windows paths (--scope /subscriptions/...).
 export MSYS_NO_PATHCONV=1
 
-# --- Helpers ------------------------------------------------------------------------------
+# --- Helpers ----------------------------------------------------------------------------
 log()  { printf '\n==> %s\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
 die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-# az.cmd on Windows prints CRLF (the CLI 2.92 Git Bash launcher already prints LF); strip CR
-# anyway so captured values compare and concatenate cleanly everywhere.
+# az.cmd on Windows prints CRLF (the CLI 2.92 Git Bash launcher prints LF); strip CR anyway.
 azq() { az "$@" | tr -d '\r'; }
+# Subscription-scoped az: ALWAYS pinned to $AZ_SUBSCRIPTION_ID, never the CLI default.
+# Use these for group/storage/acr/monitor/containerapp/staticwebapp/provider/policy/cosmosdb/
+# role/functionapp. infra/check-scripts.sh fails if a script calls those without --subscription.
+azs()  { az "$@" --subscription "$AZ_SUBSCRIPTION_ID"; }
+azsq() { azs "$@" | tr -d '\r'; }
 
-# True if the command succeeds (used for "show" existence checks). Output is discarded.
+# True if the command succeeds (existence checks). Output is discarded.
 exists() { "$@" --only-show-errors >/dev/null 2>&1; }
 
-# Newline-separated set helpers (C collation so sort and comm agree).
+# Newline-separated set helpers (C collation so sort and comm agree). Region names are
+# normalised: "West US 3" -> westus3.
 norm_regions() { tr '[:upper:]' '[:lower:]' | tr -d ' \r' | sed '/^$/d' | LC_ALL=C sort -u; }
 intersect() { LC_ALL=C comm -12 <(printf '%s\n' "$1" | norm_regions) <(printf '%s\n' "$2" | norm_regions); }
 in_list() { grep -qxF -- "$1" <<<"$2"; }
 
+# Read infra/.env.local: only the known keys, KEY=VALUE, no shell evaluation.
+load_env_local() {
+  local key val
+  [[ -f $ENV_LOCAL ]] || return 0
+  while IFS='=' read -r key val || [[ -n $key ]]; do
+    key=${key//[[:space:]]/}
+    val=${val//[[:space:]]/}
+    case $key in
+      AZ_SUBSCRIPTION_ID | AZ_TENANT_ID | AZ_OIDC_APP_ID)
+        if [[ -z ${!key:-} ]]; then printf -v "$key" '%s' "$val"; fi
+        ;;
+    esac
+  done <"$ENV_LOCAL"
+  return 0
+}
+
+# Write or replace one KEY=VALUE line in infra/.env.local, after checking git ignores it.
+set_env_local() {
+  local tmp
+  if [[ $ENV_LOCAL == "$ENV_LOCAL_DEFAULT" ]] && git -C "$INFRA_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+    git -C "$INFRA_DIR" check-ignore -q "$ENV_LOCAL" ||
+      die "$ENV_LOCAL is not git-ignored; refusing to write IDs into it."
+  fi
+  tmp=$(mktemp)
+  {
+    if [[ -f $ENV_LOCAL ]]; then grep -v "^$1=" "$ENV_LOCAL" || true; fi
+    printf '%s=%s\n' "$1" "$2"
+  } >"$tmp"
+  mv "$tmp" "$ENV_LOCAL"
+}
+
 # Call plain `az` (the Git Bash launcher in CLI2/wbin, or Cloud Shell's az). Calling az.cmd by
-# full path from Git Bash goes through cmd.exe, which mangles the {} and | in --query strings.
+# full path from Git Bash goes through cmd.exe, which mangles {} and | in --query strings.
 require_az() {
   command -v az >/dev/null 2>&1 ||
     die "Azure CLI not found. Install it (winget install -e --id Microsoft.AzureCLI, then open a NEW Git Bash) or use Azure Cloud Shell."
@@ -82,24 +131,60 @@ require_az() {
   require_sub
 }
 
-# Select $AZ_SUBSCRIPTION and abort unless it really is the active one.
+# Verify $AZ_SUBSCRIPTION_ID by id, tenant and name, then make it the CLI default as well
+# (so commands pasted from infra/README.md hit it too). Every az call still pins it explicitly.
 require_sub() {
-  az account set --subscription "$AZ_SUBSCRIPTION" --only-show-errors >/dev/null 2>&1 ||
-    die "Cannot select subscription \"$AZ_SUBSCRIPTION\". See yours with: az account list -o table"
-  local cur
-  cur=$(azq account show --query name -o tsv)
-  [[ $cur == "$AZ_SUBSCRIPTION" ]] ||
-    die "Active subscription is \"$cur\", expected \"$AZ_SUBSCRIPTION\". Aborting before any change."
-  printf '==> Subscription: %s\n' "$cur"
+  local got id tenant name
+  [[ ${AZ_SUBSCRIPTION_ID:-} =~ $GUID_RE ]] ||
+    die "AZ_SUBSCRIPTION_ID is not set. Put AZ_SUBSCRIPTION_ID=<guid> in infra/.env.local (git-ignored) or export it."
+  [[ ${AZ_TENANT_ID:-} =~ $GUID_RE ]] ||
+    die "AZ_TENANT_ID is not set. Put AZ_TENANT_ID=<guid> in infra/.env.local (git-ignored) or export it."
+  got=$(azq account show --subscription "$AZ_SUBSCRIPTION_ID" --query "[id, tenantId, name]" -o tsv 2>/dev/null) ||
+    die "Subscription $AZ_SUBSCRIPTION_ID is not visible to the signed-in account. Run: az login --tenant $AZ_TENANT_ID"
+  { read -r id || true; read -r tenant || true; read -r name || true; } <<<"$got"
+  [[ ${id,,} == "${AZ_SUBSCRIPTION_ID,,}" ]] || die "az returned subscription \"$id\", expected $AZ_SUBSCRIPTION_ID. Aborting."
+  [[ ${tenant,,} == "${AZ_TENANT_ID,,}" ]] || die "Subscription is in tenant \"$tenant\", expected $AZ_TENANT_ID. Aborting."
+  [[ $name == "$AZ_SUBSCRIPTION_NAME" ]] || die "Subscription name is \"$name\", expected \"$AZ_SUBSCRIPTION_NAME\". Aborting."
+  az account set --subscription "$AZ_SUBSCRIPTION_ID" --only-show-errors >/dev/null
+  printf '==> Subscription: %s (id and tenant match infra/.env.local)\n' "$name"
 }
 
-# --- Sanity checks on overrides -----------------------------------------------------------
+# Sets ALLOWED (newline list) and POLICY_STATE:
+#   ok         every location-type assignment yielded a region list (ALLOWED = intersection)
+#   none       no location-type assignment is visible
+#   unreadable listing failed, or some assignment's region list could not be parsed
+read_allowed_regions() {
+  local n raw line list got=0
+  ALLOWED=""
+  POLICY_STATE="unreadable"
+  n=$(azsq policy assignment list --filter "$POLICY_FILTER" --query "length(${LOCQ})" -o tsv 2>/dev/null) || return 0
+  [[ $n =~ ^[0-9]+$ ]] || return 0
+  if [[ $n -eq 0 ]]; then
+    POLICY_STATE="none"
+    return 0
+  fi
+  raw=$(azsq policy assignment list --filter "$POLICY_FILTER" \
+    --query "${LOCQ}.join(',', parameters.listOfAllowedLocations.value || parameters.allowedLocations.value || \`[]\`)" \
+    -o tsv 2>/dev/null) || return 0
+  while IFS= read -r line; do
+    [[ -z $line ]] && continue
+    list=$(tr ',' '\n' <<<"$line" | norm_regions)
+    if [[ $got -eq 0 ]]; then ALLOWED=$list; else ALLOWED=$(intersect "$ALLOWED" "$list"); fi
+    got=$((got + 1))
+  done <<<"$raw"
+  if [[ $got -eq $n ]]; then POLICY_STATE="ok"; else ALLOWED=""; fi
+  return 0
+}
+
+load_env_local
+
+# --- Sanity checks on overrides ---------------------------------------------------------
 if ! [[ $SUF =~ ^[a-z0-9]{3,10}$ ]]; then
   printf 'ERROR: SUF must be 3-10 lowercase letters/digits (got "%s").\n' "$SUF" >&2
   return 1 2>/dev/null || exit 1
 fi
 for _v in LOC SWA_LOC; do
-  if ! [[ ${!_v} =~ ^[a-z0-9]+$ ]]; then
+  if [[ -n ${!_v:-} && ! ${!_v} =~ ^[a-z0-9]+$ ]]; then
     printf 'ERROR: %s must be a region name like westus2 (got "%s").\n' "$_v" "${!_v}" >&2
     return 1 2>/dev/null || exit 1
   fi
