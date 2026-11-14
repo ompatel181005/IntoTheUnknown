@@ -1,6 +1,6 @@
 {
   "app_sha256": "76cb4efe03ec5629016cd9733f5795665bdc9d3812a27d2d356a8f9624f447a7",
-  "manifest_sha256": "094591894ebee0ae86b4c839b47b4f2bbd5dcb50a4cf0237dafc5230acbbca4f",
+  "manifest_sha256": "854f5034207f26d91e10eb35353bd8721a5f42e5fb299e6914c733f8c6c4c19c",
   "runs": {
     "10": {
       "n": 59,
@@ -12,10 +12,11 @@
       "exposures": 60,
       "badge": "REAL DATA \u00b7 SAVED",
       "wavelength_failures": 0,
-      "expected_exposures": 60,
+      "expected_exposures": 96,
       "browser_errors": [],
       "archive_requests": [],
       "max_per_detector_per_season": 10,
+      "loaded_exposures": 96,
       "epochs": [
         {
           "mjd": 60918.86747600005,
@@ -207,10 +208,11 @@
       "exposures": 121,
       "badge": "REAL DATA \u00b7 SAVED",
       "wavelength_failures": 0,
-      "expected_exposures": 121,
+      "expected_exposures": 157,
       "browser_errors": [],
       "archive_requests": [],
       "max_per_detector_per_season": 40,
+      "loaded_exposures": 157,
       "epochs": [
         {
           "mjd": 60919.60027376174,
@@ -524,10 +526,11 @@
       "exposures": 18,
       "badge": "REAL DATA \u00b7 SAVED",
       "wavelength_failures": 0,
-      "expected_exposures": 18,
+      "expected_exposures": 54,
       "browser_errors": [],
       "archive_requests": [],
       "max_per_detector_per_season": 3,
+      "loaded_exposures": 54,
       "epochs": [
         {
           "mjd": 60920.744460999966,

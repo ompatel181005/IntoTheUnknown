@@ -208,6 +208,8 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     data = browser_frames(args.chrome, args.out, args.max_per)
     data["max_per_detector_per_season"] = args.max_per
+    data["loaded_exposures"] = data["exposures"]
+    data["exposures"] = sum(frame["n_frames"] for frame in data["frames"])
     epochs = []
     for frame, prediction in zip(data["frames"], data.pop("predicted_px"), strict=True):
         image = np.asarray(frame.pop("image"), dtype=float).reshape(
@@ -223,7 +225,7 @@ def main():
         and error <= 0.2
         and max(e["residual_px"] for e in epochs) < 0.3
         and data["wavelength_failures"] == 0
-        and data["exposures"] == data["expected_exposures"]
+        and data["loaded_exposures"] == data["expected_exposures"]
         and not data["browser_errors"]
         and not data["archive_requests"]
     )
@@ -334,7 +336,7 @@ def summarize(results_dir, report_path, capture_root=None):
         "",
         "## Barnard's Star in the adopted app",
         "",
-        f"The local capture contains {len(manifest['files'])} B1-B2 cutouts. They were converted with the adopted app's FITS packer (ZODI subtracted once, WCS and named FLAGS retained), producing a {sum(f['bytes'] for f in manifest['files']) / 1e6:.2f} MB offline demo pack. All three browser runs used the actual app, with archive access blocked and no browser errors or wavelength-range failures.",
+        f"The pack contains {manifest.get('captured_files', len(manifest['files']))} new B1-B2 cutouts plus {manifest.get('retained_other_band_files', 0)} retained longer-wavelength cutouts, totaling {sum(f['bytes'] for f in manifest['files']) / 1e6:.2f} MB. The adopted FITS packer subtracts ZODI once and retains WCS and named FLAGS. All three tests use **D1 and D2 only** for the displayed stacks, with archive access blocked. Other bands remain available but are not part of this astrometry result.",
         "",
         "| Images per detector per season | Loaded cutouts | Measured shift (px) | Gaia shift (px) | Vector error (px) | Astrometry |",
         "|---:|---:|---:|---:|---:|---|",
@@ -345,7 +347,7 @@ def summarize(results_dir, report_path, capture_root=None):
         )
     lines += [
         "",
-        "**Use Advanced → Images per detector per visit = 10, then reload Barnard in Demo mode.** This tested setting meets the ±0.2 px motion-vector and <0.3 px per-epoch residual criteria. The normal setting of 3 fails the motion-vector criterion; do not quote it as a science pass. The UI default was not changed in this data-only PR.",
+        "**Use Demo mode, select only D1 and D2, set Advanced → Images per detector per visit = 10, then reload Barnard.** This tested setting meets the ±0.2 px motion-vector and <0.3 px per-epoch residual criteria. With D1-D2, the normal setting of 3 fails the motion-vector criterion; do not quote it as a science pass. The UI default was not changed in this data-only PR.",
         "",
         "The independent reference uses Gaia DR3 J2016.0 astrometry, Astropy space motion and Earth's barycentric position, with no aberration. A 7×7 Gaussian fit measures observed pixels near the prediction. Aperture sums are recorded in the JSON but are not calibrated photometry: Barnard is saturated. Channel matching, field-star alignment scatter, WISE 0855 detection, epsilon Indi B and both variable targets remain unvalidated. A passing Barnard motion test does not establish variability or discovery sensitivity.",
         "",

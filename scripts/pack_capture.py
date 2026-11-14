@@ -80,6 +80,13 @@ def pack(capture_root, demo_root, slug):
         raise ValueError(f"no usable captured files for {slug}")
     old_path = dest / "manifest.json"
     old = json.loads(old_path.read_text(encoding="utf8")) if old_path.exists() else {}
+    captured_detectors = {f["det"] for f in files}
+    retained = [
+        f
+        for f in old.get("files", [])
+        if f["det"] not in captured_detectors and (dest / f["file"]).is_file()
+    ]
+    files.extend(retained)
     manifest = {
         "name": target["name"],
         "center": builder.propagate(target, 2026.0),
@@ -90,6 +97,8 @@ def pack(capture_root, demo_root, slug):
         "files": sorted(files, key=lambda f: f["mjd"]),
         "capture_source": "local raw cutouts, 0.12 degree request",
         "excluded": excluded,
+        "captured_files": len(files) - len(retained),
+        "retained_other_band_files": len(retained),
     }
     for catalog in ("gaia", "wise"):
         if old.get(catalog) and (dest / old[catalog]).exists():

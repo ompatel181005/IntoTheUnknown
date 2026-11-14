@@ -112,6 +112,17 @@ def test_conversion_subtracts_zodi_and_retains_mask_definitions(tmp_path):
         ]
         == 1
     )
+    # Retain a previously bundled band that is absent from the larger capture.
+    retained = dict(manifest["files"][0], file="retained-D6.fits.gz", det=6)
+    retained_path = path.parent / retained["file"]
+    retained_path.write_bytes(path.read_bytes())
+    manifest["files"].append(retained)
+    (path.parent / "manifest.json").write_text(json.dumps(manifest))
+    rerun = pack(tmp_path / "capture", tmp_path / "demo", "barnard")
+    assert retained_path.exists()
+    assert rerun["captured_files"] == 1
+    assert rerun["retained_other_band_files"] == 1
+    assert len(rerun["files"]) == 2
 
 
 def test_centroid_recovers_observed_subpixel_motion():

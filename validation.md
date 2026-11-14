@@ -2,7 +2,7 @@
 
 ## Barnard's Star in the adopted app
 
-The local capture contains 121 B1-B2 cutouts. They were converted with the adopted app's FITS packer (ZODI subtracted once, WCS and named FLAGS retained), producing a 2.38 MB offline demo pack. All three browser runs used the actual app, with archive access blocked and no browser errors or wavelength-range failures.
+The pack contains 121 new B1-B2 cutouts plus 36 retained longer-wavelength cutouts, totaling 3.37 MB. The adopted FITS packer subtracts ZODI once and retains WCS and named FLAGS. All three tests use **D1 and D2 only** for the displayed stacks, with archive access blocked. Other bands remain available but are not part of this astrometry result.
 
 | Images per detector per season | Loaded cutouts | Measured shift (px) | Gaia shift (px) | Vector error (px) | Astrometry |
 |---:|---:|---:|---:|---:|---|
@@ -10,7 +10,7 @@ The local capture contains 121 B1-B2 cutouts. They were converted with the adopt
 | 10 | 60 | 1.679 | 1.659 | 0.078 | PASS |
 | 40 | 121 | 1.646 | 1.656 | 0.108 | PASS |
 
-**Use Advanced → Images per detector per visit = 10, then reload Barnard in Demo mode.** This tested setting meets the ±0.2 px motion-vector and <0.3 px per-epoch residual criteria. The normal setting of 3 fails the motion-vector criterion; do not quote it as a science pass. The UI default was not changed in this data-only PR.
+**Use Demo mode, select only D1 and D2, set Advanced → Images per detector per visit = 10, then reload Barnard.** This tested setting meets the ±0.2 px motion-vector and <0.3 px per-epoch residual criteria. With D1-D2, the normal setting of 3 fails the motion-vector criterion; do not quote it as a science pass. The UI default was not changed in this data-only PR.
 
 The independent reference uses Gaia DR3 J2016.0 astrometry, Astropy space motion and Earth's barycentric position, with no aberration. A 7×7 Gaussian fit measures observed pixels near the prediction. Aperture sums are recorded in the JSON but are not calibrated photometry: Barnard is saturated. Channel matching, field-star alignment scatter, WISE 0855 detection, epsilon Indi B and both variable targets remain unvalidated. A passing Barnard motion test does not establish variability or discovery sensitivity.
 
