@@ -36,7 +36,7 @@ with sync_playwright() as p:
     pg = b.new_page(viewport={"width": 1500, "height": 1000})
     pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
     pg.on("pageerror", lambda e: errors.append(str(e)))
-    pg.goto(a.base + "/index.html?src=demo&ra=0&dec=0"); pg.wait_for_timeout(1000)
+    pg.goto(a.base + "/index.html?src=demo&ra=269.4520833&dec=4.6933639"); pg.wait_for_timeout(1000)  # a demo target: no live IRSA call
     for slug in targets:
         pg.click(f'.preset[data-name="{names[slug]}"]')
         pg.wait_for_function("document.getElementById('status').textContent.includes('real exposures')", timeout=90000)

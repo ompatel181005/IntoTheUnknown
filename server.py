@@ -90,6 +90,7 @@ def main():
     ap.add_argument("--host", default="127.0.0.1")
     a = ap.parse_args()
     print(f"SPHEREx Blink running at http://{a.host}:{a.port}  (Ctrl+C to stop)")
+    ThreadingHTTPServer.request_queue_size = 128  # default 5 resets parallel cutout loads
     ThreadingHTTPServer((a.host, a.port), Handler).serve_forever()
 
 
