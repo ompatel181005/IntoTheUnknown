@@ -285,7 +285,6 @@ export default function App({ source }: { source: ViewSource }) {
       top={
         <>
           <TopBar
-            activeTarget={url.target}
             crumb={url.ra === null ? null : (preset?.name ?? "Custom position")}
             onHome={goHome}
             onPreset={pickFromBar}
