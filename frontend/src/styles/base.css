@@ -91,3 +91,12 @@ button:disabled {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* While flying to a target the starfield redraws every frame; blurring glass over it each frame is the
+   main source of dropped frames. Panels go flat for that second and get their blur back on landing. */
+html[data-flying] *,
+html[data-flying] *::before,
+html[data-flying] *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}

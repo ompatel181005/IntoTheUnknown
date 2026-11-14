@@ -95,24 +95,7 @@
   }
 }
 
-/* A slow scan plane sweeping down the projection. */
-.orrery::after {
-  content: "";
-  position: absolute;
-  left: 15%;
-  right: 15%;
-  height: 120px;
-  top: -120px;
-  pointer-events: none;
-  background: linear-gradient(to bottom, transparent, var(--holo-scan) 70%, rgba(110, 231, 242, 0.08) 98%, transparent);
-  animation: sweep 7s linear infinite;
-}
 
-@keyframes sweep {
-  to {
-    top: 100%;
-  }
-}
 
 .label {
   display: grid;

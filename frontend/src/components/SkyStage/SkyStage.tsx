@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { LoadedView } from "../../data/source";
 import type { ViewState as LoadState } from "../../hooks/useView";
 import { formatDec, formatRa } from "../../lib/format";
@@ -35,8 +35,9 @@ interface SkyStageProps {
   onSelect: (xy: [number, number] | null) => void;
   onRetry: () => void;
   onPreset: (p: Preset) => void;
-  /** Opening a target from the home orrery (shared-element transition). */
-  onOpenFromHome: (p: Preset) => void;
+  /** Opening a target from the home orrery; `from` is where the flight ended on screen. */
+  onOpenFromHome: (p: Preset, from: { x: number; y: number } | null) => void;
+  flightOrigin: { x: number; y: number } | null;
   onFlightStart: (p: Preset) => void;
   /** Move the measuring cursor without opening the drawer (keyboard). */
   onCursor: (xy: [number, number]) => void;
@@ -62,7 +63,15 @@ export function SkyStage(props: SkyStageProps) {
 }
 
 /** First visit: a live holographic orrery, with the five targets on the sky around the solar system. */
-function Home({ onPick, onFlightStart, onTour }: { onPick: (p: Preset) => void; onFlightStart: (p: Preset) => void; onTour: () => void }) {
+function Home({
+  onPick,
+  onFlightStart,
+  onTour,
+}: {
+  onPick: (p: Preset, from: { x: number; y: number } | null) => void;
+  onFlightStart: (p: Preset) => void;
+  onTour: () => void;
+}) {
   return (
     <section className={s.home} aria-labelledby="home-title">
       <div className={s.homeText}>
@@ -89,6 +98,8 @@ function useBox<T extends HTMLElement>() {
     const el = ref.current;
     if (!el) return;
     const measure = () => {
+      // Mid-zoom the frame is scaled and offset; measuring then would place the grid wrongly.
+      if (el.closest("[data-zooming]")) return;
       const r = el.getBoundingClientRect();
       const next = { left: Math.round(r.left), top: Math.round(r.top), side: Math.round(r.width), vw: window.innerWidth, vh: window.innerHeight };
       setBox((prev) =>
@@ -116,9 +127,42 @@ function useBox<T extends HTMLElement>() {
 function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: ReactNode }) {
   const { view, ra, dec, index, mode } = props;
   const [frameRef, box] = useBox<HTMLDivElement>();
-  // Decided once at mount: if a View Transition brought the dome in, it already did the zoom.
-  const [zoom] = useState(() => !document.documentElement.dataset.vt);
-  const zoomClass = zoom ? s.zoomIn : "";
+  const columnRef = useRef<HTMLDivElement>(null);
+  // Captured once at mount: the dome grows out of the spot the flight ended (or the centre).
+  const [origin] = useState(props.flightOrigin);
+
+  // Telescope zoom on the real DOM (stays crisp, unlike a scaled snapshot), one easing for the whole move.
+  useLayoutEffect(() => {
+    const col = columnRef.current;
+    if (!col || typeof col.animate !== "function") return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      col.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: "linear" });
+      return;
+    }
+    const r = col.getBoundingClientRect();
+    const dx = origin ? origin.x - (r.left + r.width / 2) : 0;
+    const dy = origin ? origin.y - (r.top + r.height / 2) : 0;
+    col.dataset.zooming = "1";
+    const zoom = col.animate(
+      [
+        { transform: `translate(${dx}px, ${dy}px) scale(0.06)`, opacity: 0 },
+        { opacity: 1, offset: 0.3 },
+        { transform: "translate(0, 0) scale(1)", opacity: 1 },
+      ],
+      { duration: 750, easing: "cubic-bezier(0.65, 0, 0.35, 1)" },
+    );
+    // On landing: measure the real frame; the grid and ring then mount around it and fade in (CSS).
+    const land = () => {
+      delete col.dataset.zooming;
+      window.dispatchEvent(new Event("resize"));
+    };
+    zoom.finished.then(land, land);
+    return () => {
+      zoom.cancel();
+      delete col.dataset.zooming;
+    };
+  }, [origin]);
   const m = view?.manifest;
   const fovDeg = m ? (m.grid.nx * m.grid.pix_arcsec) / 3600 : props.fov / 60;
   const fovArcmin = fovDeg * 60;
@@ -143,7 +187,12 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
   return (
     <>
       {box && outer && (
-        <svg className={`${s.sky} ${zoomClass}`} width={box.vw} height={box.vh} aria-hidden="true">
+        <svg
+          className={s.sky}
+          width={box.vw}
+          height={box.vh}
+          aria-hidden="true"
+        >
           <defs>
             <mask id="frame-hole">
               <rect width={box.vw} height={box.vh} fill="white" />
@@ -170,7 +219,7 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
         </svg>
       )}
 
-      <div className={`${s.column} ${zoomClass}`}>
+      <div ref={columnRef} className={s.column}>
         <div className={`${s.topRow} mono`}>
           <ScaleBar side={box?.side ?? 0} fovArcmin={fovArcmin} />
           {diff ? (

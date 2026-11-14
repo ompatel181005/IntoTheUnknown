@@ -102,11 +102,11 @@
 
 .chips {
   display: flex;
+  flex: none;
   gap: 2px;
-  min-width: 0;
   padding: 2px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  /* Not a scroll container on desktop: Firefox sizes scroll containers narrower than their content,
+     which clipped the last chip. Only the phone layout scrolls (below). */
 }
 
 .chips::-webkit-scrollbar {
@@ -145,6 +145,10 @@
 
 @media (max-width: 768px) {
   .chips {
+    flex: 1 1 100%;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
     scroll-snap-type: x mandatory;
     mask-image: linear-gradient(to right, black 85%, transparent);
     padding-right: 32px;

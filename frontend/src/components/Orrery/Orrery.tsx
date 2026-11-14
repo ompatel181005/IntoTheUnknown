@@ -9,8 +9,9 @@ interface OrreryProps {
   targets: readonly Preset[];
   /** Called the moment a flight starts, so the starfield can begin its jump in the same instant. */
   onFlightStart?: (p: Preset) => void;
-  /** Called part-way through the flight (or at once under reduced motion) to open the target. */
-  onPick: (p: Preset) => void;
+  /** Called near the end of the flight (or at once under reduced motion) to open the target.
+   *  `from` is the clicked marker's position on screen, so the dome can grow out of it. */
+  onPick: (p: Preset, from: { x: number; y: number } | null) => void;
 }
 
 /** One continuous flight: turn toward the target, then hand off to the dome while still moving. */
@@ -110,19 +111,30 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
       return { x: w / 2 + (f * x1) / depth, y: h / 2 - (f * z2) / depth, depth, front: y2 < 0 };
     };
 
+    // One path per run of front-facing or back-facing points, instead of one stroke per segment.
     const line = (pts: Vec3[], c: typeof cam.current, color: [number, number, number], alpha: number, width = 1, dash: number[] = []) => {
       ctx.setLineDash(dash);
       ctx.lineWidth = width;
-      for (let k = 1; k < pts.length; k++) {
-        const a = project(pts[k - 1], c);
-        const b = project(pts[k], c);
-        if (a.depth < 0.05 || b.depth < 0.05) continue;
-        ctx.strokeStyle = rgba(color, alpha * (a.front ? 1 : 0.35));
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
+      const front = new Path2D();
+      const back = new Path2D();
+      let prev: ReturnType<typeof project> | null = null;
+      for (const v of pts) {
+        const q = project(v, c);
+        if (q.depth < 0.05) {
+          prev = null;
+          continue;
+        }
+        if (prev) {
+          const path = prev.front ? front : back;
+          path.moveTo(prev.x, prev.y);
+          path.lineTo(q.x, q.y);
+        }
+        prev = q;
       }
+      ctx.strokeStyle = rgba(color, alpha * 0.35);
+      ctx.stroke(back);
+      ctx.strokeStyle = rgba(color, alpha);
+      ctx.stroke(front);
       ctx.setLineDash([]);
     };
 
@@ -143,10 +155,9 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
         c.fade = 1 - e * 0.85;
         if (t >= COMMIT_AT) {
           fly.current = null;
-          // The clicked ring becomes the shared element that grows into the dome.
-          const el = markerRefs.current[f.k];
-          if (el) el.style.setProperty("view-transition-name", "aperture");
-          onPickRef.current(f.p);
+          // The dome grows out of the clicked ring's current position.
+          const r = markerRefs.current[f.k]?.querySelector("span")?.getBoundingClientRect();
+          onPickRef.current(f.p, r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null);
           return; // the view takes over
         }
         dirty = true;
@@ -165,23 +176,35 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
       // Celestial sphere: grid, galactic band, ecliptic.
       meridians.forEach((m) => line(m, c, holo, 0.14));
       parallels.forEach((p, k) => line(p, c, holo, k === 2 ? 0.3 : 0.14, k === 2 ? 1.2 : 1));
-      // Galactic band as stacked translucent strokes (no shadowBlur, which is slow in Firefox).
+      // Galactic band as stacked translucent strokes (no shadowBlur, which is slow in Firefox),
+      // bucketed by brightness so each layer is a few paths.
       ctx.lineCap = "round";
       for (const [widthK, alphaK, color] of [
         [22, 0.035, band],
         [11, 0.06, star],
         [4, 0.1, star],
       ] as const) {
-        for (let k = 1; k < galaxy.length; k++) {
-          const a = project(galaxy[k - 1].p, c);
-          const b = project(galaxy[k].p, c);
-          if (a.depth < 0.05) continue;
-          ctx.strokeStyle = rgba(color, alphaK * (0.4 + galaxy[k].w) * (a.front ? 1 : 0.45));
-          ctx.lineWidth = widthK * (0.5 + galaxy[k].w * 0.5);
-          ctx.beginPath();
-          ctx.moveTo(a.x, a.y);
-          ctx.lineTo(b.x, b.y);
-          ctx.stroke();
+        for (let bucket = 0; bucket < 4; bucket++) {
+          const lo = bucket / 4;
+          const hi = (bucket + 1) / 4;
+          const wMid = (lo + hi) / 2;
+          const front = new Path2D();
+          const back = new Path2D();
+          for (let k = 1; k < galaxy.length; k++) {
+            const gw = galaxy[k].w;
+            if (gw < lo || (gw >= hi && bucket < 3)) continue;
+            const a = project(galaxy[k - 1].p, c);
+            const b = project(galaxy[k].p, c);
+            if (a.depth < 0.05) continue;
+            const path = a.front ? front : back;
+            path.moveTo(a.x, a.y);
+            path.lineTo(b.x, b.y);
+          }
+          ctx.lineWidth = widthK * (0.5 + wMid * 0.5);
+          ctx.strokeStyle = rgba(color, alphaK * (0.4 + wMid) * 0.45);
+          ctx.stroke(back);
+          ctx.strokeStyle = rgba(color, alphaK * (0.4 + wMid));
+          ctx.stroke(front);
         }
       }
       ctx.lineCap = "butt";
@@ -290,7 +313,7 @@ export function Orrery({ targets, onPick, onFlightStart }: OrreryProps) {
 
   const pick = (p: Preset, k: number) => {
     if (fly.current) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return onPick(p);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return onPick(p, null);
     markerRefs.current[k]?.setAttribute("data-picked", "true");
     onFlightStart?.(p);
     // Turn so the target's direction faces the camera, then fly out toward it.

@@ -89,7 +89,6 @@
 }
 
 .frame {
-  view-transition-name: aperture;
   position: relative;
   width: 100%;
   aspect-ratio: 1;
@@ -106,6 +105,10 @@
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.canvas {
+  animation: image-in 300ms ease-out both;
 }
 
 .canvas[data-smooth="false"] {
@@ -209,6 +212,7 @@
 }
 
 .homeText {
+  transition: opacity 300ms var(--ease);
   display: grid;
   gap: 8px;
   justify-items: center;
@@ -314,19 +318,6 @@
   }
 }
 
-/* Telescope zoom: the dome swims up out of the starfield. Opacity and scale only (animated blur is slow in Firefox). */
-.zoomIn {
-  animation: telescope 750ms var(--ease-cinematic) both;
-  transform-origin: 50% 50%;
-}
-
-@keyframes telescope {
-  from {
-    opacity: 0;
-    scale: 0.2;
-  }
-}
-
 .labelIn {
   animation: label-in 400ms var(--ease) 650ms both;
 }
@@ -349,27 +340,24 @@
   color: var(--text-2);
 }
 
-/* View Transition: the clicked target ring grows into the dome. */
-:global(::view-transition-group(aperture)) {
-  animation-duration: 650ms;
-  animation-timing-function: var(--ease-cinematic);
+
+/* The image fades in when its data arrives, instead of popping over the skeleton. */
+@keyframes image-in {
+  from {
+    opacity: 0;
+  }
 }
 
-:global(::view-transition-old(root)),
-:global(::view-transition-new(root)) {
-  animation-duration: 450ms;
+/* Loading text waits until the zoom has landed, so it never flashes mid-flight. */
+.progress {
+  animation: image-in 300ms ease-out 700ms both;
 }
 
-/* Reduced motion: a short dissolve, no scale or travel. */
-@media (prefers-reduced-motion: reduce) {
-  .zoomIn {
-    animation: dissolve 150ms linear both !important;
-    animation-duration: 150ms !important;
-  }
+.skyIn {
+  animation: image-in 350ms ease-out both;
+}
 
-  @keyframes dissolve {
-    from {
-      opacity: 0;
-    }
-  }
+/* The heading steps aside as soon as a flight starts. */
+:global(html[data-flying]) .homeText {
+  opacity: 0;
 }

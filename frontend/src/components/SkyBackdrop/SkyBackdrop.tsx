@@ -58,39 +58,58 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       draw.current(0);
     };
     // `streak` is how far (in z) each star moved this frame; it draws motion trails.
+    // Stars are batched into a few paths (tint x depth bin) so a frame is ~20 draw calls, not thousands.
+    const BINS = 6;
+    const paths: Path2D[] = [];
     draw.current = (streak: number) => {
       ctx.clearRect(0, 0, w, h);
       const cx = w / 2;
       const cy = h / 2;
       const f = Math.max(w, h) * 0.5;
+      const moving = Math.abs(streak) > 1e-4;
+      for (let k = 0; k < palette.length * BINS; k++) paths[k] = new Path2D();
+      const halos = new Path2D();
       for (const st of stars.current) {
         const px = cx + (st.x / st.z) * f;
         const py = cy + (st.y / st.z) * f;
         if (px < -50 || py < -50 || px > w + 50 || py > h + 50) continue;
         const near = 1 - st.z;
-        const a = 0.14 + near ** 2 * 0.86;
-        const [r, g, b] = palette[st.tint];
-        if (Math.abs(streak) > 1e-4) {
+        const bin = Math.min(BINS - 1, Math.floor(near * BINS));
+        const path = paths[st.tint * BINS + bin];
+        if (moving) {
           const z0 = Math.min(1.2, Math.max(NEAR, st.z + streak));
-          ctx.strokeStyle = `rgba(${r},${g},${b},${a})`;
-          ctx.lineWidth = 0.4 + near * 1.6;
-          ctx.beginPath();
-          ctx.moveTo(cx + (st.x / z0) * f, cy + (st.y / z0) * f);
-          ctx.lineTo(px, py);
-          ctx.stroke();
+          path.moveTo(cx + (st.x / z0) * f, cy + (st.y / z0) * f);
+          path.lineTo(px, py);
         } else {
-          ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
-          ctx.beginPath();
-          ctx.arc(px, py, 0.3 + near ** 3 * 1.7, 0, Math.PI * 2);
-          ctx.fill();
+          const r = 0.3 + near ** 3 * 1.7;
+          path.moveTo(px + r, py);
+          path.arc(px, py, r, 0, Math.PI * 2);
           if (near > 0.9) {
-            // The nearest few get a soft halo.
-            ctx.fillStyle = `rgba(${r},${g},${b},0.08)`;
-            ctx.beginPath();
-            ctx.arc(px, py, 5, 0, Math.PI * 2);
-            ctx.fill();
+            halos.moveTo(px + 5, py);
+            halos.arc(px, py, 5, 0, Math.PI * 2);
           }
         }
+      }
+      for (let t = 0; t < palette.length; t++) {
+        const [r, g, b] = palette[t];
+        for (let bin = 0; bin < BINS; bin++) {
+          const near = (bin + 0.5) / BINS;
+          const a = 0.14 + near ** 2 * 0.86;
+          const path = paths[t * BINS + bin];
+          if (moving) {
+            ctx.strokeStyle = `rgba(${r},${g},${b},${a})`;
+            ctx.lineWidth = 0.4 + near * 1.6;
+            ctx.stroke(path);
+          } else {
+            ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
+            ctx.fill(path);
+          }
+        }
+      }
+      if (!moving) {
+        const [r, g, b] = palette[0];
+        ctx.fillStyle = `rgba(${r},${g},${b},0.08)`;
+        ctx.fill(halos);
       }
     };
     resize();
@@ -106,6 +125,7 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const dir = travelKey === null ? -1 : 1;
     cancelAnimationFrame(anim.current);
+    document.documentElement.dataset.flying = "1";
     const start = performance.now();
     let last = start;
     const step = (now: number) => {
@@ -125,9 +145,13 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       }
       draw.current(t < 1 ? dir * dz * 6 : 0);
       if (t < 1) anim.current = requestAnimationFrame(step);
+      else delete document.documentElement.dataset.flying;
     };
     anim.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(anim.current);
+    return () => {
+      cancelAnimationFrame(anim.current);
+      delete document.documentElement.dataset.flying;
+    };
   }, [travelKey]);
 
   // Slow parallax on pointer move. Skipped under reduced motion.

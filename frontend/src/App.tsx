@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { flushSync } from "react-dom";
 import { getLightCurve, getSpectrum } from "./api";
 import { AppShell } from "./components/AppShell/AppShell";
 import { CustomizePanel, type CustomizeValues } from "./components/Customize/CustomizePanel";
@@ -109,20 +108,21 @@ export default function App({ source }: { source: ViewSource }) {
   const pickPreset = (p: Preset) => update({ ra: p.ra, dec: p.dec, fov: p.fov, band: p.band, target: p.id, epoch: 0, sel: null, ref: 0 });
   // Starfield jump starts the instant a flight starts, before the target is committed.
   const [flightKey, setFlightKey] = useState<string | null>(null);
-  /** Leave the home orrery for a target. The clicked ring morphs into the dome with a View Transition. */
-  const openFromHome = (p: Preset) => {
-    const apply = () => flushSync(() => pickPreset(p));
-    const doc = document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } };
-    if (reducedMotion || !doc.startViewTransition) return apply();
-    document.documentElement.dataset.vt = "1";
-    try {
-      doc.startViewTransition(apply).finished.finally(() => delete document.documentElement.dataset.vt);
-    } catch {
-      delete document.documentElement.dataset.vt;
-      apply();
-    }
+  /** Where on screen the last home flight ended, so the dome can grow out of that spot. */
+  const [flightOrigin, setFlightOrigin] = useState<{ x: number; y: number } | null>(null);
+  const openFromHome = (p: Preset, from: { x: number; y: number } | null) => {
+    setFlightOrigin(from);
+    pickPreset(p);
   };
-  const pickCoords = (ra: number, dec: number) => update({ ra, dec, target: null, epoch: 0, sel: null, ref: 0 });
+  const pickCoords = (ra: number, dec: number) => {
+    setFlightOrigin(null);
+    update({ ra, dec, target: null, epoch: 0, sel: null, ref: 0 });
+  };
+  /** Target chips and search: no home flight, so the dome zooms from the centre. */
+  const pickFromBar = (p: Preset) => {
+    setFlightOrigin(null);
+    pickPreset(p);
+  };
   const goHome = () => {
     setFlightKey(null);
     update({ ra: null, dec: null, target: null, epoch: 0, panel: null, mode: "all", sel: null });
@@ -287,7 +287,7 @@ export default function App({ source }: { source: ViewSource }) {
           <TopBar
             activeTarget={url.target}
             onHome={goHome}
-            onPreset={pickPreset}
+            onPreset={pickFromBar}
             onCoords={pickCoords}
             onShare={share}
             shareDisabled={!query}
@@ -327,6 +327,7 @@ export default function App({ source }: { source: ViewSource }) {
           onRetry={() => setAttempt((a) => a + 1)}
           onPreset={pickPreset}
           onOpenFromHome={openFromHome}
+          flightOrigin={flightOrigin}
           onFlightStart={(p) => setFlightKey(`${p.ra},${p.dec}`)}
           onCursor={(xy) => update({ sel: xy })}
           onTour={startTour}
