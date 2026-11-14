@@ -3,6 +3,34 @@ import type { Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, Vi
 
 export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
+// A static golden render has no live job yet. Register it lazily only for measurements,
+// so image loading still works with the API stopped.
+const goldenQueries = new Map<string, ViewRequest>();
+const measurementViews = new Map<string, string>();
+export function registerGoldenView(renderId: string, query: ViewRequest): void {
+  goldenQueries.set(renderId, query);
+}
+
+async function measurementViewId(id: string, signal?: AbortSignal): Promise<string> {
+  const query = goldenQueries.get(id);
+  if (!query) return id;
+  const cached = measurementViews.get(id);
+  if (cached) return cached;
+  const created = await createView(query, signal);
+  const deadline = Date.now() + 120_000;
+  let status = created.status;
+  while (status !== "ready") {
+    signal?.throwIfAborted();
+    if (!created.status_url || Date.now() >= deadline) throw new ApiRequestError("TIMEOUT", "The measurement view is still preparing. Try again shortly.");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const current = await getViewStatus(created.status_url, signal);
+    if (current.status === "error") throw new ApiRequestError(current.error?.code ?? "PIPELINE_ERROR", current.error?.message ?? "The measurement view could not be prepared.");
+    if (current.status === "ready") status = "ready";
+  }
+  measurementViews.set(id, created.view_id);
+  return created.view_id;
+}
+
 export class ApiRequestError extends Error {
   readonly code: string;
   constructor(code: string, message: string) {
@@ -45,13 +73,15 @@ export function getTargets(signal?: AbortSignal): Promise<Target[]> {
 }
 
 /** Per-frame values at one grid pixel for one epoch (x, y in FITS orientation, row 0 = south). */
-export function getSpectrum(viewId: string, x: number, y: number, epoch: number, signal?: AbortSignal): Promise<Spectrum> {
+export async function getSpectrum(viewId: string, x: number, y: number, epoch: number, signal?: AbortSignal): Promise<Spectrum> {
+  viewId = await measurementViewId(viewId, signal);
   const q = new URLSearchParams({ x: String(x), y: String(y), epoch: String(epoch) });
   return request(`/api/views/${viewId}/spectrum?${q}`, { signal }).then((r) => json<Spectrum>(r));
 }
 
 /** Forced aperture photometry on every frame at one grid position. */
-export function getLightCurve(viewId: string, x: number, y: number, signal?: AbortSignal): Promise<LightCurve> {
+export async function getLightCurve(viewId: string, x: number, y: number, signal?: AbortSignal): Promise<LightCurve> {
+  viewId = await measurementViewId(viewId, signal);
   const q = new URLSearchParams({ x: String(x), y: String(y) });
   return request(`/api/views/${viewId}/lightcurve?${q}`, { signal }).then((r) => json<LightCurve>(r));
 }

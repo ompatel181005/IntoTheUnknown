@@ -65,7 +65,8 @@ POOL = cf.ThreadPoolExecutor(max_workers=config.MAX_RENDER_JOBS)
 
 
 def query_key(req: ViewRequest) -> str:
-    key = f"q1|{req.ra:.4f}|{req.dec:+.4f}|{req.fov_arcmin}|{req.band}"
+    # q2 invalidates pointers made before dense saved captures used the ten-frame gate.
+    key = f"q2|{config.PIPELINE_VERSION}|{req.ra:.4f}|{req.dec:+.4f}|{req.fov_arcmin}|{req.band}"
     if req.source != "auto":
         key += f"|{req.source}"
     return hashlib.sha256(key.encode()).hexdigest()[:20]
@@ -177,6 +178,16 @@ def _flag_counts(ep: list[dict]) -> dict[str, int]:
     return {k: round(v / len(ep)) for k, v in sorted(totals.items(), key=lambda kv: -kv[1]) if v / len(ep) >= 0.5}
 
 
+def select_epochs(groups: list[list[dict]], minimum: int, saved: bool) -> list[list[dict]]:
+    """Apply the science floor to rich captures and retain the legacy sparse-demo fallback."""
+    if saved and sum(len(ep) >= config.MIN_EPOCH_FRAMES_LIVE for ep in groups) >= 2:
+        minimum = max(minimum, config.MIN_EPOCH_FRAMES_LIVE)
+    selected = [ep for ep in groups if len(ep) >= minimum]
+    if len(selected) != len(groups):
+        log.info("Dropped %d underfilled epochs (minimum %d frames)", len(groups) - len(selected), minimum)
+    return selected
+
+
 def build(job: Job) -> None:
     req = job.req
     saved = demo_frames(req, job) if req.source != "live" else None
@@ -205,7 +216,11 @@ def build(job: Job) -> None:
     for f in frames:
         f["_grid"] = stack.to_grid(f, w, shape)
         job.done += 1
-    epochs = [ep for ep in stack.group_epochs(frames) if len(ep) >= min_frames]
+    groups = stack.group_epochs(frames)
+    # Dense captured demos follow the same ten-frame science gate as live data. Keeping a
+    # thin tail can reduce the channel intersection and bias the whole sequence. Legacy
+    # sparse packs retain the small fallback until richer captures are available.
+    epochs = select_epochs(groups, min_frames, saved is not None)
 
     job.status = "render"
     collections = sorted({f["collection"] for f in frames})
