@@ -14,5 +14,5 @@ MAX_FRAMES_PER_VIEW = int(os.environ.get("MAX_FRAMES_PER_VIEW", "300"))
 # detectors (R Dra: 2 per visit), so the demo path keeps any epoch with 2+ frames until golden capture has full sets.
 MIN_EPOCH_FRAMES_LIVE = int(os.environ.get("MIN_EPOCH_FRAMES", "10"))
 MIN_EPOCH_FRAMES_DEMO = int(os.environ.get("MIN_EPOCH_FRAMES_DEMO", "2"))
-PIPELINE_VERSION = 1
+PIPELINE_VERSION = 2  # bump when render output changes, so cached renders rebuild
 CORS_ORIGINS = [o for o in os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",") if o]
