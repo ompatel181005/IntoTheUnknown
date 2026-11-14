@@ -15,14 +15,22 @@ Acknowledgement, verbatim from https://irsa.ipac.caltech.edu/data/SPHEREx/docs/o
 Papers (lit., confirm before citing): Bock et al. 2026 (mission), Akeson et al. 2026 (pipeline), Korngut et al. 2026 (instrument), Crill et al. 2025 (simulator).
 
 ## IRSA
-Acknowledgement: TODO(team): the standard NASA/IPAC IRSA wording, copied from the IRSA site.
+The SPHEREx DR1 overview asks for the DOIs above plus the SPHEREx acknowledgement, and gives no separate IRSA wording. No general IRSA acknowledgement page was found from the IRSA front page or help desk on 2026-11-14. TODO(team): add one only if IRSA publishes it.
 
-## Gaia DR3 (ESA)
-What we use: positions, proper motions, parallaxes, radial velocities and G magnitudes from `gaiadr3.gaia_source` through the ESA Gaia TAP. They feed the target presets (`TARGETS.md`), the "should be here" overlay and the alignment check.
+## Gaia DR3 (ESA, a 2026 Space Apps Space Agency Partner)
+What we use: positions, proper motions, parallaxes, radial velocities and G magnitudes from `gaiadr3.gaia_source` through the ESA Gaia TAP. They feed the target presets (`TARGETS.md`), the "should be here" overlay and the alignment check. List it under "Space Agency Partner Data" on the submission form.
 
-Citation: Gaia Collaboration, Vallenari et al. 2023, A&A 674, A1.
+Credit: the data are free to use provided credit is given to 'ESA/Gaia/DPAC'.
 
-Acknowledgement: TODO(team): copy the exact text from https://www.cosmos.esa.int/web/gaia-users/credits. The page loads, but its text did not come through an automated fetch on 2026-11-14.
+Cite both, as the DR3 instructions require:
+- Gaia Collaboration et al. (2016b), "The Gaia mission" (Prusti et al. 2016, A&A 595, A1 (lit.))
+- Gaia Collaboration et al. (2023j), "Gaia DR3: Summary of the contents and survey properties" (Vallenari et al. 2023, A&A 674, A1)
+
+Acknowledgement, verbatim from https://gea.esac.esa.int/archive/documentation/GDR3/Miscellaneous/sec_credit_and_citation_instructions/ (copied 2026-11-14):
+
+> This work has made use of data from the European Space Agency (ESA) mission Gaia (https://www.cosmos.esa.int/gaia), processed by the Gaia Data Processing and Analysis Consortium (DPAC, https://www.cosmos.esa.int/web/gaia/dpac/consortium). Funding for the DPAC has been provided by national institutions, in particular the institutions participating in the Gaia Multilateral Agreement.
+
+If the MAST fallback for Gaia ships, TODO(team): add MAST's own acknowledgement.
 
 ## SIMBAD (CDS)
 What we use: link-outs only. SIMBAD is **not** the source of target coordinates (those are Gaia DR3) and nothing depends on it at runtime. If WISE 0855's position is later replaced with SIMBAD's value, cite Wenger et al. 2000.
