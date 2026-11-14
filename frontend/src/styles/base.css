@@ -94,9 +94,8 @@ button:disabled {
 
 /* While flying to a target the starfield redraws every frame; blurring glass over it each frame is the
    main source of dropped frames. Panels go flat for that second and get their blur back on landing. */
-html[data-flying] *,
-html[data-flying] *::before,
-html[data-flying] *::after {
+[data-app-shell][data-flying="true"] header > *,
+[data-app-shell][data-flying="true"] [data-flight-hide] {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
 }
@@ -108,7 +107,7 @@ html[data-flying] *::after {
     translate 800ms var(--ease-panel) 200ms;
 }
 
-html[data-flying] [data-flight-hide] {
+[data-app-shell][data-flying="true"] [data-flight-hide] {
   opacity: 0 !important;
   translate: var(--flight-hide-x, 0) 0;
   pointer-events: none;

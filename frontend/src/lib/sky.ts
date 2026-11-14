@@ -33,7 +33,7 @@ export function mollweide(raDeg: number, decDeg: number): [number, number] {
 
 /** Ecliptic longitude (beta = 0) to equatorial, J2000 obliquity. */
 export function eclipticToEq(lonDeg: number): RaDec {
-  const eps = 23.4393 * D2R;
+  const eps = 23.43928 * D2R;
   const l = lonDeg * D2R;
   const dec = Math.asin(Math.sin(eps) * Math.sin(l));
   const ra = Math.atan2(Math.sin(l) * Math.cos(eps), Math.cos(l));

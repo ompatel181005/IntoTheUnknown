@@ -75,6 +75,10 @@
   width: var(--side);
 }
 
+.column[data-zooming] {
+  will-change: transform, opacity;
+}
+
 .topRow {
   display: flex;
   align-items: center;
@@ -239,6 +243,38 @@
   min-height: 0;
 }
 
+.zoomControls {
+  position: fixed;
+  z-index: 4;
+  right: 76px;
+  bottom: calc(var(--chrome-bottom) + 12px);
+  display: grid;
+  gap: 8px;
+}
+
+.zoomButton {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  background: var(--glass-sheen), var(--glass-bg);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(var(--glass-blur));
+  color: var(--text-1);
+  font: 500 20px/1 var(--font-ui);
+  cursor: pointer;
+}
+
+.zoomButton:hover {
+  background-color: var(--hover-wash);
+}
+
+.zoomButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 /* States */
 .loading {
   position: absolute;
@@ -302,6 +338,10 @@
     display: none;
   }
 
+  .zoomControls {
+    right: 16px;
+  }
+
 }
 
 .labelIn {
@@ -344,6 +384,6 @@
 }
 
 /* The heading steps aside as soon as a flight starts. */
-:global(html[data-flying]) .homeText {
+:global([data-app-shell][data-flying="true"]) .homeText {
   opacity: 0;
 }

@@ -27,18 +27,20 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
   const backdropRef = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLCanvasElement>(null);
   const stars = useRef<Star[]>([]);
-  const draw = useRef<(streak: number) => void>(() => {});
+  const draw = useRef<(streak: number, travel?: number) => void>(() => {});
+  const settle = useRef<(travel: number) => void>(() => {});
   const lastKey = useRef<string | null | undefined>(undefined);
   const anim = useRef(0);
-  const resizeCanvas = useRef<() => void>(() => {});
   /** Current vanishing point in canvas pixels (NaN = canvas centre). */
   const focus = useRef({ x: NaN, y: NaN });
 
   // Build the field and the painter once; repaint on resize.
   useEffect(() => {
     const cv = ref.current;
-    const ctx = cv?.getContext("2d");
-    if (!cv || !ctx) return;
+    if (!cv) return;
+    const palette = [tokenRgb("--star"), tokenRgb("--sun"), tokenRgb("--accent")];
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
     const rnd = seeded(20261115);
     const gauss = () => Math.sqrt(-2 * Math.log(rnd() || 1e-9)) * Math.cos(2 * Math.PI * rnd());
     stars.current = Array.from({ length: COUNT }, () => {
@@ -48,79 +50,99 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       const t = rnd();
       return { x, y, z: NEAR + rnd() * (1 - NEAR), tint: t < 0.08 ? 1 : t < 0.16 ? 2 : 0 };
     });
-    const palette = [tokenRgb("--star"), tokenRgb("--sun"), tokenRgb("--accent")];
     let w = 0;
     let h = 0;
+    let pixelWidth = 0;
+    let pixelHeight = 0;
     let viewportWidth = window.innerWidth;
     let viewportHeight = window.innerHeight;
     const resize = () => {
       const dpr = Math.min(1.5, window.devicePixelRatio || 1);
-      w = viewportWidth + 48;
-      h = viewportHeight + 48;
-      cv.width = Math.round(w * dpr);
-      cv.height = Math.round(h * dpr);
+      const nextWidth = viewportWidth + 48;
+      const nextHeight = viewportHeight + 48;
+      const nextPixelWidth = Math.round(nextWidth * dpr);
+      const nextPixelHeight = Math.round(nextHeight * dpr);
+      if (nextPixelWidth === pixelWidth && nextPixelHeight === pixelHeight) return;
+      w = nextWidth;
+      h = nextHeight;
+      pixelWidth = nextPixelWidth;
+      pixelHeight = nextPixelHeight;
+      cv.width = pixelWidth;
+      cv.height = pixelHeight;
       cv.style.width = `${w}px`;
       cv.style.height = `${h}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       draw.current(0);
     };
-    resizeCanvas.current = resize;
     // `streak` is how far (in z) each star moved this frame; it draws motion trails.
     // Stars are batched into a few paths (tint x depth bin) so a frame is ~20 draw calls, not thousands.
     const BINS = 6;
+    const RANGE = 1 - NEAR;
     const paths: Path2D[] = [];
-    draw.current = (streak: number) => {
+    const styles = palette.flatMap(([r, g, b]) =>
+      Array.from({ length: BINS }, (_, bin) => {
+        const near = (bin + 0.5) / BINS;
+        return { color: `rgba(${r},${g},${b},${0.14 + near * near * 0.86})`, width: 0.4 + near * 1.6 };
+      }),
+    );
+    const [starR, starG, starB] = palette[0];
+    const haloColor = `rgba(${starR},${starG},${starB},0.08)`;
+    draw.current = (streak: number, travel = 0) => {
       ctx.clearRect(0, 0, w, h);
       const cx = Number.isFinite(focus.current.x) ? focus.current.x : w / 2;
       const cy = Number.isFinite(focus.current.y) ? focus.current.y : h / 2;
       const f = Math.max(w, h) * 0.5;
       const moving = Math.abs(streak) > 1e-4;
       for (let k = 0; k < palette.length * BINS; k++) paths[k] = new Path2D();
-      const halos = new Path2D();
+      const halos = moving ? null : new Path2D();
       const stride = moving ? 2 : 1;
       for (let starIndex = 0; starIndex < stars.current.length; starIndex += stride) {
         const st = stars.current[starIndex];
-        const px = cx + (st.x / st.z) * f;
-        const py = cy + (st.y / st.z) * f;
+        let z = st.z - travel;
+        if (z < NEAR) z += RANGE;
+        else if (z >= 1) z -= RANGE;
+        const px = cx + (st.x / z) * f;
+        const py = cy + (st.y / z) * f;
         if (px < -50 || py < -50 || px > w + 50 || py > h + 50) continue;
-        const near = 1 - st.z;
+        const near = 1 - z;
         const bin = Math.min(BINS - 1, Math.floor(near * BINS));
         const path = paths[st.tint * BINS + bin];
         if (moving) {
-          const z0 = Math.min(1.2, Math.max(NEAR, st.z + streak));
+          const z0 = Math.min(1.2, Math.max(NEAR, z + streak));
           path.moveTo(cx + (st.x / z0) * f, cy + (st.y / z0) * f);
           path.lineTo(px, py);
         } else {
-          const r = 0.3 + near ** 3 * 1.7;
+          const r = 0.3 + near * near * near * 1.7;
           path.moveTo(px + r, py);
           path.arc(px, py, r, 0, Math.PI * 2);
-          if (near > 0.9) {
+          if (near > 0.9 && halos) {
             halos.moveTo(px + 5, py);
             halos.arc(px, py, 5, 0, Math.PI * 2);
           }
         }
       }
       for (let t = 0; t < palette.length; t++) {
-        const [r, g, b] = palette[t];
         for (let bin = 0; bin < BINS; bin++) {
-          const near = (bin + 0.5) / BINS;
-          const a = 0.14 + near ** 2 * 0.86;
-          const path = paths[t * BINS + bin];
+          const pathIndex = t * BINS + bin;
+          const style = styles[pathIndex];
           if (moving) {
-            ctx.strokeStyle = `rgba(${r},${g},${b},${a})`;
-            ctx.lineWidth = 0.4 + near * 1.6;
-            ctx.stroke(path);
+            ctx.strokeStyle = style.color;
+            ctx.lineWidth = style.width;
+            ctx.stroke(paths[pathIndex]);
           } else {
-            ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
-            ctx.fill(path);
+            ctx.fillStyle = style.color;
+            ctx.fill(paths[pathIndex]);
           }
         }
       }
-      if (!moving) {
-        const [r, g, b] = palette[0];
-        ctx.fillStyle = `rgba(${r},${g},${b},0.08)`;
+      if (halos) {
+        ctx.fillStyle = haloColor;
         ctx.fill(halos);
       }
+    };
+    settle.current = (travel) => {
+      for (const st of stars.current) st.z = NEAR + (((st.z - travel - NEAR) % (1 - NEAR)) + (1 - NEAR)) % (1 - NEAR);
+      draw.current(0);
     };
     resize();
     const ro = new ResizeObserver(([entry]) => {
@@ -130,7 +152,8 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
     });
     ro.observe(document.documentElement);
     return () => {
-      resizeCanvas.current = () => {};
+      draw.current = () => {};
+      settle.current = () => {};
       ro.disconnect();
     };
   }, []);
@@ -145,10 +168,9 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
     const backdrop = backdropRef.current;
     cancelAnimationFrame(anim.current);
     if (backdrop) backdrop.dataset.traveling = "true";
-    document.documentElement.dataset.flying = "1";
-    resizeCanvas.current();
     const start = performance.now();
     let last = start;
+    let travel = 0;
     const PAD = 24; // the canvas overhangs the viewport by 24 px on each side
     const step = (now: number) => {
       const t = Math.min(1, (now - start) / TRAVEL_MS);
@@ -166,31 +188,21 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
           fx.y += (ty - fx.y) * k;
         }
       }
-      const speed = Math.sin(Math.PI * t) ** 2 * 1.6; // ease in and out, in z-units per second
+      const wave = Math.sin(Math.PI * t);
+      const speed = wave * wave * 1.6; // ease in and out, in z-units per second
       const dz = (speed * (now - last)) / 1000;
       last = now;
-      for (const st of stars.current) {
-        st.z -= dir * dz;
-        if (st.z < NEAR) {
-          st.z += 1 - NEAR;
-          st.x = Math.random() * 2 - 1;
-          st.y = Math.random() < BAND_SHARE ? 0.42 * st.x + (Math.random() - 0.5) * 0.25 : Math.random() * 2 - 1;
-        } else if (st.z > 1) {
-          st.z -= 1 - NEAR;
-        }
-      }
-      draw.current(t < 1 ? dir * dz * 6 : 0);
+      travel += dir * dz;
+      draw.current(t < 1 ? dir * dz * 6 : 0, travel);
       if (t < 1) anim.current = requestAnimationFrame(step);
       else {
-        delete document.documentElement.dataset.flying;
         if (backdrop) delete backdrop.dataset.traveling;
-        resizeCanvas.current();
+        settle.current(travel);
       }
     };
     anim.current = requestAnimationFrame(step);
     return () => {
       cancelAnimationFrame(anim.current);
-      delete document.documentElement.dataset.flying;
       if (backdrop) delete backdrop.dataset.traveling;
     };
   }, [travelKey]);

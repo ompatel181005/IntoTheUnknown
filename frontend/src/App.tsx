@@ -114,7 +114,6 @@ export default function App({ source }: { source: ViewSource }) {
   const finishFlight = useCallback(() => {
     returningHome.current = false;
     window.setTimeout(() => setFlightActive(false), reducedMotion ? 0 : 250);
-    if (reducedMotion) delete document.documentElement.dataset.flying;
   }, [reducedMotion]);
   /** Where on screen the last home flight ended, so the dome can grow out of that spot. */
   const [flightOrigin, setFlightOrigin] = useState<{ x: number; y: number } | null>(null);
@@ -137,7 +136,6 @@ export default function App({ source }: { source: ViewSource }) {
     if (url.ra === null || url.dec === null || returningHome.current) return;
     returningHome.current = true;
     setFlightActive(true);
-    document.documentElement.dataset.flying = "1";
     prepareReturnFlight({ id: preset?.id ?? null, ra: url.ra, dec: url.dec });
     void shrinkDomeForHome().then(() => {
       setFlightKey(null);
@@ -288,6 +286,7 @@ export default function App({ source }: { source: ViewSource }) {
   return (
     <AppShell
       idle={idle}
+      flying={flightActive}
       stageLeft={stageLeft}
       stageRight={stageRight}
       hideBottom={sheet}

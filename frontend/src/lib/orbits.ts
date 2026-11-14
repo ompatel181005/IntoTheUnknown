@@ -29,6 +29,23 @@ export const PLANETS: Elements[] = [
 
 export type Vec3 = [number, number, number];
 
+export const AU_PER_PARSEC = 206264.806247;
+
+/** Continuous radial compression in display units. Direction is preserved exactly. */
+export function radialScale(radiusAu: number): number {
+  if (radiusAu <= 2) return 3 * radiusAu;
+  if (radiusAu <= 30) return 6 + 2 * Math.log10(radiusAu / 2);
+  const atThirty = 6 + 2 * Math.log10(15);
+  return atThirty + 1.5 * Math.log10(radiusAu / 30);
+}
+
+export function mapRadial(vector: Vec3): Vec3 {
+  const radius = Math.hypot(vector[0], vector[1], vector[2]);
+  if (!radius) return [0, 0, 0];
+  const factor = radialScale(radius) / radius;
+  return [vector[0] * factor, vector[1] * factor, vector[2] * factor];
+}
+
 export interface SkyStar {
   pos: Vec3;
   size: number;
@@ -57,7 +74,7 @@ export function position(p: Elements, T: number, dM = 0): Vec3 {
   const w = at(p.w);
   const node = at(p.node) * D2R;
   const argp = (w - at(p.node)) * D2R;
-  const M = (((L - w) % 360) + 360) % 360 * D2R + dM;
+  const M = ((((L - w) * D2R + dM) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
   const E = solveKepler(M, e);
   const xp = a * (Math.cos(E) - e);
   const yp = a * Math.sqrt(1 - e * e) * Math.sin(E);
@@ -76,7 +93,7 @@ export function raDecToEcliptic(raDeg: number, decDeg: number): Vec3 {
   const x = Math.cos(dec) * Math.cos(ra);
   const y = Math.cos(dec) * Math.sin(ra);
   const z = Math.sin(dec);
-  const eps = 23.4393 * D2R;
+  const eps = 23.43928 * D2R;
   return [x, y * Math.cos(eps) + z * Math.sin(eps), -y * Math.sin(eps) + z * Math.cos(eps)];
 }
 

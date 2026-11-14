@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { LoadedView } from "../../data/source";
+import { useCatalog } from "../../hooks/useCatalog";
 import type { ViewState as LoadState } from "../../hooks/useView";
 import { registerDomeFlight, setFlightFocus } from "../../lib/flight";
 import { formatDec, formatRa } from "../../lib/format";
@@ -75,6 +76,7 @@ function Home({
   onFlightEnd: () => void;
   onTour: () => void;
 }) {
+  const catalog = useCatalog();
   return (
     <section className={s.home} aria-labelledby="home-title">
       <div className={s.homeText}>
@@ -83,7 +85,36 @@ function Home({
         </h2>
       </div>
       <div className={s.homeMap} data-tour="orrery">
-        <Orrery targets={PRESETS} onPick={onPick} onFlightStart={onFlightStart} onFlightEnd={onFlightEnd} />
+        <Orrery
+          targets={catalog.status === "ready" ? catalog.catalog?.objects ?? [] : []}
+          onPick={(object, from) => {
+            const preset = PRESETS.find((candidate) => candidate.id === object.preset_id);
+            if (preset) onPick(preset, from);
+          }}
+          onFlightStart={(object) => {
+            const preset = PRESETS.find((candidate) => candidate.id === object.preset_id);
+            if (preset) onFlightStart(preset);
+          }}
+          onFlightEnd={onFlightEnd}
+        />
+      </div>
+      <div className={s.zoomControls} aria-label="Orrery zoom controls">
+        <button
+          type="button"
+          className={s.zoomButton}
+          aria-label="Zoom in"
+          onClick={() => window.dispatchEvent(new CustomEvent("spherex:orrery-zoom", { detail: 1 }))}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          className={s.zoomButton}
+          aria-label="Zoom out"
+          onClick={() => window.dispatchEvent(new CustomEvent("spherex:orrery-zoom", { detail: -1 }))}
+        >
+          −
+        </button>
       </div>
     </section>
   );
@@ -144,12 +175,9 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
   useLayoutEffect(() => {
     const col = columnRef.current;
     if (!col) return;
-    {
-      const c = col.getBoundingClientRect();
-      setFlightFocus(c.left + c.width / 2, c.top + c.height / 2);
-    }
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const r = col.getBoundingClientRect();
+    setFlightFocus(r.left + r.width / 2, r.top + r.height / 2);
     const dx = origin ? origin.x - (r.left + r.width / 2) : 0;
     const dy = origin ? origin.y - (r.top + r.height / 2) : 0;
     col.dataset.zooming = "1";
@@ -171,6 +199,7 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
         const box = col.getBoundingClientRect();
         const x = window.innerWidth / 2 - (box.left + box.width / 2);
         const y = window.innerHeight / 2 - (box.top + box.height / 2);
+        col.dataset.zooming = "1";
         const animation = col.animate(
           [
             { transform: "translate(0, 0) scale(1)", opacity: 1 },
@@ -179,6 +208,7 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
           { duration: reduce ? 150 : 300, easing: "cubic-bezier(0.65, 0, 0.35, 1)", fill: "forwards" },
         );
         await animation.finished.catch(() => undefined);
+        delete col.dataset.zooming;
       },
     });
     if (typeof col.animate !== "function") {
