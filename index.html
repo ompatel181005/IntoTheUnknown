@@ -340,7 +340,7 @@ body.embed main{padding:8px}
   <label for="release">When an image exists in several releases</label>
   <select id="release"><option value="latest">Use the newest version</option><option value="all">Keep every version</option></select>
   <label for="route">Request route</label>
-  <select id="route"><option value="auto">Auto (local proxy if available)</option><option value="proxy">Local proxy (server.py)</option><option value="direct">Direct to archives</option></select>
+  <select id="route"><option value="auto">Auto (local proxy if available)</option><option value="proxy">Local proxy (server.py)</option><option value="direct">Direct to archives (except IRSA)</option></select>
 
   <h4>Frames</h4>
   <label>One frame per…</label>
@@ -747,7 +747,8 @@ async function detectProxy(){
 }
 async function routeURL(url){
   const mode=$("route").value;
-  const useProxy = mode==="proxy" || (mode==="auto" && await detectProxy());
+  // AGENTS §9: IRSA traffic always goes through our server, never straight from the browser.
+  const useProxy = url.startsWith(CONFIG.IRSA) || mode==="proxy" || (mode==="auto" && await detectProxy());
   if(!useProxy) return url;
   for(const [k,v] of Object.entries(CONFIG.PROXY)) if(url.startsWith(k)) return v + url.slice(k.length);
   return url;
@@ -800,16 +801,19 @@ FROM spherex.artifact a JOIN spherex.plane p ON a.planeid = p.planeid
 WHERE 1 = CONTAINS(POINT('ICRS', ${center[0].toFixed(6)}, ${center[1].toFixed(6)}), p.poly)
 ORDER BY p.time_bounds_lower`;
   const url = `${CONFIG.IRSA}/TAP/sync?REQUEST=doQuery&LANG=ADQL&FORMAT=csv&QUERY=${encodeURIComponent(adql)}`;
+  // SIA first: it answers in seconds; TAP can take 20-37 s (docs/DECISIONS.md). TAP is the fallback.
+  const sia = `${CONFIG.IRSA}/SIA?POS=${encodeURIComponent(`circle ${center[0].toFixed(6)} ${center[1].toFixed(6)} 0.001`)}&RESPONSEFORMAT=csv&MAXREC=20000`;
   let rows;
-  try{ rows = parseCSV(await getWithRetry(url, "text", 1, 30000)); if(rows.length && !("uri" in rows[0])) throw new Error("TAP returned no table"); }
-  catch(tapErr){
-    // IRSA's Simple Image Access service is a separate endpoint that often stays up when TAP is down.
-    setStatus(`IRSA TAP isn't answering (${tapErr.message}); trying IRSA's image search (SIA) instead…`);
-    const sia = `${CONFIG.IRSA}/SIA?POS=${encodeURIComponent(`circle ${center[0].toFixed(6)} ${center[1].toFixed(6)} 0.001`)}&RESPONSEFORMAT=csv&MAXREC=20000`;
-    let siaRows; try{ siaRows = parseCSV(await getWithRetry(sia, "text", 2, 90000)); }
-    catch(siaErr){ throw new Error(`TAP: ${tapErr.message}; SIA: ${siaErr.message}`); }
-    rows = siaRows.filter(r=>/spherex/i.test(r.obs_collection||"") && (r.dataproduct_type||"image")==="image")
-                  .map(r=>({uri:r.access_url||"", time_bounds_lower:r.t_min, energy_bandpassname:r.energy_bandpassname}));
+  try{
+    rows = parseCSV(await getWithRetry(sia, "text", 2, 90000))
+      .filter(r=>/spherex/i.test(r.obs_collection||"") && (r.dataproduct_type||"image")==="image")
+      .map(r=>({uri:r.access_url||"", time_bounds_lower:r.t_min, energy_bandpassname:r.energy_bandpassname}));
+    if(!rows.length) throw new Error("SIA returned no SPHEREx images");
+  }
+  catch(siaErr){
+    setStatus(`IRSA's image search (SIA) isn't answering (${siaErr.message}); trying IRSA TAP instead…`);
+    try{ rows = parseCSV(await getWithRetry(url, "text", 1, 60000)); if(rows.length && !("uri" in rows[0])) throw new Error("TAP returned no table"); }
+    catch(tapErr){ throw new Error(`SIA: ${siaErr.message}; TAP: ${tapErr.message}`); }
   }
   let out = rows.filter(r=>/\.fits(\.gz)?$/i.test(r.uri||"")).map(r=>{
     const uri=r.uri.replace(/^https?:\/\/[^/]+/,"").replace(/^\//,""); const det=+(/D(\d)/.exec(r.energy_bandpassname||"")||[])[1];
