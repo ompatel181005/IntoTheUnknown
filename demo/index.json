@@ -41,14 +41,14 @@
   },
   "epsindib": {
    "name": "\u03b5 Indi B",
-   "files": 66,
-   "generated": "2026-11-14T18:57:28Z",
+   "files": 160,
+   "generated": "2026-11-14T22:47:45Z",
    "releases": [
     "dr1",
     "qr3"
    ],
-   "fov_arcmin": 8
+   "fov_arcmin": 8.0
   }
  },
- "generated": "2026-11-14T21:27:32.579076+00:00"
+ "generated": "2026-11-14T22:47:45Z"
 }

@@ -3,7 +3,7 @@
   "render_key": "2b228445d9f4f5a1001c7203",
   "source": "golden",
   "pipeline_version": 2,
-  "created_at": "2026-11-14T22:25:00+00:00",
+  "created_at": "2026-11-14T22:59:19+00:00",
   "query": {
     "ra": 248.16723,
     "dec": 66.75502,
@@ -41,9 +41,9 @@
   },
   "stretch": {
     "kind": "asinh",
-    "vmin": -0.8781437251820392,
-    "vmax": 469.39438408963764,
-    "beta": 1.6586839968448401
+    "vmin": -0.8781437251820845,
+    "vmax": 469.3943840894902,
+    "beta": 1.6586839968448042
   },
   "bandpass_matched": false,
   "epochs": [
