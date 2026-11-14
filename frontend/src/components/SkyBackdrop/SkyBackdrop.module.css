@@ -11,6 +11,20 @@
   transition-delay: 1.2s; /* stay bright while flying in */
 }
 
+/* The orrery owns the whole sky on home. This layer appears only for the flight handoff. */
+.backdrop[data-home="true"] {
+  opacity: 0;
+  transition-delay: 0ms;
+}
+
+.backdrop[data-home="true"][data-traveling="true"] {
+  opacity: 1;
+}
+
+.backdrop[data-home="true"] .vignette {
+  opacity: 0;
+}
+
 .canvas {
   position: absolute;
   left: -24px;

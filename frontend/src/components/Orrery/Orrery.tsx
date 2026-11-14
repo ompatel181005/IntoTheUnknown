@@ -57,12 +57,12 @@ function buildScene(targets: readonly Preset[]) {
       const angle = (k / 96) * Math.PI * 2;
       return [Math.cos(angle) * SKY_R, Math.sin(angle) * SKY_R, 0];
     }),
-    galaxy: Array.from({ length: 145 }, (_, k) => {
-      const point = galacticToEq((k / 144) * 360, 0);
-      return { p: onSky(point.ra, point.dec), w: 0.35 + 0.65 * Math.max(0, Math.cos(((k / 144) * 360 * Math.PI) / 180)) ** 2 };
+    galaxy: Array.from({ length: 361 }, (_, k) => {
+      const point = galacticToEq((k / 360) * 360, 0);
+      return { p: onSky(point.ra, point.dec), w: 0.35 + 0.65 * Math.max(0, Math.cos(((k / 360) * 360 * Math.PI) / 180)) ** 2 };
     }),
     sights: targets.map((target) => onSky(target.ra, target.dec)),
-    backgroundStars: skyStars(1500, SKY_R * 1.8),
+    backgroundStars: skyStars(4000, SKY_R * 1.8),
   };
 }
 
@@ -79,6 +79,7 @@ function getScene(targets: readonly Preset[]) {
  * SPHEREx rides with Earth, and the five targets hang in their real sky directions. Drag to turn it.
  */
 export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryProps) {
+  const anchorRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const markerRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -102,18 +103,19 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
   }, [onFlightEnd]);
 
   useEffect(() => {
+    const anchor = anchorRef.current;
     const wrap = wrapRef.current;
     const cv = canvasRef.current;
     const ctx = cv?.getContext("2d");
-    if (!wrap || !cv || !ctx) return;
+    if (!anchor || !wrap || !cv || !ctx) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const star = tokenRgb("--star");
     const sun = tokenRgb("--sun");
     const accent = tokenRgb("--accent");
     const text2 = tokenRgb("--text-2");
     const planetColor = PLANETS.map((p) => tokenRgb(`--planet-${p.name.toLowerCase()}`));
-    // Lower resolution on small machines keeps the loop under a frame budget.
-    const dprCap = (navigator.hardwareConcurrency || 8) <= 4 ? 1.25 : 2;
+    // Keep the full-screen painter bounded on high-density displays.
+    const dprCap = (navigator.hardwareConcurrency || 8) <= 4 ? 1.25 : 1.5;
 
     const { orbits, planets, ecliptic, galaxy, sights, backgroundStars } = getScene(targets);
     const returning = returnFlight;
@@ -137,31 +139,59 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
     let w = 0;
     let h = 0;
     let dirty = true;
-    let wrapRect = wrap.getBoundingClientRect();
+    let sceneBox = { left: 0, top: 0, width: 0, height: 0 };
+    let scheduleFrame = () => {};
     const resize = () => {
       const r = wrap.getBoundingClientRect();
-      wrapRect = r;
+      const scene = anchor.getBoundingClientRect();
       const dpr = Math.min(dprCap, window.devicePixelRatio || 1);
       w = r.width;
-      dirty = true;
       h = r.height;
+      sceneBox = { left: scene.left - r.left, top: scene.top - r.top, width: scene.width, height: scene.height };
       cv.width = Math.round(w * dpr);
       cv.height = Math.round(h * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      dirty = true;
+      scheduleFrame();
     };
     resize();
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
+    ro.observe(anchor);
 
-    const project = (v: Vec3, c: typeof cam.current) => {
+    const rotate = (v: Vec3, c: typeof cam.current) => {
       const cy = Math.cos(c.yaw), sy = Math.sin(c.yaw), cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
       const x1 = v[0] * cy - v[1] * sy;
       const y1 = v[0] * sy + v[1] * cy;
       const y2 = y1 * cp - v[2] * sp;
       const z2 = y1 * sp + v[2] * cp;
+      return { x: x1, y: y2, z: z2 };
+    };
+
+    /** Nearby solar-system geometry keeps the original home-map framing and camera dolly. */
+    const projectScene = (v: Vec3, c: typeof cam.current) => {
+      const rotated = rotate(v, c);
+      const { x: x1, y: y2, z: z2 } = rotated;
       const depth = y2 + c.dist;
-      const f = Math.min(w, h * 1.4) * 0.62;
-      return { x: w / 2 + (f * x1) / depth, y: h / 2 - (f * z2) / depth, depth, front: y2 < 0 };
+      const f = Math.min(sceneBox.width, sceneBox.height * 1.4) * 0.62;
+      return {
+        x: sceneBox.left + sceneBox.width / 2 + (f * x1) / depth,
+        y: sceneBox.top + sceneBox.height / 2 - (f * z2) / depth,
+        depth,
+        front: y2 < 0,
+      };
+    };
+
+    /** The celestial sphere is infinitely far away, so only camera rotation affects it. */
+    const projectSky = (v: Vec3, c: typeof cam.current) => {
+      const rotated = rotate(v, c);
+      const depth = rotated.y;
+      const f = Math.min(w, h) * 0.48;
+      return {
+        x: w / 2 + (f * rotated.x) / depth,
+        y: h / 2 - (f * rotated.z) / depth,
+        depth,
+      };
     };
 
     // One path per run of front-facing or back-facing points, instead of one stroke per segment.
@@ -170,9 +200,9 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
       ctx.lineWidth = width;
       const front = new Path2D();
       const back = new Path2D();
-      let prev: ReturnType<typeof project> | null = null;
+      let prev: ReturnType<typeof projectScene> | null = null;
       for (const v of pts) {
-        const q = project(v, c);
+        const q = projectScene(v, c);
         if (q.depth < 0.05) {
           prev = null;
           continue;
@@ -192,8 +222,10 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
     };
 
     let raf = 0;
+    let dragging = false;
     let last = performance.now();
     const frame = (now: number) => {
+      raf = 0;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const c = cam.current;
@@ -209,13 +241,12 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
           c.pitch = f.from.pitch + (f.to.pitch - f.from.pitch) * turn;
           c.dist = f.from.dist + (0.15 - f.from.dist) * e ** 1.6;
           c.fade = 1 - e * 0.85;
-          const q = project(sights[f.k], c);
-          setFlightFocus(wrapRect.left + q.x, wrapRect.top + q.y);
+          const q = projectScene(sights[f.k], c);
+          setFlightFocus(q.x, q.y);
           saveTargetCommit(f.p.id, c);
           if (t >= COMMIT_AT) {
             fly.current = null;
-            const r = markerRefs.current[f.k]?.querySelector("span")?.getBoundingClientRect();
-            onPickRef.current(f.p, r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null);
+            onPickRef.current(f.p, { x: q.x, y: q.y });
             return;
           }
         } else {
@@ -224,8 +255,8 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
           c.dist = f.from.dist + (f.to.dist - f.from.dist) * e;
           c.fade = f.from.fade + (1 - f.from.fade) * e;
           if (f.k >= 0) {
-            const q = project(sights[f.k], c);
-            setFlightFocus(wrapRect.left + q.x, wrapRect.top + q.y);
+            const q = projectScene(sights[f.k], c);
+            setFlightFocus(q.x, q.y);
           }
           if (t >= 1) {
             fly.current = null;
@@ -240,13 +271,18 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
         dirty = true;
       }
       if (!dirty) {
-        raf = requestAnimationFrame(frame);
-        return; // still scene (reduced motion): draw only when something changed
+        if (!reduce) scheduleFrame();
+        return;
       }
       dirty = false;
 
       ctx.clearRect(0, 0, w, h);
       ctx.globalAlpha = c.fade;
+      const skyMarginX = w * 0.2;
+      const skyMarginY = h * 0.2;
+      const maxSkySegment = Math.max(w, h) * 0.35;
+      const skyInRange = (q: { x: number; y: number }) =>
+        q.x > -skyMarginX && q.x < w + skyMarginX && q.y > -skyMarginY && q.y < h + skyMarginY;
       // The Milky Way is a broad neutral glow with the dense galactic star field over it.
       ctx.lineCap = "round";
       for (const [widthK, alphaK, color] of [
@@ -259,36 +295,34 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
           const hi = (bucket + 1) / 4;
           const wMid = (lo + hi) / 2;
           const front = new Path2D();
-          const back = new Path2D();
           for (let k = 1; k < galaxy.length; k++) {
             const gw = galaxy[k].w;
             if (gw < lo || (gw >= hi && bucket < 3)) continue;
-            const a = project(galaxy[k - 1].p, c);
-            const b = project(galaxy[k].p, c);
-            if (a.depth < 0.05) continue;
-            const path = a.front ? front : back;
-            path.moveTo(a.x, a.y);
-            path.lineTo(b.x, b.y);
+            const a = projectSky(galaxy[k - 1].p, c);
+            const b = projectSky(galaxy[k].p, c);
+            if (a.depth <= 0.04 || b.depth <= 0.04) continue;
+            if (Math.hypot(b.x - a.x, b.y - a.y) > maxSkySegment) continue;
+            if (!skyInRange(a) && !skyInRange(b)) continue;
+            front.moveTo(a.x, a.y);
+            front.lineTo(b.x, b.y);
           }
           ctx.lineWidth = widthK * (0.5 + wMid * 0.5);
-          ctx.strokeStyle = rgba(color, alphaK * (0.4 + wMid) * 0.45);
-          ctx.stroke(back);
           ctx.strokeStyle = rgba(color, alphaK * (0.4 + wMid));
           ctx.stroke(front);
         }
       }
       ctx.lineCap = "butt";
 
-      // Batch the fixed sky into a small set of paths, including the far hemisphere.
-      const starPaths = Array.from({ length: 4 }, () => [new Path2D(), new Path2D(), new Path2D()]);
+      // Batch the rotation-only sky by brightness and tone. Points behind the camera are culled.
+      const starPaths = Array.from({ length: 5 }, () => [new Path2D(), new Path2D(), new Path2D()]);
       for (const point of backgroundStars) {
-        const q = project(point.pos, c);
-        if (q.depth < 0.05) continue;
-        const bin = Math.min(3, Math.floor(point.brightness * 4));
+        const q = projectSky(point.pos, c);
+        if (q.depth <= 0.04 || q.x < -point.size || q.x > w + point.size || q.y < -point.size || q.y > h + point.size) continue;
+        const bin = Math.min(4, Math.floor(point.brightness * 5));
         starPaths[bin][point.tone].moveTo(q.x + point.size, q.y);
         starPaths[bin][point.tone].arc(q.x, q.y, point.size, 0, Math.PI * 2);
       }
-      const starAlpha = [0.24, 0.42, 0.68, 0.95];
+      const starAlpha = [0.22, 0.34, 0.5, 0.72, 0.96];
       const starTone = [star, sun, accent];
       starPaths.forEach((paths, bin) => {
         paths.forEach((path, tone) => {
@@ -303,7 +337,7 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
         line(o, c, planetColor[k], 0.12, 4);
         line(o, c, planetColor[k], 0.7, 1);
       });
-      const sp = project([0, 0, 0], c);
+      const sp = projectScene([0, 0, 0], c);
       const g = ctx.createRadialGradient(sp.x, sp.y, 0, sp.x, sp.y, 26);
       g.addColorStop(0, rgba(sun, 1));
       g.addColorStop(0.25, rgba(sun, 0.55));
@@ -316,7 +350,7 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
       ctx.font = "600 11px 'Manrope Variable', Manrope, system-ui, sans-serif";
       ctx.textBaseline = "middle";
       planets.forEach((p, k) => {
-        const q = project(p.pos, c);
+        const q = projectScene(p.pos, c);
         if (q.depth < 0.05) return;
         const isEarth = p.name === "Earth";
         ctx.fillStyle = rgba(planetColor[k], 1);
@@ -335,7 +369,7 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
 
       // Position the HTML target markers in their fixed sky directions.
       sights.forEach((v, k) => {
-        const q = project(v, c);
+        const q = projectScene(v, c);
         const el = markerRefs.current[k];
         if (el) {
           el.style.transform = `translate(${q.x}px, ${q.y}px)`;
@@ -344,9 +378,12 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
         }
       });
       ctx.globalAlpha = 1;
-      raf = requestAnimationFrame(frame);
+      if (!reduce || fly.current) scheduleFrame();
     };
-    raf = requestAnimationFrame(frame);
+    scheduleFrame = () => {
+      if (!raf) raf = requestAnimationFrame(frame);
+    };
+    scheduleFrame();
     const tickClock = () => {
       if (clockRef.current) clockRef.current.textContent = new Date().toISOString().slice(0, 19).replace("T", " ");
     };
@@ -354,15 +391,16 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
     const clock = window.setInterval(tickClock, 1000);
 
     // Drag to turn the view.
-    let dragging = false;
     let px = 0;
     let py = 0;
     const down = (e: PointerEvent) => {
-      if ((e.target as HTMLElement).closest("button")) return;
+      if (e.button !== 0 && e.pointerType === "mouse") return;
+      const target = e.target instanceof Element ? e.target : null;
+      if (target?.closest('button, a, input, select, textarea, [role="button"], [role="slider"], [role="dialog"], [contenteditable="true"]')) return;
       dragging = true;
       px = e.clientX;
       py = e.clientY;
-      wrap.setPointerCapture(e.pointerId);
+      wrap.dataset.dragging = "true";
     };
     const move = (e: PointerEvent) => {
       if (!dragging || fly.current) return;
@@ -370,24 +408,26 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
       cam.current.pitch = Math.min(1.5, Math.max(0.15, cam.current.pitch + (e.clientY - py) * 0.004));
       saveHomeCamera(cam.current);
       dirty = true;
+      scheduleFrame();
       px = e.clientX;
       py = e.clientY;
     };
     const up = () => {
       dragging = false;
+      delete wrap.dataset.dragging;
     };
-    wrap.addEventListener("pointerdown", down);
-    wrap.addEventListener("pointermove", move);
-    wrap.addEventListener("pointerup", up);
-    wrap.addEventListener("pointercancel", up);
+    window.addEventListener("pointerdown", down);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
     return () => {
       cancelAnimationFrame(raf);
       window.clearInterval(clock);
       ro.disconnect();
-      wrap.removeEventListener("pointerdown", down);
-      wrap.removeEventListener("pointermove", move);
-      wrap.removeEventListener("pointerup", up);
-      wrap.removeEventListener("pointercancel", up);
+      window.removeEventListener("pointerdown", down);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
     };
   }, [returnFlight, targets]);
 
@@ -409,40 +449,44 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
   };
 
   return (
-    <div ref={wrapRef} className={s.orrery} aria-label="Solar system and sky targets">
-      <canvas ref={canvasRef} className={s.canvas} aria-hidden="true" />
-      {targets.map((t, k) => (
-        <button
-          key={t.id}
-          ref={(el) => {
-            markerRefs.current[k] = el;
-          }}
-          type="button"
-          className={s.target}
-          onClick={() => pick(t, k)}
-          onPointerEnter={() => (holdRef.current = true)}
-          onPointerDown={() => (holdRef.current = true)}
-          onPointerLeave={() => (holdRef.current = false)}
-          onFocus={() => (holdRef.current = true)}
-          onBlur={() => (holdRef.current = false)}
-          aria-label={`Fly to ${t.name}`}
-        >
-          <span className={s.ring} aria-hidden="true" />
-          <span className={s.label}>
-            <span className={s.name}>{t.name}</span>
-            <span className={s.kind}>{t.kind === "motion" ? "Moves" : "Changes brightness"}</span>
+    <>
+      <div ref={anchorRef} className={s.anchor}>
+        <p className={`${s.hud} mono`}>
+          <span className={s.live}>
+            <span className={s.liveDot} aria-hidden="true" />
+            Sky context
           </span>
-        </button>
-      ))}
-      <p className={`${s.hud} mono`}>
-        <span className={s.live}>
-          <span className={s.liveDot} aria-hidden="true" />
-          Sky context
-        </span>
-        <span>
-          UTC now <span ref={clockRef} />
-        </span>
-      </p>
-    </div>
+          <span>
+            UTC now <span ref={clockRef} />
+          </span>
+        </p>
+      </div>
+      <div ref={wrapRef} className={s.orrery} aria-label="Solar system and sky targets">
+        <canvas ref={canvasRef} className={s.canvas} aria-hidden="true" />
+        {targets.map((t, k) => (
+          <button
+            key={t.id}
+            ref={(el) => {
+              markerRefs.current[k] = el;
+            }}
+            type="button"
+            className={s.target}
+            onClick={() => pick(t, k)}
+            onPointerEnter={() => (holdRef.current = true)}
+            onPointerDown={() => (holdRef.current = true)}
+            onPointerLeave={() => (holdRef.current = false)}
+            onFocus={() => (holdRef.current = true)}
+            onBlur={() => (holdRef.current = false)}
+            aria-label={`Fly to ${t.name}`}
+          >
+            <span className={s.ring} aria-hidden="true" />
+            <span className={s.label}>
+              <span className={s.name}>{t.name}</span>
+              <span className={s.kind}>{t.kind === "motion" ? "Moves" : "Changes brightness"}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { flightFocus } from "../../lib/flight";
 import { seeded } from "../../lib/sky";
 import { tokenRgb } from "../../lib/stretch";
@@ -24,12 +24,13 @@ const NEAR = 0.04;
  * or backward (`travelKey` became null: back to the whole sky), like moving through space.
  */
 export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: string | null }) {
+  const backdropRef = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLCanvasElement>(null);
   const stars = useRef<Star[]>([]);
   const draw = useRef<(streak: number) => void>(() => {});
   const lastKey = useRef<string | null | undefined>(undefined);
   const anim = useRef(0);
-  const resizeCanvas = useRef<(flying: boolean) => void>(() => {});
+  const resizeCanvas = useRef<() => void>(() => {});
   /** Current vanishing point in canvas pixels (NaN = canvas centre). */
   const focus = useRef({ x: NaN, y: NaN });
 
@@ -50,10 +51,12 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
     const palette = [tokenRgb("--star"), tokenRgb("--sun"), tokenRgb("--accent")];
     let w = 0;
     let h = 0;
-    const resize = (flying = false) => {
-      const dpr = Math.min(flying ? 1.5 : 2, window.devicePixelRatio || 1);
-      w = window.innerWidth + 48;
-      h = window.innerHeight + 48;
+    let viewportWidth = window.innerWidth;
+    let viewportHeight = window.innerHeight;
+    const resize = () => {
+      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+      w = viewportWidth + 48;
+      h = viewportHeight + 48;
       cv.width = Math.round(w * dpr);
       cv.height = Math.round(h * dpr);
       cv.style.width = `${w}px`;
@@ -120,24 +123,30 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       }
     };
     resize();
-    const onResize = () => resize(document.documentElement.dataset.flying === "1");
-    window.addEventListener("resize", onResize);
+    const ro = new ResizeObserver(([entry]) => {
+      viewportWidth = entry.contentRect.width;
+      viewportHeight = entry.contentRect.height;
+      resize();
+    });
+    ro.observe(document.documentElement);
     return () => {
       resizeCanvas.current = () => {};
-      window.removeEventListener("resize", onResize);
+      ro.disconnect();
     };
   }, []);
 
   // Fly when the target changes. Skipped on first render and under reduced motion.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const prev = lastKey.current;
     lastKey.current = travelKey;
     if (prev === undefined || prev === travelKey) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const dir = travelKey === null ? -1 : 1;
+    const backdrop = backdropRef.current;
     cancelAnimationFrame(anim.current);
+    if (backdrop) backdrop.dataset.traveling = "true";
     document.documentElement.dataset.flying = "1";
-    resizeCanvas.current(true);
+    resizeCanvas.current();
     const start = performance.now();
     let last = start;
     const PAD = 24; // the canvas overhangs the viewport by 24 px on each side
@@ -174,21 +183,23 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       if (t < 1) anim.current = requestAnimationFrame(step);
       else {
         delete document.documentElement.dataset.flying;
-        resizeCanvas.current(false);
+        if (backdrop) delete backdrop.dataset.traveling;
+        resizeCanvas.current();
       }
     };
     anim.current = requestAnimationFrame(step);
     return () => {
       cancelAnimationFrame(anim.current);
       delete document.documentElement.dataset.flying;
+      if (backdrop) delete backdrop.dataset.traveling;
     };
   }, [travelKey]);
 
   // Slow parallax on pointer move. Skipped under reduced motion.
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const cv = ref.current;
     if (!cv) return;
+    if (!dim || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let raf = 0;
     const onMove = (e: PointerEvent) => {
       cancelAnimationFrame(raf);
@@ -203,10 +214,10 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", onMove);
     };
-  }, []);
+  }, [dim]);
 
   return (
-    <div className={s.backdrop} data-dim={dim} aria-hidden="true">
+    <div ref={backdropRef} className={s.backdrop} data-dim={dim} data-home={!dim} aria-hidden="true">
       <canvas ref={ref} className={s.canvas} />
       <div className={s.vignette} />
     </div>

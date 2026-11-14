@@ -1,15 +1,17 @@
-.orrery {
+.anchor {
   position: relative;
   width: 100%;
   height: 100%;
   min-height: 320px;
-  cursor: grab;
-  touch-action: none;
-  overflow: hidden;
+  pointer-events: none;
 }
 
-.orrery:active {
-  cursor: grabbing;
+.orrery {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  touch-action: none;
+  pointer-events: none;
 }
 
 .canvas {
@@ -20,7 +22,7 @@
 }
 
 .target {
-  position: absolute;
+  position: fixed;
   left: 0;
   top: 0;
   display: flex;
@@ -34,6 +36,7 @@
   color: var(--text-1);
   text-align: left;
   cursor: pointer;
+  pointer-events: auto;
   will-change: transform;
 }
 
