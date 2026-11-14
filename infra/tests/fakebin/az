@@ -115,6 +115,7 @@ case "$a" in
   "acr show -g rg-planetx -n acrplanetxitu7q4 --query location -o tsv") echo "westus" ;;
   "acr show -g rg-planetx -n acrplanetxitu7q4 --query sku.name -o tsv") echo "${FAKE_ACR_SKU:-Standard}" ;;
   "acr show -g rg-planetx -n acrplanetxitu7q4 --query loginServer -o tsv") echo "acrplanetxitu7q4.azurecr.io" ;;
+  "acr config authentication-as-arm show -r acrplanetxitu7q4 --query status -o tsv") echo "${FAKE_ARM_AUTH:-enabled}" ;;
   "containerapp env show -g rg-planetx -n cae-planetx --query location -o tsv") echo "West US" ;;
   "containerapp env show -g rg-planetx -n cae-planetx --query properties.appLogsConfiguration.destination -o tsv") echo "log-analytics" ;;
   "containerapp env show -g rg-planetx -n cae-planetx --query properties.appLogsConfiguration.logAnalyticsConfiguration.customerId -o tsv") echo "${FAKE_CAE_WS:-cust-id}" ;;

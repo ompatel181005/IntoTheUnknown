@@ -188,14 +188,17 @@ else
   # ARM resolves listKeys inside Azure. The CLI receives resource names only, never the key.
   # --logs-workspace-key is a plain string in CLI 2.92; @- is not a stdin reader for it.
   azs deployment group create -g "$RG" --name core-environment \
-    --template-file "$INFRA_DIR/containerapp-environment.json" \
+    --template-file "$(native_path "$INFRA_DIR/containerapp-environment.json")" \
     --parameters "environmentName=$CAE" "location=$LOC" "workspaceResourceId=$LAW_RID" -o none
   info "created"
 fi
 CAE_DOMAIN=$(azsq containerapp env show -g "$RG" -n "$CAE" --query properties.defaultDomain -o tsv)
 
 # --- Frontend host ------------------------------------------------------------------------
-if [[ $SWA_LOC == none ]]; then
+if [[ $FRONTEND_HOST == container ]]; then
+  FRONTEND_LINE="Frontend + API          combined container (deploy: bash infra/30-app.sh)"
+  info "Frontend is bundled with FastAPI in the Container App; no separate website is enabled."
+elif [[ $FRONTEND_HOST == blob ]]; then
   # Default: the region policy allows no Static Web Apps region, so the built frontend is served
   # from this storage account's static website ($web container). Data-plane call, but
   # --auth-mode login needs only the management action blobServices/write (Owner has it): no key.
@@ -236,10 +239,9 @@ else
 fi
 
 # --- Not created here ---------------------------------------------------------------------
-# TODO(#23): Container App $API in $CAE (image from $ACR, or GHCR plan B), system identity with
-#            AcrPull on $ACR and "Storage Blob Data Contributor" on $SA, secrets via
-#            `az containerapp secret set`, ALLOWED_ORIGINS=<frontend URL printed below>. Then grant
-#            the OIDC app a role scoped to $API only (see 05-oidc-test.sh).
+# 30-app.sh deploys the combined app with registry-scoped AcrPull. Blob permissions and
+# instrumentation are deferred until the backend actually uses those services.
+# TODO(#23): grant the OIDC app a role scoped to $API only when a deploy workflow is added.
 # TODO(#23): with the static website, the frontend deploy is an upload to $web, e.g.
 #            `az storage blob upload-batch -d '$web' -s frontend/dist --account-name $SA --auth-mode login`
 #            (needs a blob data role); the frames CORS rule above already allows any origin.

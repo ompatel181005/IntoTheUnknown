@@ -20,9 +20,15 @@ AZ_SUBSCRIPTION_NAME="Azure for Students"
 : "${SUF:=itu7q4}"
 # LOC has no default: 10-core.sh refuses to run until you export it (from 00-preflight.sh, or
 # chosen by hand after checking Policy > Assignments in the portal).
-# SWA_LOC is optional. Default "none": the frontend is the storage account's static website,
-# because the region policy allows no Static Web Apps region. Set a region only if one is allowed.
+# SWA_LOC is optional. The combined container is the default frontend host.
+# Set FRONTEND_HOST=swa and a region only if the current policy allows it.
 : "${SWA_LOC:=none}"
+# The integrated app is one Container App. Blob/SWA hosting remain explicit alternatives.
+: "${FRONTEND_HOST:=container}"
+[[ $FRONTEND_HOST == container || $FRONTEND_HOST == blob || $FRONTEND_HOST == swa ]] ||
+  { printf 'ERROR: FRONTEND_HOST must be container, blob or swa.\n' >&2; return 1 2>/dev/null || exit 1; }
+[[ $FRONTEND_HOST != swa || $SWA_LOC != none ]] ||
+  { printf 'ERROR: SWA_LOC is required for FRONTEND_HOST=swa.\n' >&2; return 1 2>/dev/null || exit 1; }
 # Monthly budget (USD) for 20-cost-alert.sh.
 : "${BUDGET_AMOUNT:=20}"
 
@@ -85,6 +91,11 @@ azq() { az "$@" | tr -d '\r'; }
 # role/functionapp. infra/check-scripts.sh fails if a script calls those without --subscription.
 azs()  { az "$@" --subscription "$AZ_SUBSCRIPTION_ID"; }
 azsq() { azs "$@" | tr -d '\r'; }
+
+# Explicit ARM resource IDs must not be MSYS-converted, but file paths must be native for az.
+native_path() {
+  if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s\n' "$1"; fi
+}
 
 # True if the command succeeds (existence checks). Output is discarded.
 exists() { "$@" --only-show-errors >/dev/null 2>&1; }

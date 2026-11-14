@@ -164,7 +164,7 @@ elif [[ -n $A_S ]]; then
   REC_SWA=$(pick_first "$A_S")
 fi
 if [[ $REC_SWA == none ]]; then
-  FRONTEND="Blob static website on the storage account (no SWA region is allowed)"
+  FRONTEND="Combined React + FastAPI container in Container Apps; optional Blob static website"
 else
   FRONTEND="Static Web App in $REC_SWA"
 fi
