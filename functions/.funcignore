@@ -1,0 +1,15 @@
+.git*
+.venv/
+.vscode/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+__azurite_db*__.json
+__blobstorage__
+__queuestorage__
+tests/
+pytest.ini
+local.settings.json
+local.settings.example.json
+AGENTS.md
+CLAUDE.md
