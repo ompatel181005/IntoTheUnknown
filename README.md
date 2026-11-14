@@ -12,7 +12,7 @@ Commands for each area (backend, frontend, functions) are in [AGENTS.md](AGENTS.
 2. build: small commits inside your slice.
 3. sync: rebase on origin/main often.
 4. ship: checks, secret scan, push, open the PR.
-5. review + merge: a teammate (not the author) tests it, then squash merges.
+5. merge: once CI is green, squash merge your own PR. No second reviewer is required.
 6. handoff: save WIP and leave a note before you stop.
 
 Each step is a playbook in `.claude/skills/`. See [AGENTS.md](AGENTS.md) for the rules.

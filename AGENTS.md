@@ -60,7 +60,7 @@ Checks pass for every touched area, PR merged, issue closed, STATUS.md row updat
 ## 7. Git rules
 - Branches: `feat/<issue>-<slug>`, `fix/<issue>-<slug>`, `chore/<slug>`, `docs/<slug>`.
 - Conventional commits: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `wip:`. Small commits.
-- Short-lived branches and PRs. A teammate other than the author reviews and merges. Squash merge, delete branch. `main` must always run.
+- Short-lived branches and PRs. The author merges their own PR once CI is green; no second reviewer is required. Squash merge, delete branch. `main` must always run.
 - Never commit to main (one exception: STATUS.md via `scripts/update_status.py`).
 - Never `git push --force`. After a rebase use `--force-with-lease` on your own branch only.
 - Never rebase someone else's branch.

@@ -25,11 +25,10 @@ Default issue number: parse it from the branch name (`feat/<n>-...`).
 
 Manual fallback without gh: push the branch, open the PR on GitHub with the template, edit STATUS.md on main.
 
-## For reviewers
-The reviewer must not be the author.
-1. `gh pr checkout <pr>` (get the PR branch locally).
-2. Run the How to test steps from the PR.
-3. Confirm CI is green.
-4. `gh pr merge <pr> --squash --delete-branch`.
+## Merging
+The author merges their own PR. No second reviewer is required.
+1. Run the How to test steps from the PR.
+2. Confirm CI is green.
+3. `gh pr merge <pr> --squash --delete-branch`.
 
 If main breaks after the merge, open a revert PR first (`git revert <merge-commit>`), then debug.
