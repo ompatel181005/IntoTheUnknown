@@ -6,6 +6,7 @@
 #      (account, ad, rest, extension, version).
 #   3. azs/azsq must not wrap tenant-level groups (they reject --subscription).
 #   4. Every ARM URL names the subscription explicitly: /subscriptions/${AZ_SUBSCRIPTION_ID}.
+#   5. No local Log Analytics key retrieval or command-line key arguments.
 # Usage:  bash infra/check-scripts.sh
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -36,6 +37,13 @@ fi
 bad=$(code 'management\.azure\.com/subscriptions/' | grep -v 'subscriptions/\${AZ_SUBSCRIPTION_ID}' || true)
 if [[ -n $bad ]]; then
   printf 'FAIL: ARM URL without ${AZ_SUBSCRIPTION_ID}:\n%s\n' "$bad"
+  fail=1
+fi
+
+# ARM resolves the workspace key inside Azure; clients must not retrieve or pass it.
+bad=$(code 'logs-workspace-key|get-shared-keys')
+if [[ -n $bad ]]; then
+  printf 'FAIL: resolve the workspace key in ARM instead of retrieving it locally:\n%s\n' "$bad"
   fail=1
 fi
 

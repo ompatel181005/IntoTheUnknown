@@ -2,18 +2,19 @@
 # 10-core.sh (issue #7): create-if-missing for the core resources. Safe to rerun.
 #   resource group, Log Analytics + workspace-based Application Insights, storage account
 #   (frames public-read, state private, Blob CORS), ACR Standard, Container Apps environment,
-#   Static Web App (Free, no GitHub wiring; the deploy pipeline is #23).
-# On rerun it verifies what exists (location, SKU, workspace link) and aborts on a mismatch.
+#   and the frontend host: the storage account's static website (default, SWA_LOC=none), or a
+#   Static Web App Free (no GitHub wiring) when SWA_LOC is an allowed SWA region. Deploys are #23.
+# On rerun it verifies what exists (location, SKU, workspace link, ...) and aborts on a mismatch.
 # Every call is pinned to $AZ_SUBSCRIPTION_ID. Prints names and URLs only, never keys.
 #
-# Usage:  LOC=<region> SWA_LOC=<region> bash infra/10-core.sh   (both must be set explicitly)
+# Usage:  LOC=<region> bash infra/10-core.sh          (LOC must be set explicitly)
+#         ALLOW_UNVERIFIED_REGION=1 ...                (only if the region policy can't be read)
 set -euo pipefail
 # shellcheck source=infra/env.sh
 source "$(dirname "$0")/env.sh"
 
 [[ -n ${LOC:-} ]] || die "LOC is not set. Export it explicitly: the region 00-preflight.sh recommends, or one you
        chose after checking Policy > Assignments in the portal. This script never guesses a region."
-[[ -n ${SWA_LOC:-} ]] || die "SWA_LOC is not set. Export it explicitly (a Static Web Apps region the policy allows)."
 require_az
 
 log "Settings: LOC=$LOC SWA_LOC=$SWA_LOC SUF=$SUF RG=$RG"
@@ -25,16 +26,33 @@ expect() { # what actual wanted
 }
 loc_norm() { norm_regions <<<"$1"; }
 
-# --- Region policy re-check ---------------------------------------------------------------
-log "Region policy"
-read_allowed_regions
-if [[ $POLICY_STATE == ok ]]; then
-  in_list "$LOC" "$ALLOWED" || die "LOC=$LOC is not allowed by policy. Allowed: $(paste -sd' ' - <<<"$ALLOWED")"
-  in_list "$SWA_LOC" "$ALLOWED" || die "SWA_LOC=$SWA_LOC is not allowed by policy. Allowed: $(paste -sd' ' - <<<"$ALLOWED")"
-  info "LOC and SWA_LOC are allowed"
-else
-  warn "Could not confirm allowed regions (policy: $POLICY_STATE). Using LOC=$LOC and SWA_LOC=$SWA_LOC as you set them."
-fi
+# --- Region policy gate -------------------------------------------------------------------
+# Refuses to go on unless the allowed-locations policy confirms LOC and SWA_LOC, or the human
+# explicitly accepts the risk with ALLOW_UNVERIFIED_REGION=1.
+check_region() { # scope-label [resource-group]
+  read_allowed_regions "${2:-}"
+  if [[ $POLICY_STATE == ok ]]; then
+    in_list "$LOC" "$ALLOWED" ||
+      die "LOC=$LOC is not allowed by policy at $1 scope. Allowed: $(paste -sd' ' - <<<"$ALLOWED")"
+    if [[ $SWA_LOC != none ]]; then
+      in_list "$SWA_LOC" "$ALLOWED" ||
+        die "SWA_LOC=$SWA_LOC is not allowed by policy at $1 scope. Allowed: $(paste -sd' ' - <<<"$ALLOWED")"
+    fi
+    info "allowed at $1 scope: LOC=$LOC, SWA_LOC=$SWA_LOC"
+  elif [[ ${ALLOW_UNVERIFIED_REGION:-} == 1 ]]; then
+    warn "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+    warn "!! Allowed regions NOT confirmed at $1 scope (policy: $POLICY_STATE)."
+    warn "!! ALLOW_UNVERIFIED_REGION=1, so continuing with LOC=$LOC SWA_LOC=$SWA_LOC on your word."
+    warn "!! A wrong region fails later with RequestDisallowedByPolicy / RequestDisallowedByAzure."
+    warn "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  else
+    die "Could not confirm allowed regions at $1 scope (policy: $POLICY_STATE). Check the portal
+       (Policy > Assignments > Parameters). If LOC=$LOC and SWA_LOC=$SWA_LOC are right, rerun with
+       ALLOW_UNVERIFIED_REGION=1 to proceed anyway."
+  fi
+}
+log "Region policy (subscription scope)"
+check_region subscription
 
 # --- Providers and CLI extension ----------------------------------------------------------
 log "Resource providers"
@@ -58,6 +76,9 @@ else
   azs group create -n "$RG" -l "$LOC" -o none
   info "created"
 fi
+# Policies assigned at the RG itself only become visible once the RG exists: check again.
+log "Region policy (resource group scope)"
+check_region "resource group $RG" "$RG"
 
 # --- Observability ------------------------------------------------------------------------
 log "Log Analytics workspace $LAW"
@@ -91,6 +112,11 @@ log "Storage account $SA"
 if exists azs storage account show -g "$RG" -n "$SA"; then
   expect "Storage $SA location" "$(loc_norm "$(azsq storage account show -g "$RG" -n "$SA" --query location -o tsv)")" "$LOC"
   expect "Storage $SA kind" "$(azsq storage account show -g "$RG" -n "$SA" --query kind -o tsv)" "StorageV2"
+  expect "Storage $SA SKU" "$(azsq storage account show -g "$RG" -n "$SA" --query sku.name -o tsv)" "Standard_LRS"
+  expect "Storage $SA minimum TLS version" \
+    "$(azsq storage account show -g "$RG" -n "$SA" --query minimumTlsVersion -o tsv)" "TLS1_2"
+  expect "Storage $SA HTTPS-only" \
+    "$(azsq storage account show -g "$RG" -n "$SA" --query "enableHttpsTrafficOnly || supportsHttpsTrafficOnly" -o tsv)" "true"
   expect "Storage $SA allowBlobPublicAccess" \
     "$(azsq storage account show -g "$RG" -n "$SA" --query allowBlobPublicAccess -o tsv)" "true"
   info "exists, verified"
@@ -159,37 +185,64 @@ if exists azs containerapp env show -g "$RG" -n "$CAE"; then
     "$LAW_CUSTOMER_ID"
   info "exists, verified (logs to $LAW)"
 else
-  LAW_KEY=$(azsq monitor log-analytics workspace get-shared-keys -g "$RG" -n "$LAW" --query primarySharedKey -o tsv)
-  # The --logs-destination default changes to azure-monitor in CLI 2.93.0, so pin it.
-  azs containerapp env create -g "$RG" -n "$CAE" -l "$LOC" \
-    --logs-destination log-analytics --logs-workspace-id "$LAW_CUSTOMER_ID" --logs-workspace-key "$LAW_KEY" -o none
-  unset LAW_KEY
+  # ARM resolves listKeys inside Azure. The CLI receives resource names only, never the key.
+  # --logs-workspace-key is a plain string in CLI 2.92; @- is not a stdin reader for it.
+  azs deployment group create -g "$RG" --name core-environment \
+    --template-file "$INFRA_DIR/containerapp-environment.json" \
+    --parameters "environmentName=$CAE" "location=$LOC" "workspaceResourceId=$LAW_RID" -o none
   info "created"
 fi
 CAE_DOMAIN=$(azsq containerapp env show -g "$RG" -n "$CAE" --query properties.defaultDomain -o tsv)
 
-# --- Static Web App -----------------------------------------------------------------------
-log "Static Web App $SWA (Free, no GitHub wiring; deploy pipeline is #23)"
-if exists azs staticwebapp show -g "$RG" -n "$SWA"; then
-  expect "Static Web App $SWA location" \
-    "$(loc_norm "$(azsq staticwebapp show -g "$RG" -n "$SWA" --query location -o tsv)")" "$SWA_LOC"
-  expect "Static Web App $SWA SKU" "$(azsq staticwebapp show -g "$RG" -n "$SWA" --query sku.name -o tsv)" "Free"
-  info "exists, verified"
+# --- Frontend host ------------------------------------------------------------------------
+if [[ $SWA_LOC == none ]]; then
+  # Default: the region policy allows no Static Web Apps region, so the built frontend is served
+  # from this storage account's static website ($web container). Data-plane call, but
+  # --auth-mode login needs only the management action blobServices/write (Owner has it): no key.
+  log "Static website on $SA (replaces the Static Web App: no allowed SWA region)"
+  azs storage blob service-properties update --account-name "$SA" --auth-mode login \
+    --static-website true --index-document "$WEB_INDEX" --404-document "$WEB_INDEX" -o none
+  expect "Static website on $SA" \
+    "$(azsq storage blob service-properties show --account-name "$SA" --auth-mode login --query staticWebsite.enabled -o tsv)" \
+    "true"
+  expect "Static website index document" \
+    "$(azsq storage blob service-properties show --account-name "$SA" --auth-mode login --query staticWebsite.indexDocument -o tsv)" \
+    "$WEB_INDEX"
+  expect "Static website error document" \
+    "$(azsq storage blob service-properties show --account-name "$SA" --auth-mode login --query staticWebsite.errorDocument404Path -o tsv)" \
+    "$WEB_INDEX"
+  WEB_URL=$(azsq storage account show -g "$RG" -n "$SA" --query primaryEndpoints.web -o tsv)
+  WEB_URL=${WEB_URL%/}
+  [[ -n $WEB_URL ]] || die "Static website is on, but the account reports no web endpoint."
+  info "enabled, verified: $WEB_URL"
+  FRONTEND_LINE="Frontend (static web)  $WEB_URL  (deploy: upload to the \$web container)"
 else
-  SWA_REGIONS=$(azsq provider show -n Microsoft.Web \
-    --query "resourceTypes[?resourceType=='staticSites'].locations | [0]" -o tsv | norm_regions)
-  in_list "$SWA_LOC" "$SWA_REGIONS" ||
-    die "SWA_LOC=$SWA_LOC is not a Static Web Apps region. Valid: $(paste -sd' ' - <<<"$SWA_REGIONS")."
-  azs staticwebapp create -g "$RG" -n "$SWA" -l "$SWA_LOC" --sku Free -o none
-  info "created"
+  log "Static Web App $SWA (Free, no GitHub wiring; deploy pipeline is #23)"
+  if exists azs staticwebapp show -g "$RG" -n "$SWA"; then
+    expect "Static Web App $SWA location" \
+      "$(loc_norm "$(azsq staticwebapp show -g "$RG" -n "$SWA" --query location -o tsv)")" "$SWA_LOC"
+    expect "Static Web App $SWA SKU" "$(azsq staticwebapp show -g "$RG" -n "$SWA" --query sku.name -o tsv)" "Free"
+    info "exists, verified"
+  else
+    SWA_REGIONS=$(azsq provider show -n Microsoft.Web \
+      --query "resourceTypes[?resourceType=='staticSites'].locations | [0]" -o tsv | norm_regions)
+    in_list "$SWA_LOC" "$SWA_REGIONS" ||
+      die "SWA_LOC=$SWA_LOC is not a Static Web Apps region. Valid: $(paste -sd' ' - <<<"$SWA_REGIONS"), or none."
+    azs staticwebapp create -g "$RG" -n "$SWA" -l "$SWA_LOC" --sku Free -o none
+    info "created"
+  fi
+  WEB_URL="https://$(azsq staticwebapp show -g "$RG" -n "$SWA" --query defaultHostname -o tsv)"
+  FRONTEND_LINE="Static Web App          $WEB_URL ($SWA_LOC)"
 fi
-SWA_HOST=$(azsq staticwebapp show -g "$RG" -n "$SWA" --query defaultHostname -o tsv)
 
 # --- Not created here ---------------------------------------------------------------------
 # TODO(#23): Container App $API in $CAE (image from $ACR, or GHCR plan B), system identity with
 #            AcrPull on $ACR and "Storage Blob Data Contributor" on $SA, secrets via
-#            `az containerapp secret set`, ALLOWED_ORIGINS=https://$SWA_HOST. Then grant the OIDC
-#            app a role scoped to $API only (see 05-oidc-test.sh).
+#            `az containerapp secret set`, ALLOWED_ORIGINS=<frontend URL printed below>. Then grant
+#            the OIDC app a role scoped to $API only (see 05-oidc-test.sh).
+# TODO(#23): with the static website, the frontend deploy is an upload to $web, e.g.
+#            `az storage blob upload-batch -d '$web' -s frontend/dist --account-name $SA --auth-mode login`
+#            (needs a blob data role); the frames CORS rule above already allows any origin.
 # TODO(#24): Function app $FUNC (Flex Consumption, python 3.11, --storage-account $SA, --app-insights $AI).
 # TODO(T3):  Cosmos DB $COSMOS with --enable-free-tier true (one per subscription).
 
@@ -205,7 +258,7 @@ Storage account         $SA
   state (private)       https://$SA.blob.core.windows.net/$STATE_CONTAINER
 Container registry      $ACR_LOGIN
 Container Apps env      $CAE (default domain $CAE_DOMAIN)
-Static Web App          https://$SWA_HOST ($SWA_LOC)
+$FRONTEND_LINE
 =====================================================================================
 Secrets are not printed. To read them later (do not paste them anywhere public):
   source infra/env.sh

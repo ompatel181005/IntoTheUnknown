@@ -16,6 +16,8 @@ source "$(dirname "$0")/env.sh"
 : "${ALERT_EMAIL:?Set ALERT_EMAIL, e.g. ALERT_EMAIL=you@example.com bash infra/20-cost-alert.sh}"
 [[ $ALERT_EMAIL =~ ^[^@[:space:]\"]+@[^@[:space:]\"]+\.[^@[:space:]\"]+$ ]] ||
   die "ALERT_EMAIL does not look like an email address."
+[[ $ALERT_EMAIL != *"'"* ]] || die "ALERT_EMAIL must not contain a single quote."
+ALERT_EMAIL=${ALERT_EMAIL,,}   # compared against the API response, so keep one spelling
 [[ $BUDGET_AMOUNT =~ ^[0-9]+([.][0-9]+)?$ ]] || die "BUDGET_AMOUNT must be a number (got $BUDGET_AMOUNT)."
 require_az
 exists azs group show -n "$RG" || die "Resource group $RG not found. Run 10-core.sh first."
@@ -39,7 +41,7 @@ Portal fallback:
      Monthly, \$$BUDGET_AMOUNT, alerts at 50/80/100% of actual cost to your email.
   2. If the portal also says the offer is not supported, check the remaining credit on the
      Azure Sponsorships portal: https://www.microsoftazuresponsorships.com/ (student account).
-     The subscription is cancelled when the credit runs out: no surprise bill, but the demo dies.
+     When the credit runs out the subscription is cancelled and the demo stops.
   3. Either way: delete Front Door after local judging, and set Container Apps
      min-replicas back to 0 after judging (infra/README.md).
 Record which option worked on issue #7.
@@ -69,14 +71,27 @@ ETAG_PART=""
 BODY=$(printf '{%s"properties":{"category":"Cost","amount":%s,"timeGrain":"Monthly","timePeriod":{"startDate":"%s","endDate":"%s"},"notifications":{%s,%s,%s}}}' \
   "$ETAG_PART" "$BUDGET_AMOUNT" "$START" "$END" "$(notif 50)" "$(notif 80)" "$(notif 100)")
 
-# Report what the API actually stored, not what we sent.
+# Check what the API actually stored, not what we sent. One line per field; the last is the
+# thresholds of enabled Actual-cost alerts that go to ALERT_EMAIL.
 RESULT=$(azq rest --method put --url "$URL" --body "$BODY" \
-  --query "{name:name, amount:properties.amount, timeGrain:properties.timeGrain, start:properties.timePeriod.startDate, end:properties.timePeriod.endDate, alerts:length(values(properties.notifications || \`{}\`))}" \
-  -o table 2>"$ERR") || fallback
-printf '%s\n' "$RESULT"
+  --query "[name, to_string(properties.amount), properties.timeGrain, properties.timePeriod.startDate, properties.timePeriod.endDate, join(',', values(properties.notifications || \`{}\`)[?enabled && thresholdType=='Actual' && contains(contactEmails || \`[]\`, '${ALERT_EMAIL}')].to_string(threshold))]" \
+  -o tsv 2>"$ERR") || fallback
+{ read -r R_NAME || true; read -r R_AMOUNT || true; read -r R_GRAIN || true; read -r R_START || true; read -r R_END || true; read -r R_THR || true; } <<<"$RESULT"
+num() { sed 's/\.0*$//'; }
+R_THR=$(tr ',' '\n' <<<"$R_THR" | sed '/^$/d' | num | sort -n | paste -sd, -)
+
+cat <<EOF
+    API returned: name=$R_NAME amount=$R_AMOUNT grain=$R_GRAIN start=$R_START end=$R_END
+    alert thresholds to ALERT_EMAIL (enabled, actual cost): ${R_THR:-(none)}
+EOF
+[[ $R_NAME == "$BUDGET_NAME" && $(num <<<"$R_AMOUNT") == "$(num <<<"$BUDGET_AMOUNT")" && $R_GRAIN == Monthly ]] ||
+  die "The API accepted the budget but returned different settings (see above). Check it in the portal."
+[[ $R_THR == "50,80,100" ]] ||
+  die "The API accepted the budget but the alerts to ALERT_EMAIL are '${R_THR:-none}', not 50,80,100. Check the portal."
 
 cat <<EOF
 
-Budget OK (as returned by the API above): $BUDGET_NAME on $RG, emails at 50/80/100% of actual cost.
-Cost data can lag 8-72 h, so alerts are a backstop, not a live meter. Post "cost alert set" on issue #7.
+Budget OK, verified from the API response: $BUDGET_NAME on $RG, \$$BUDGET_AMOUNT/month, emails at
+50/80/100% of actual cost. Cost data can lag 8-72 h, so alerts are a backstop, not a live meter.
+Post "cost alert set" on issue #7.
 EOF

@@ -12,7 +12,7 @@ source "$(dirname "$0")/env.sh"
 require_az
 
 # Preferred regions: closest to IRSA (Pasadena).
-PREFERRED="westus2 westus3"
+PREFERRED="westus2 westus3 westus"
 # Fallback search order (US west first), then anything else alphabetically.
 ORDER="westus2 westus3 westus centralus southcentralus westcentralus northcentralus eastus2 eastus canadacentral"
 
@@ -74,12 +74,14 @@ case $POLICY_STATE in
 esac
 
 # --- 4. Flex Consumption ------------------------------------------------------------------
-log "4/8 Functions Flex Consumption regions (python)"
-FLEX=$(azsq functionapp list-flexconsumption-locations --runtime python --query "[].name" -o tsv | norm_regions) || {
+log "4/8 Functions Flex Consumption regions"
+# No --runtime filter: on CLI 2.92.0 it fails with "--runtime is only valid with --details", and
+# --details is unrecognized. Python is a standard Flex runtime.
+FLEX=$(azsq functionapp list-flexconsumption-locations --query "[].name" -o tsv | norm_regions) || {
   warn "list-flexconsumption-locations failed (Microsoft.Web may still be registering; rerun in a minute)"
   FLEX=""
 }
-info "Flex (python): $(csv "$FLEX")"
+info "Flex: $(csv "$FLEX")"
 
 # --- 5. Container Apps --------------------------------------------------------------------
 log "5/8 Container Apps environment regions"
@@ -113,15 +115,16 @@ if [[ $POLICY_STATE != ok ]]; then
 ==================== paste into issue #7 and docs/DECISIONS.md ====================
 ## ${STAMP} - Azure region and subscription preflight
 Decision: none yet. Could not confirm allowed regions (policy: ${POLICY_STATE}); LOC must be set by hand.
-Why: offer quotaId=${QUOTA_ID}, spendingLimit=${SPEND_LIMIT}. Flex (python) + Container Apps: $(csv "$F_C").
+Why: offer quotaId=${QUOTA_ID}, spendingLimit=${SPEND_LIMIT}. Flex + Container Apps: $(csv "$F_C").
 SWA regions: $(csv "$SWA_REGIONS"). Cosmos free tier: ${COSMOS_FREE}.
 Owner: TODO(team)
 ====================================================================================
 
 Could not confirm allowed regions; set LOC manually after checking the portal
 (Policy > Assignments > "Allowed resource deployment regions" > Parameters). Pick one that is
-also in "Flex (python) + Container Apps" above, and an SWA_LOC from the SWA list that the policy allows:
-  export LOC=<region> SWA_LOC=<region>
+also in "Flex + Container Apps" above. SWA_LOC is optional: leave it unset (= none, Blob static
+website) unless the policy allows one of the SWA regions.
+  export LOC=<region>
 EOF
   exit 4
 fi
@@ -146,28 +149,34 @@ if [[ -z $REC_LOC && -n $A_F_C_S ]]; then
 fi
 if [[ -z $REC_LOC && -n $A_F_C ]]; then
   REC_LOC=$(pick_first "$A_F_C")
-  WHY="allowed + Flex + Container Apps; SWA must go in another region"
+  WHY="allowed + Flex + Container Apps"
 fi
 if [[ -z $REC_LOC && -n $A_C ]]; then
   REC_LOC=$(pick_first "$A_C")
   WHY="allowed + Container Apps but NO Flex: run the watcher as a Container Apps Job (PLAN risk 11)"
 fi
 
-REC_SWA=""
+# Frontend: an SWA region if the policy allows one, else "none" = Blob static website (default).
+REC_SWA="none"
 if [[ -n $REC_LOC ]] && in_list "$REC_LOC" "$A_S"; then
   REC_SWA=$REC_LOC
 elif [[ -n $A_S ]]; then
   REC_SWA=$(pick_first "$A_S")
+fi
+if [[ $REC_SWA == none ]]; then
+  FRONTEND="Blob static website on the storage account (no SWA region is allowed)"
+else
+  FRONTEND="Static Web App in $REC_SWA"
 fi
 
 cat <<EOF
 
 ==================== paste into issue #7 and docs/DECISIONS.md ====================
 ## ${STAMP} - Azure region and subscription preflight
-Decision: LOC=${REC_LOC:-NONE}, SWA_LOC=${REC_SWA:-NONE}. ${WHY:-No allowed region supports Container Apps.}
+Decision: LOC=${REC_LOC:-NONE} (${WHY:-no allowed region supports Container Apps}). Frontend: ${FRONTEND}.
 Why: offer quotaId=${QUOTA_ID}, spendingLimit=${SPEND_LIMIT}. Allowed regions (policy): $(csv "$ALLOWED").
-Allowed + Flex (python): $(csv "$(intersect "$ALLOWED" "$FLEX")"). Allowed + Container Apps: $(csv "$A_C").
-Allowed + SWA: $(csv "$A_S"). Cosmos free tier: ${COSMOS_FREE}.
+Allowed + Flex: $(csv "$(intersect "$ALLOWED" "$FLEX")"). Allowed + Container Apps: $(csv "$A_C").
+SWA regions: $(csv "$SWA_REGIONS"); allowed + SWA: $(csv "$A_S"). Cosmos free tier: ${COSMOS_FREE}.
 Owner: TODO(team)
 ====================================================================================
 EOF
@@ -175,15 +184,11 @@ EOF
 if [[ -z $REC_LOC ]]; then
   die "No allowed region supports Container Apps. Check the policy output above and ask in team chat."
 fi
-if [[ -z $REC_SWA ]]; then
-  warn "No allowed region supports Static Web Apps. Fallback: serve the built frontend from the storage
-      account's static website (\$web container) or GitHub Pages, and record it in docs/DECISIONS.md."
-fi
 
 cat <<EOF
 
 Next:
-  export LOC=${REC_LOC} SWA_LOC=${REC_SWA:-<none>}
+  export LOC=${REC_LOC} SWA_LOC=${REC_SWA}
   bash infra/05-oidc-test.sh
   bash infra/10-core.sh
 EOF

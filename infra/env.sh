@@ -5,7 +5,7 @@
 #   AZ_SUBSCRIPTION_ID=<guid>   AZ_TENANT_ID=<guid>   (required; the "Azure for Students" IDs)
 #   AZ_OIDC_APP_ID=<guid>       (written by 05-oidc-test.sh)
 # Exported env vars win over the file. Example:
-#   LOC=westus3 SWA_LOC=centralus bash infra/10-core.sh
+#   LOC=westus bash infra/10-core.sh
 
 INFRA_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ENV_LOCAL_DEFAULT="$INFRA_DIR/.env.local"
@@ -18,8 +18,11 @@ AZ_SUBSCRIPTION_NAME="Azure for Students"
 # Fixed suffix for globally unique names. NOT random, so reruns hit the same resources.
 # Change it only if 10-core.sh says a name is taken, then keep the new value.
 : "${SUF:=itu7q4}"
-# LOC and SWA_LOC have no default: 10-core.sh refuses to run until you export them
-# (from 00-preflight.sh, or chosen by hand after checking Policy > Assignments in the portal).
+# LOC has no default: 10-core.sh refuses to run until you export it (from 00-preflight.sh, or
+# chosen by hand after checking Policy > Assignments in the portal).
+# SWA_LOC is optional. Default "none": the frontend is the storage account's static website,
+# because the region policy allows no Static Web Apps region. Set a region only if one is allowed.
+: "${SWA_LOC:=none}"
 # Monthly budget (USD) for 20-cost-alert.sh.
 : "${BUDGET_AMOUNT:=20}"
 
@@ -32,7 +35,8 @@ FRAMES_CONTAINER="frames"         # public blob read
 STATE_CONTAINER="state"           # private
 ACR="acrplanetx${SUF}"            # Container Registry: 5-50 letters/digits, global
 CAE="cae-planetx"                 # Container Apps environment
-SWA="swa-planetx"                 # Static Web App (Free)
+SWA="swa-planetx"                 # Static Web App (Free): only if SWA_LOC is a region
+WEB_INDEX="index.html"            # Blob static website ($web container) index and 404 page
 API="ca-planetx-api"              # Container App: created in #23, not here
 FUNC="func-planetx-${SUF}"        # Function app (Flex): created in #24, not here
 COSMOS="cosmos-planetx-${SUF}"    # Cosmos DB (free tier): T3 only, not here
@@ -153,17 +157,22 @@ require_sub() {
 #   ok         every location-type assignment yielded a region list (ALLOWED = intersection)
 #   none       no location-type assignment is visible
 #   unreadable listing failed, or some assignment's region list could not be parsed
+# Optional $1 = resource group: list what applies at that RG's scope. Policies assigned to the
+# RG itself are only visible once the RG exists, so 10-core.sh checks again right after creating it.
 read_allowed_regions() {
   local n raw line list got=0
+  local scope=()
+  if [[ -n ${1:-} ]]; then scope=(--resource-group "$1"); fi
   ALLOWED=""
   POLICY_STATE="unreadable"
-  n=$(azsq policy assignment list --filter "$POLICY_FILTER" --query "length(${LOCQ})" -o tsv 2>/dev/null) || return 0
+  n=$(azsq policy assignment list "${scope[@]}" --filter "$POLICY_FILTER" --query "length(${LOCQ})" -o tsv 2>/dev/null) ||
+    return 0
   [[ $n =~ ^[0-9]+$ ]] || return 0
   if [[ $n -eq 0 ]]; then
     POLICY_STATE="none"
     return 0
   fi
-  raw=$(azsq policy assignment list --filter "$POLICY_FILTER" \
+  raw=$(azsq policy assignment list "${scope[@]}" --filter "$POLICY_FILTER" \
     --query "${LOCQ}.join(',', parameters.listOfAllowedLocations.value || parameters.allowedLocations.value || \`[]\`)" \
     -o tsv 2>/dev/null) || return 0
   while IFS= read -r line; do

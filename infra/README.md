@@ -4,7 +4,8 @@ Every resource must name the problem it solves. Remove any resource without one.
 
 | Resource | Problem it solves | Tier | Status |
 |---|---|---|---|
-| Static Web Apps (Free) | Global, zero-ops hosting for the UI. It also carries **golden snapshots of the 5 targets**, so judging works even when the API, IRSA or Blob is down. | MVP | not created |
+| Blob static website (`$web`) | Serves the UI and bundled target data over HTTPS without running Python. Presets work with the API down; a storage outage still affects the site. | MVP | prepared; not deployed by this change |
+| Static Web Apps (optional alternative) | Frontend hosting if the tenant later permits an SWA region. | optional | blocked by current allowed-regions policy |
 | Container Apps (+ ACR) | Heavy scientific Python (astropy, reproject) on scale-to-zero compute that holds long jobs. Min replicas set to 1 only during judging. | MVP | not created |
 | Blob Storage (served directly, no CDN) | **Speed.** The first render of a view takes 30–60 s; a repeat load from Blob takes under 1 s. Also stores job state and catalog state. | MVP | not created |
 | Managed identity | Removes storage secrets. It's a feature, not a resource. | MVP | not created |
@@ -19,7 +20,9 @@ Every resource must name the problem it solves. Remove any resource without one.
 
 ## How to run
 
-None of these scripts has been run yet. They are re-runnable: each one checks before it creates, so a rerun only fills in what is missing. All names live in `infra/env.sh`.
+Claude ran `00-preflight.sh` on 2026-11-14 against Azure for Students (issue #7). It registered providers; allowed regions were westus, northcentralus, norwayeast, belgiumcentral and francecentral. Container Apps and Functions Flex were available in those five; none supported Static Web Apps. This is a recorded preflight result, not proof of a current deployment. Rerun preflight before creating resources. Core creation, OIDC, budget alerts and a public website remain unverified.
+
+The scripts verify existing settings before proceeding. Names live in `infra/env.sh`; the default frontend host is Blob static website (`SWA_LOC=none`). This works with a plain HTML app or a built React app, so it does not require a frontend rewrite.
 
 **Prerequisites (once)**
 - Azure CLI 2.92.0 or later: `winget install -e --id Microsoft.AzureCLI`, then open a **new** Git Bash so `az` is on PATH. Or use **Azure Cloud Shell** (Bash), which already has `az` and `gh`; clone the repo there.
@@ -38,19 +41,30 @@ None of these scripts has been run yet. They are re-runnable: each one checks be
 | # | Command | What it changes | Paste back on issue #7 |
 |---|---|---|---|
 | 1 | `bash infra/00-preflight.sh` | Registers resource providers only (idempotent, free). Everything else is read-only. | The block between the `=====` lines. It also goes in `docs/DECISIONS.md`. |
-| 2 | `export LOC=<region> SWA_LOC=<region>` | Nothing. Required: `10-core.sh` refuses to run without them. | — |
+| 2 | `export LOC=westus SWA_LOC=none` | Nothing. Confirm the recommendation from the current preflight first. | — |
 | 3 | `bash infra/05-oidc-test.sh` | App registration `gh-planetx-itu7q4` (appId saved to `infra/.env.local` as `AZ_OIDC_APP_ID`), federated credential for `main`, 3 GitHub secrets | "OIDC allowed", or "OIDC blocked → GHCR plan B" (exit code 2) |
-| 4 | `bash infra/10-core.sh` | Resource group, Log Analytics, App Insights, storage (`frames` public read, `state` private, Blob CORS), ACR, Container Apps environment, Static Web App | The "core resources" block (names and URLs only) |
+| 4 | `bash infra/10-core.sh` | Creates billable resources: resource group, monitoring, storage (`frames` public read, `state` private), ACR and Container Apps environment. Enables the Blob website; creates SWA only if explicitly selected. | The "core resources" block (names and URLs only) |
 | 5 | `bash infra/05-oidc-test.sh` again | AcrPush for the OIDC app on the registry (only once the registry exists) | — |
 | 6 | `ALERT_EMAIL=you@example.com bash infra/20-cost-alert.sh` | $20/month budget on the resource group, email at 50/80/100 % of actual cost | The budget table it prints, or which fallback you used (exit code 3) |
 
-- **Region.** The preflight recommends `LOC`/`SWA_LOC` only when it could read every allowed-locations policy. Otherwise it prints "could not confirm allowed regions; set LOC manually after checking the portal" and exits 4: check Policy > Assignments > "Allowed resource deployment regions" > Parameters, then export both values by hand. `10-core.sh` re-checks them against the policy whenever the policy is readable.
+- **Region.** Preflight exits 4 if it cannot confirm the location policy. Core creation refuses to proceed unless policy confirms the chosen region, checked at subscription scope and again at resource-group scope. After manual verification in the portal, `ALLOW_UNVERIFIED_REGION=1` explicitly overrides an unreadable policy. `SWA_LOC` defaults to `none`; set a region only if both Azure and the policy support SWA there.
 - **Reruns** verify instead of trusting: if a resource exists with another location, ACR SKU, workspace link or blob public-access setting, `10-core.sh` stops with a clear message. CORS adds our rule only if an identical rule isn't there, and leaves other rules alone.
 - Keep `SUF`, `LOC` and `SWA_LOC` the same on every run (export them once per shell). `SUF` is fixed in `env.sh`. Change it only if `10-core.sh` says a name is taken.
 - Exit codes: 0 ok, 1 error, 2 OIDC blocked (use plan B), 3 budget API refused (use the portal fallback), 4 regions not confirmed (set `LOC` by hand).
-- `05-oidc-test.sh` will probably fail on this university tenant: students usually can't register apps (403 `Authorization_RequestDenied`). That's fine. Plan B (below) needs no Azure secrets in GitHub. It only ever reuses the app whose ID is in `infra/.env.local`, after checking you own it; it never adopts an app by name.
+- `05-oidc-test.sh` reports plan B only after a permission denial. Network and login failures exit 1 and need diagnosis. Tenant permissions have not been tested here. The script reuses only the saved app ID after an owner check, and checks the federated credential's subject, issuer and audience.
 - `20-cost-alert.sh` may fail too: Azure for Students may not be supported for budgets. The script tries the API, and if it refuses, prints the portal fallback and the credit-balance link.
-- The scripts never print keys or connection strings. The Container App, Function app and Cosmos DB are not created here (#23, #24, T3).
+- The scripts never print keys or connection strings. `containerapp-environment.json` uses ARM `listKeys()` inside Azure to configure logging; it has no secret parameters or outputs. The Container App, Function app and Cosmos DB are not created here (#23, #24, T3).
+
+**Offline checks** (no login or cloud traffic):
+```bash
+bash infra/check-scripts.sh
+bash infra/tests/run.sh
+```
+The behavioral tests put fake `az` and `gh` commands first on PATH and use made-up IDs and temporary files. They cover subscription/tenant mismatch, region restrictions, storage TLS/HTTPS/SKU, reruns, OIDC repair and returned budget alerts. They cannot establish that Azure accepts the template or grants the required roles; first live creation remains a separate gate.
+
+**Publishing the combined app (#23).** Stage only reviewed public assets in a dedicated folder, then upload that folder to `$web` using `--auth-mode login` and an explicitly pinned subscription. Never upload the repository root, `.git`, `.env`, Python source, private state or caches. Keep `state` private and grant upload permissions only to the deployment identity. Serve live archive traffic through a backend with request and download limits. The frontend integrator owns the artifact directory and endpoint configuration; this setup creates no dependency on React or FastAPI.
+
+Blob static website limitations: contents are public, storage/traffic charges apply, custom response headers and CORS are not configurable on the website endpoint, and an error document still returns HTTP 404. Query-string URLs avoid SPA path fallback issues. Blob-service CORS above applies to the separate `frames` endpoint, not the website. See [Microsoft's static website documentation](https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blob-static-website).
 
 **Least privilege for CI.** The OIDC app gets **AcrPush on the registry only**, not Contributor on the resource group. TODO(#23): once the Container App exists, grant the app a role scoped to that Container App only (for `az containerapp update`), and Reader on the registry if `az acr login` needs it.
 
@@ -62,11 +76,11 @@ Moved here from `docs/PLAN.md` §8. Steps 0–4, the environment in step 6 and t
 - `SUF=$RANDOM` created new resources on every run. Names now come from `infra/env.sh` with a fixed `SUF`.
 - Git Bash rewrites arguments that start with `/` (`--scope /subscriptions/...`) into Windows paths. `env.sh` sets `MSYS_NO_PATHCONV=1`.
 - `az policy assignment list` without a filter sends `atExactScope()`, so a region policy inherited from a management group stays hidden. Use `--filter "atScope()"`.
-- `az functionapp list-flexconsumption-locations` takes `--runtime python`, which lists only regions with Python on Flex.
+- CLI 2.92.0 rejects `list-flexconsumption-locations --runtime python` without `--details`, while `--details` is unavailable there. The script lists Flex regions without that filter. Verify the runtime separately when deploying the Function.
 - `az storage container create --auth-mode key` → `az storage container-rm create` (goes through ARM, needs no account key).
 - `az storage cors add` (data plane, uses the account key) appends a rule on every run. The script uses ARM instead (`az storage account blob-service-properties show` / `cors-rule add`) and adds our rule only if an identical one is missing.
 - The subscription was chosen by name and the CLI default. It is now pinned by ID and tenant from the git-ignored `infra/.env.local`, on every call.
-- `az containerapp env create`: the `--logs-destination` default changes from `log-analytics` to `azure-monitor` in CLI 2.93.0. Pass `--logs-destination log-analytics` with the workspace ID and key.
+- Environment logging is explicitly `log-analytics` in the ARM template. The CLI `--logs-workspace-key` string option does not read `@-` as stdin; use the template so no key is fetched locally. [Template reference and workspace example](https://learn.microsoft.com/en-us/azure/templates/microsoft.app/2024-03-01/managedenvironments).
 - `ENV=cae-planetx` is renamed `CAE`: `ENV` is a special shell variable.
 - The SWA is created without `--source`/`--login-with-github`, so no workflow or token is generated; the deploy pipeline is #23. Its `-l` was hard-coded to `westus2`. It must be an SWA region (`westus2, centralus, eastus2, westeurope, eastasia`) that the region policy also allows.
 - OIDC: the display name is now unique (`gh-planetx-$SUF`) and the app is reused only by its saved ID, after an owner check. The role is AcrPush on the registry instead of Contributor on the RG. `--assignee $APP_ID` → `--assignee-object-id <SP object id> --assignee-principal-type ServicePrincipal`, which avoids Graph lookups and propagation errors on a new SP.
@@ -173,23 +187,14 @@ jobs:
         with: { context: backend, push: true, tags: "${{ env.ACR }}.azurecr.io/planetx-api:${{ github.sha }}" }
       - run: az containerapp update -g $RG -n $APP --image $ACR.azurecr.io/planetx-api:${{ github.sha }}
 ```
-For the web app: the SWA was created without GitHub wiring, so it generates no workflow. #23 adds one that deploys with the SWA deployment token and sets `env: { VITE_API_BASE: https://<api-fqdn>, VITE_FRAMES_BASE: https://<sa>.blob.core.windows.net/frames }` on the build.
+For the default Blob website, #23 uploads only the frontend artifact directory to `$web`, and configures the actual API and frames endpoints used by the combined app. If SWA becomes available and is explicitly selected, #23 can instead use its deployment workflow. The YAML above is a draft for the originally proposed backend; reconcile it with the integrated app before creating a workflow.
 
 **Environment variables:**
 - **API:** `STORAGE_ACCOUNT_URL`, `FRAMES_CONTAINER`, `STATE_CONTAINER`, `FRAMES_PUBLIC_BASE`, `APPLICATIONINSIGHTS_CONNECTION_STRING`, `REFRESH_KEY`, `ALLOWED_ORIGINS`, `CUTOUT_MAX_WORKERS`, `IRSA_TIMEOUT_S`, `PIPELINE_VERSION`, `COSMOS_ENDPOINT`, `COSMOS_KEY`, `COSMOS_DB`
 - **Watcher:** `API_BASE`, `REFRESH_KEY`, `STORAGE_ACCOUNT_URL`, plus `AzureWebJobsStorage` and App Insights, which Flex sets automatically.
 - **Web** (build time): `VITE_API_BASE`, `VITE_FRAMES_BASE`
 
-**Cost against the $100 credit.** Container Apps rates are from memory, so confirm them in the pricing calculator.
-
-| Item | Weekend | Through Dec 31 |
-|---|---|---|
-| SWA Free, Functions Flex, Cosmos free tier, App Insights (< 5 GB) | $0 | $0 |
-| Container Apps, 1 vCPU / 2 GiB, min-replicas = 1 only on judging days | ~$0–2 | ~$5–20 (about $20/month if left at min=1) |
-| ACR Standard | $0 (free for 12 months) | $0 |
-| Blob (< 5 GB) | < $0.10 | < $1 |
-| Front Door Standard ($35/month, billed hourly) | ~$2–3 | **~$55 if left on**, so delete after local judging |
-| **Total** | **< $10** | **~$10–30** (Front Door deleted) |
+**Cost.** No live cost or remaining-credit measurement has been made by this change. Blob website hosting incurs storage, operations and transfer charges; ACR, monitoring and compute can also incur charges. Verify subscription benefits and current prices before creation. The older weekend estimates were not a verified budget. The script's $20 monthly budget is an alert threshold, not a spending cap. Keep Front Door and Cosmos out of the initial deployment; scale the API to zero after judging.
 
 Cost alert: `infra/20-cost-alert.sh`. If the budget API refuses the student offer, watch the remaining credit on the Azure Sponsorships portal (https://www.microsoftazuresponsorships.com/). The subscription is cancelled when the credit runs out.
 
