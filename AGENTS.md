@@ -50,6 +50,7 @@ docker build -t spherex-blink . && docker run -p 8000:8000 spherex-blink
 Functions (`functions/`):
 ```
 ruff check .
+pytest -q
 func start
 ```
 

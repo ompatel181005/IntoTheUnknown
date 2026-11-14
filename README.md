@@ -97,7 +97,7 @@ cd backend && ruff check . && ruff format --check . && pytest -q
 cd frontend && npm run lint && npm run build
 ```
 
-CI runs both on every pull request.
+CI runs both on every pull request, plus `pytest` in `functions/` and `scripts/`.
 
 ## Known limits
 

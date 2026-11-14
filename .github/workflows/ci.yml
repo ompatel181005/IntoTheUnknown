@@ -56,5 +56,18 @@ jobs:
       - if: steps.has.outputs.run == 'true'
         working-directory: functions
         run: |
-          pip install ruff
+          pip install -r requirements.txt ruff pytest
           ruff check .
+          pytest -q
+
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - working-directory: scripts
+        run: |
+          pip install pytest numpy astropy scipy playwright
+          pytest -q tests
