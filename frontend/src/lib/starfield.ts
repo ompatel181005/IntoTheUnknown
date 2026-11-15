@@ -151,8 +151,10 @@ export function starfieldPainter(canvas: HTMLCanvasElement | OffscreenCanvas, ga
   let projected = new Float32Array(0);
   let geometry = new Float32Array(0);
   let width = 0, height = 0, dpr = 1;
-  let previous: StarfieldFrame | null = null;
-  let galaxyKey = "";
+  // Scalars, not the message: callers may reuse one frame object between paints.
+  let hasPrevious = false, previousX = 0, previousY = 0, previousFocal = 0;
+  let galaxyYaw = NaN, galaxyPitch = NaN;
+  const axes = new Float64Array(9);
   const galaxyCanvas = galaxy ? (typeof OffscreenCanvas === "function" ? new OffscreenCanvas(1, 1) : document.createElement("canvas")) : undefined;
   const galaxyContext = galaxyCanvas?.getContext("2d") as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | undefined;
   let pixels: ImageData | null = null;
@@ -162,23 +164,23 @@ export function starfieldPainter(canvas: HTMLCanvasElement | OffscreenCanvas, ga
       field = message.field;
       projected = new Float32Array(field.xyz.length / 3 * 4);
       geometry = new Float32Array(field.xyz.length);
-      previous = null;
+      hasPrevious = false;
       return;
     }
     if ("width" in message) {
       ({ width, height, dpr } = message);
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
-      previous = null;
-      galaxyKey = "";
+      hasPrevious = false;
+      galaxyYaw = NaN;
       return;
     }
     if (!width || !height) return;
     const { yaw, pitch, x: cx, y: cy, focal, fade, travel, streak = 0, prepare } = message;
     const cosY = Math.cos(yaw), sinY = Math.sin(yaw), cosP = Math.cos(pitch), sinP = Math.sin(pitch);
     if (galaxy && galaxyContext && galaxyCanvas) {
-      const key = `${yaw},${pitch},${cx},${cy},${focal}`;
-      if (key !== galaxyKey) {
+      const moved = !hasPrevious || cx !== previousX || cy !== previousY || focal !== previousFocal;
+      if (moved || yaw !== galaxyYaw || pitch !== galaxyPitch) {
         const gw = Math.max(1, Math.ceil(width / 16) + 2), gh = Math.max(1, Math.ceil(height / 16) + 2);
         if (!pixels || pixels.width !== gw || pixels.height !== gh) {
           galaxyCanvas.width = gw;
@@ -187,7 +189,7 @@ export function starfieldPainter(canvas: HTMLCanvasElement | OffscreenCanvas, ga
           rays = new Float32Array(gw * gh * 3);
           for (let i = 0; i < gw * gh; i++) pixels.data.set(galaxy.color, i * 4);
         }
-        if (!previous || cx !== previous.x || cy !== previous.y || focal !== previous.focal || !galaxyKey) {
+        if (moved || Number.isNaN(galaxyYaw)) {
           for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
             const rx = ((x + 0.5) * (width + 32) / gw - 16 - cx) / focal;
             const rz = (cy + 16 - (y + 0.5) * (height + 32) / gh) / focal;
@@ -195,15 +197,18 @@ export function starfieldPainter(canvas: HTMLCanvasElement | OffscreenCanvas, ga
             rays[i] = rx / length; rays[i + 1] = 1 / length; rays[i + 2] = rz / length;
           }
         }
-        const axes = galaxy.axes.map(([x, y, z]) => {
+        for (let axis = 0; axis < 3; axis++) {
+          const [x, y, z] = galaxy.axes[axis];
           const rx = x * cosY - y * sinY, ry = x * sinY + y * cosY;
-          return [rx, ry * cosP - z * sinP, ry * sinP + z * cosP];
-        });
+          axes[axis * 3] = rx;
+          axes[axis * 3 + 1] = ry * cosP - z * sinP;
+          axes[axis * 3 + 2] = ry * sinP + z * cosP;
+        }
         for (let i = 0, pixel = 3; i < rays.length; i += 3, pixel += 4) {
           const rx = rays[i], ry = rays[i + 1], rz = rays[i + 2];
-          const gx = rx * axes[0][0] + ry * axes[0][1] + rz * axes[0][2];
-          const gy = rx * axes[1][0] + ry * axes[1][1] + rz * axes[1][2];
-          const latitude = rx * axes[2][0] + ry * axes[2][1] + rz * axes[2][2];
+          const gx = rx * axes[0] + ry * axes[1] + rz * axes[2];
+          const gy = rx * axes[3] + ry * axes[4] + rz * axes[5];
+          const latitude = rx * axes[6] + ry * axes[7] + rz * axes[8];
           const inner = ((1 + gx) * 0.5) ** 2;
           const falloff = Math.max(0, 1 - (latitude / (0.3 + 0.23 * inner)) ** 2);
           const clouds = 0.82 + 0.1 * Math.sin(18 * gy + 7 * gx + 22 * latitude)
@@ -211,10 +216,14 @@ export function starfieldPainter(canvas: HTMLCanvasElement | OffscreenCanvas, ga
           pixels.data[pixel] = 255 * (0.012 + 0.045 * inner) * falloff ** 3 * clouds;
         }
         galaxyContext.putImageData(pixels, 0, 0);
-        galaxyKey = key;
+        galaxyYaw = yaw;
+        galaxyPitch = pitch;
       }
     }
-    previous = message;
+    hasPrevious = true;
+    previousX = cx;
+    previousY = cy;
+    previousFocal = focal;
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, width, height);
     context.globalAlpha = fade;

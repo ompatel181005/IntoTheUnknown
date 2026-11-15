@@ -69,6 +69,27 @@ const TRAIL_BANDS = 16;
 const SPRITE_SIZE = 48;
 const PHASE_STEPS = 64;
 const DAY_MS = 86400000;
+// Anchor geometry in CSS px (scaled with zoom): ring and dot radii, notch dot, hit half-size.
+const RING = 5;
+const RING_HIGHLIGHT = 7.5;
+const DOT = 1.6;
+const NOTCH_DOT = 1.8;
+const HIT_HALF = 12;
+const LABEL_GAP = 16;
+const NEAR_RADIUS = 80;
+const NEAR_COUNT = 2;
+const TAP_RADIUS = 36;
+// Catalog names appear once the camera is this close (fraction of the home distance), and
+// leave again only past the looser bound, so a zoom at the threshold never oscillates.
+const REVEAL_IN = 0.72;
+const REVEAL_OUT = 0.82;
+
+/** Zoom-reveal order: brown dwarfs and stars by proper motion, then variables, then the rest. */
+function revealOrder(a: CatalogObject, b: CatalogObject) {
+  const group = (object: CatalogObject) => object.kind === "brown_dwarf" || object.kind === "star" ? 0 : object.kind === "variable" ? 1 : 2;
+  const motion = (object: CatalogObject) => Math.hypot(object.pmra_mas_yr ?? 0, object.pmdec_mas_yr ?? 0);
+  return group(a) - group(b) || motion(b) - motion(a);
+}
 
 /** Cached Lambert-lit phases, rotated toward the projected Sun when drawn. */
 function sphereAtlas(color: [number, number, number]) {
@@ -237,9 +258,15 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
     const labelOffsetX = scene.planets.map(() => NaN);
     const labelOffsetY = scene.planets.map(() => NaN);
     const labelOffsets: readonly (readonly [number, number])[] = [[12, -18], [-12, -18], [12, 18], [-12, 18], [0, -34], [0, 34]];
+    // Planets outrank every catalog name; challenge targets outrank the zoom-revealed rest.
+    const revealRank = scene.targets.map((target) => target.object)
+      .filter((object) => object.preset_id === null).sort(revealOrder);
     const candidates: LabelCandidate[] = [
-      ...scene.planets.map((_, index): LabelCandidate => ({ type: "planet", index, priority: index === 2 ? 90 : index > 3 ? 70 : index === 3 ? 60 : index === 1 ? 50 : 40, left: 0, right: 0, top: 0, bottom: 0, visible: false })),
-      ...scene.targets.map((_, index): LabelCandidate => ({ type: "target", index, priority: 100, left: 0, right: 0, top: 0, bottom: 0, visible: false })),
+      ...scene.planets.map((_, index): LabelCandidate => ({ type: "planet", index, priority: 200 + (index === 2 ? 90 : index > 3 ? 70 : index === 3 ? 60 : index === 1 ? 50 : 40), left: 0, right: 0, top: 0, bottom: 0, visible: false })),
+      ...scene.targets.map((target, index): LabelCandidate => ({
+        type: "target", index, left: 0, right: 0, top: 0, bottom: 0, visible: false,
+        priority: target.object.preset_id !== null ? 150 : 100 - 50 * (revealRank.indexOf(target.object) + 1) / (revealRank.length + 1),
+      })),
     ];
     const planetCandidates = candidates.slice(0, scene.planets.length);
     const targetCandidates = candidates.slice(scene.planets.length);
@@ -248,16 +275,31 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
     const labelGrid = new RectGrid(candidates);
     const hitRects = scene.targets.map(() => ({ left: 0, right: 0, top: 0, bottom: 0 }));
     const hitGrid = new RectGrid(hitRects);
+    const markerRects = scene.targets.map(() => ({ left: 0, right: 0, top: 0, bottom: 0 }));
+    const markerGrid = new RectGrid(markerRects);
+    const labelRect = { left: 0, right: 0, top: 0, bottom: 0 };
+    const near = new Int32Array(NEAR_COUNT);
+    const nearDistance = new Float64Array(NEAR_COUNT);
+    const coarsePointer = window.matchMedia("(pointer: coarse)");
+    let revealing = false;
+    let selected = -1;
+    let selectedPlanet = -1;
+    const planetNear = new Uint8Array(scene.planets.length);
+    const EARTH = 2;
     const targetLabels = scene.targets.map(() => ({
-      width: 0, height: 0, x: 0, y: 0, edge: false, angle: 0, chosen: false, opacity: 1, left: false,
+      width: 0, height: 0, x: 0, y: 0, edge: false, angle: 0, chosen: false, opacity: 0, left: false,
+      forced: false, leader: false, placement: 0,
       normal: document.createElement("canvas"), highlight: document.createElement("canvas"),
       normalLeft: document.createElement("canvas"), highlightLeft: document.createElement("canvas"),
     }));
     const text1 = tokenRgb("--text-1");
     const accent = tokenRgb("--accent");
     const markerColor = rgba(text1, 0.85);
+    const ringColor = rgba(text1, 0.5);
+    const leaderColor = rgba(text1, 0.45);
     const highlightColor = rgba(text1, 1);
-    const edgeColor = rgba(accent, 1);
+    const edgeColor = rgba(accent, 0.55);
+    const presetEdgeColor = rgba(accent, 1);
     let hovered = -1;
     let markerScale = 1;
     let pointerX = NaN, pointerY = NaN;
@@ -265,7 +307,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
     const setHovered = (index: number) => {
       if (hovered === index) return;
       hovered = index;
-      holdRef.current = hovered >= 0 || focusedRef.current !== null;
+      holdRef.current = hovered >= 0 || selected >= 0 || selectedPlanet >= 0 || focusedRef.current !== null;
       canvas.style.cursor = index >= 0 ? "pointer" : "";
       dirty = true;
       scheduleFrame();
@@ -311,7 +353,9 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
           };
           ctx.fillStyle = rgba(text1, highlighted ? 1 : 0.75);
           ctx.shadowColor = style.getPropertyValue("--space-0");
-          ctx.shadowBlur = 10;
+          ctx.shadowBlur = 8;
+          // Two passes thicken the dark halo so names stay legible over stars and orbits.
+          drawText(name, 14, 14);
           drawText(name, 14, 14);
           if (!mobile) {
             ctx.fillStyle = rgba(text2, 1);
@@ -366,6 +410,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       }
       labelGrid.resize(width, height);
       hitGrid.resize(width, height);
+      markerGrid.resize(width, height);
       rebuildLabels(dpr);
       textWidths.clear();
       dirty = true;
@@ -509,7 +554,69 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       scheduleFrame();
     };
 
-    const labelInBounds = (candidate: LabelCandidate) => candidate.left >= 12 && candidate.right <= width - 12
+    /**
+     * Place target `index`'s label: 0 beside the anchor (right, or left near the edge),
+     * 1 the other side, 2 above and 3 below with a leader.
+     */
+    const placeLabel = (index: number, placement: number, scale: number) => {
+      const label = targetLabels[index];
+      const point = targetProjection[index];
+      const w = label.width * scale, h = label.height * scale, gap = LABEL_GAP * scale;
+      const rightFirst = point.x + gap + w <= width - 16;
+      if (placement < 2) {
+        label.left = placement === 0 ? !rightFirst : rightFirst;
+        label.x = Math.max(16, Math.min(width - 16 - w, label.left ? point.x - gap - w : point.x + gap));
+        label.y = point.y;
+      } else {
+        label.left = false;
+        label.x = Math.max(16, Math.min(width - 16 - w, point.x - 6 * scale));
+        label.y = point.y + (placement === 2 ? -1 : 1) * ((RING + 10) * scale + h / 2);
+      }
+      label.leader = placement >= 2;
+      // Label box only: anchors are kept clear through the marker grid, not by blocking planets.
+      const candidate = targetCandidates[index];
+      candidate.left = label.x;
+      candidate.right = label.x + w;
+      candidate.top = label.y - h / 2;
+      candidate.bottom = label.y + h / 2;
+    };
+    /** Is the placed label of `index` clear of every anchor but its own? */
+    const clearOfAnchors = (index: number, scale: number, clearance: number) => {
+      const label = targetLabels[index];
+      labelRect.left = label.x;
+      labelRect.right = label.x + label.width * scale;
+      labelRect.top = label.y - label.height / 2 * scale;
+      labelRect.bottom = label.y + label.height / 2 * scale;
+      return !markerGrid.overlaps(labelRect, clearance);
+    };
+    /**
+     * Try the label's previous placement first, then the others below `limit`: first a spot clear
+     * of labels and anchors, then (unless `strict`) one clear of labels only. Returns false when none fits.
+     */
+    const placeTarget = (index: number, limit: number, clearance: number, strict: boolean, scale: number) => {
+      const label = targetLabels[index];
+      const candidate = targetCandidates[index];
+      const previous = Math.min(label.placement, limit - 1);
+      for (let pass = 0; pass < (strict ? 1 : 2); pass++) {
+        for (let k = -1; k < limit; k++) {
+          if (k === previous) continue;
+          const placement = k < 0 ? previous : k;
+          placeLabel(index, placement, scale);
+          labelRect.left = label.x;
+          labelRect.right = label.x + label.width * scale;
+          labelRect.top = label.y - label.height / 2 * scale;
+          labelRect.bottom = label.y + label.height / 2 * scale;
+          if (labelRect.top < 12 || labelRect.bottom > height - 12 || labelGrid.overlaps(candidate, clearance)) continue;
+          if (strict && !labelInBounds(labelRect)) continue;
+          if (pass === 0 && !clearOfAnchors(index, scale, strict ? 4 : 0)) continue;
+          label.placement = placement;
+          return true;
+        }
+      }
+      placeLabel(index, previous, scale);
+      return false;
+    };
+    const labelInBounds = (candidate: { left: number; right: number; top: number; bottom: number }) => candidate.left >= 12 && candidate.right <= width - 12
       && candidate.top >= (width < 769 ? 245 : 200) && candidate.bottom <= height - 60;
     let animationFrame = 0;
     let dragging = false;
@@ -533,7 +640,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
         mapRadial(planet.pos, planet.pos);
       });
       if (!reduce) dirty = true;
-      holdRef.current = hovered >= 0 || focusedRef.current !== null;
+      holdRef.current = hovered >= 0 || selected >= 0 || selectedPlanet >= 0 || focusedRef.current !== null;
       const camera = cam.current;
       const currentFlight = getFlightSample();
 
@@ -631,17 +738,21 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
         candidate.visible = projected.depth > 0.05 && projected.x > 16 && projected.x < width - 16 && projected.y > 200 && projected.y < height - 60;
       });
 
+      const flight = getFlightSample();
+      const flying = flightIsActive();
+      markerGrid.clear();
       for (let index = 0; index < scene.targets.length; index++) {
         const target = scene.targets[index];
         const raw = projectTarget(target, camera, targetProjection[index]);
         let markerX = raw.x;
         let markerY = raw.y;
-        const leftMargin = 28 * labelScale;
-        const rightMargin = (width < 769 ? 28 : 90) * labelScale;
-        const topMargin = width < 769 ? 270 : 220;
-        const bottomMargin = width < 769 ? 210 : 100;
-        const centerX = sceneBox.left + sceneBox.width / 2;
-        const centerY = sceneBox.top + sceneBox.height / 2;
+        // Viewport edges inset past the chrome (panel, step guide and title, zoom column, clock):
+        // a point outside this frame becomes a notch on it, pointing toward the point.
+        const mobileFrame = width < 769;
+        const leftMargin = mobileFrame ? 12 : 316;
+        const rightMargin = mobileFrame ? 12 : 72;
+        const topMargin = mobileFrame ? 120 : 150;
+        const bottomMargin = mobileFrame ? 150 : 44;
         const edge = raw.depth <= 0.05
           || markerX < leftMargin
           || markerX > width - rightMargin
@@ -660,71 +771,124 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
           markerY = centerY + dy * factor;
           edgeAngle = Math.atan2(dy, dx);
         }
-        const flight = getFlightSample();
-        const chosen = flightIsActive() && flight
+        const chosen = flying && flight !== null
           && (target.object.preset_id ?? target.object.id) === flight.targetId;
-        if (chosen) {
+        if (chosen && flight) {
           markerX = flight.pose.x;
           markerY = flight.pose.y;
         }
         raw.x = markerX;
         raw.y = markerY;
-        const labelWidth = targetLabels[index].width * labelScale;
-        const labelHeight = targetLabels[index].height * labelScale;
-        const labelLeft = markerX + 32 * labelScale + labelWidth > width - 24;
-        const labelX = Math.max(16, Math.min(width - 16 - labelWidth,
-          labelLeft ? markerX - 32 * labelScale - labelWidth : markerX + 32 * labelScale));
-        const labelY = labelX < markerX + 22 * labelScale && labelX + labelWidth > markerX - 22 * labelScale
-          ? markerY - 32 * labelScale - labelHeight / 2 : markerY;
         const label = targetLabels[index];
-        label.left = labelLeft;
-        label.x = labelX;
-        label.y = labelY;
         label.edge = edge;
         label.angle = edgeAngle;
-        label.chosen = Boolean(chosen);
-        const candidate = targetCandidates[index];
-        candidate.left = Math.min(markerX - 22 * labelScale, labelX);
-        candidate.right = Math.max(markerX + 22 * labelScale, labelX + labelWidth);
-        candidate.top = Math.min(markerY - 22 * labelScale, labelY - labelHeight / 2);
-        candidate.bottom = Math.max(markerY + 22 * labelScale, labelY + labelHeight / 2);
-        candidate.visible = true;
+        label.chosen = chosen;
+        const marker = markerRects[index];
+        marker.left = markerX - HIT_HALF * labelScale;
+        marker.right = markerX + HIT_HALF * labelScale;
+        marker.top = markerY - HIT_HALF * labelScale;
+        marker.bottom = markerY + HIT_HALF * labelScale;
+        if (!chosen) markerGrid.insert(index);
       }
 
-      for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex++) {
-        const candidate = candidates[candidateIndex];
-        if (!candidate.visible) continue;
-        // Extra clearance before a hidden label returns prevents boundary flicker.
-        const clearance = candidate.type === "planet" && planetLabelOpacity[candidate.index] < 0.5 ? 10 : 6;
-        if (candidate.type === "planet" && (labelGrid.overlaps(candidate, clearance) || !labelInBounds(candidate))) {
-          const point = planetProjection[candidate.index];
-          const w = (candidate.right - candidate.left) / labelScale;
-          // Try nearby label positions before fading a lower-priority name.
-          for (const [dx, dy] of labelOffsets) {
-            candidate.left = point.x + (dx < 0 ? dx - w : dx === 0 ? -w / 2 : dx) * labelScale;
-            candidate.right = candidate.left + w * labelScale;
-            candidate.top = point.y + dy * labelScale - 9 * labelScale;
-            candidate.bottom = candidate.top + 18 * labelScale;
-            if (!labelInBounds(candidate)) continue;
-            if (!labelGrid.overlaps(candidate, clearance)) {
-              planetLabelX[candidate.index] = candidate.left;
-              planetLabelY[candidate.index] = (candidate.top + candidate.bottom) / 2;
-              planetLabelAlign[candidate.index] = "left";
-              break;
-            }
+      // Proximity labels: the nearest checked points around a fine pointer, never on touch layouts.
+      const touchLayout = width < 769 || coarsePointer.matches;
+      const proximity = pointerOnCanvas && !touchLayout && !dragging && activeRef.current && !flying;
+      let nearCount = proximity ? markerGrid.nearest(pointerX, pointerY, NEAR_RADIUS, near, nearDistance) : 0;
+      revealing = camera.dist <= DEFAULT_DIST * (revealing ? REVEAL_OUT : REVEAL_IN);
+      // Planets other than Earth are named like catalog points: proximity (sharing the nearest
+      // two, coded as -(planet + 1)), a first tap, or the zoom reveal, where they come first.
+      if (proximity) {
+        for (let planet = 0; planet < scene.planets.length; planet++) {
+          const point = planetProjection[planet];
+          if (planet === EARTH || point.depth < 0.05) continue;
+          const dx = point.x - pointerX, dy = point.y - pointerY;
+          const distance = dx * dx + dy * dy;
+          if (distance > NEAR_RADIUS * NEAR_RADIUS) continue;
+          let slot = nearCount;
+          if (slot === NEAR_COUNT) {
+            if (distance >= nearDistance[slot - 1]) continue;
+            slot--;
+          } else nearCount++;
+          while (slot > 0 && nearDistance[slot - 1] > distance) {
+            near[slot] = near[slot - 1];
+            nearDistance[slot] = nearDistance[slot - 1];
+            slot--;
           }
+          near[slot] = -(planet + 1);
+          nearDistance[slot] = distance;
         }
-        candidate.visible = !labelGrid.overlaps(candidate, clearance) && (candidate.type === "target" || (
-          candidate.left >= 12 && candidate.right <= width - 12
-          && candidate.top >= (width < 769 ? 245 : 200) && candidate.bottom <= height - 60
-        ));
-        if (candidate.visible) {
-          labelGrid.insert(candidateIndex);
-          if (candidate.type === "planet") {
-            const point = planetProjection[candidate.index];
-            labelOffsetX[candidate.index] = (planetLabelX[candidate.index] - point.x) / labelScale;
-            labelOffsetY[candidate.index] = (planetLabelY[candidate.index] - point.y) / labelScale;
+      }
+      planetNear.fill(0);
+      for (let k = 0; k < nearCount; k++) if (near[k] < 0) planetNear[-near[k] - 1] = 1;
+      if (selectedPlanet >= 0) planetNear[selectedPlanet] = 1;
+      for (let planet = 0; planet < scene.planets.length; planet++) {
+        const candidate = planetCandidates[planet];
+        candidate.visible = candidate.visible && (planet === EARTH || revealing || planetNear[planet] === 1);
+      }
+      for (let index = 0; index < scene.targets.length; index++) {
+        const label = targetLabels[index];
+        const object = scene.targets[index].object;
+        let forced = index === hovered || index === selected || object.id === focusedRef.current;
+        for (let k = 0; k < nearCount; k++) if (near[k] === index) forced = true;
+        label.forced = forced && !label.chosen;
+        placeLabel(index, label.placement, labelScale);
+        targetCandidates[index].visible = !label.chosen
+          && (label.forced || (!label.edge && (object.preset_id !== null || revealing)));
+      }
+
+      // Labels the user asked for first, then planets, then pinned challenge targets and zoom reveals.
+      for (let phase = 0; phase < 3; phase++) {
+        for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex++) {
+          const candidate = candidates[candidateIndex];
+          if (!candidate.visible) continue;
+          const isPlanet = candidate.type === "planet";
+          const forced = !isPlanet && targetLabels[candidate.index].forced;
+          const first = forced || (isPlanet && (candidate.index === EARTH || planetNear[candidate.index] === 1));
+          if ((first ? 0 : isPlanet ? 1 : 2) !== phase) continue;
+          if (isPlanet) {
+            // Extra clearance before a hidden label returns prevents boundary flicker.
+            const clearance = planetLabelOpacity[candidate.index] < 0.5 ? 10 : 6;
+            if (labelGrid.overlaps(candidate, clearance) || !labelInBounds(candidate)) {
+              const point = planetProjection[candidate.index];
+              const w = (candidate.right - candidate.left) / labelScale;
+              // Try nearby label positions before fading a lower-priority name.
+              for (const [dx, dy] of labelOffsets) {
+                candidate.left = point.x + (dx < 0 ? dx - w : dx === 0 ? -w / 2 : dx) * labelScale;
+                candidate.right = candidate.left + w * labelScale;
+                candidate.top = point.y + dy * labelScale - 9 * labelScale;
+                candidate.bottom = candidate.top + 18 * labelScale;
+                if (!labelInBounds(candidate)) continue;
+                if (!labelGrid.overlaps(candidate, clearance)) {
+                  planetLabelX[candidate.index] = candidate.left;
+                  planetLabelY[candidate.index] = (candidate.top + candidate.bottom) / 2;
+                  planetLabelAlign[candidate.index] = "left";
+                  break;
+                }
+              }
+            }
+            candidate.visible = !labelGrid.overlaps(candidate, clearance) && labelInBounds(candidate);
+            if (candidate.visible) {
+              labelGrid.insert(candidateIndex);
+              const point = planetProjection[candidate.index];
+              labelOffsetX[candidate.index] = (planetLabelX[candidate.index] - point.x) / labelScale;
+              labelOffsetY[candidate.index] = (planetLabelY[candidate.index] - point.y) / labelScale;
+            }
+            continue;
           }
+          const index = candidate.index;
+          const label = targetLabels[index];
+          const shown = label.opacity >= 0.5;
+          if (forced) {
+            // A requested name always shows; it moves (with a leader) before it covers another label.
+            if (!placeTarget(index, 4, 2, false, labelScale)) placeLabel(index, label.placement, labelScale);
+          } else if (scene.targets[index].object.preset_id !== null) {
+            candidate.visible = placeTarget(index, 4, shown ? 4 : 10, false, labelScale);
+          } else {
+            // Revealed catalog names stay beside their anchor, in bounds and clear of other anchors.
+            candidate.visible = placeTarget(index, 2, shown ? 6 : 16, true, labelScale);
+          }
+          if (candidate.visible) labelGrid.insert(candidateIndex);
         }
       }
 
@@ -788,62 +952,78 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       });
       context.textAlign = "left";
 
-      // Batch the rings, dots and edge pointers, then composite cached label sprites.
-      for (let pass = 0; pass < 3; pass++) {
+      // Anchors: a hairline ring with a centre dot; off-screen points become edge notches.
+      context.lineWidth = 1;
+      for (let pass = 0; pass < 2; pass++) {
         context.beginPath();
         for (let index = 0; index < scene.targets.length; index++) {
           const label = targetLabels[index];
           if (label.chosen) continue;
-          const highlighted = index === hovered || scene.targets[index].object.id === focusedRef.current;
-          if ((highlighted ? 2 : label.edge ? 1 : 0) !== pass) continue;
+          const highlighted = index === hovered || index === selected || scene.targets[index].object.id === focusedRef.current;
+          if (pass === 0 ? highlighted || label.edge : !highlighted) continue;
           const point = targetProjection[index];
-          context.moveTo(point.x + 9.5 * labelScale, point.y);
-          context.arc(point.x, point.y, 9.5 * labelScale, 0, Math.PI * 2);
+          const radius = (pass === 1 ? RING_HIGHLIGHT : RING) * labelScale;
+          context.moveTo(point.x + radius, point.y);
+          context.arc(point.x, point.y, radius, 0, Math.PI * 2);
         }
-        context.strokeStyle = pass === 2 ? highlightColor : pass === 1 ? edgeColor : markerColor;
-        context.lineWidth = labelScale;
+        context.strokeStyle = pass === 1 ? highlightColor : ringColor;
         context.stroke();
       }
       context.beginPath();
       for (let index = 0; index < scene.targets.length; index++) {
         const point = targetProjection[index], label = targetLabels[index];
-        if (label.chosen || label.edge) continue;
-        context.moveTo(point.x + 2 * labelScale, point.y);
-        context.arc(point.x, point.y, 2 * labelScale, 0, Math.PI * 2);
+        if (label.chosen) continue;
+        // Challenge-target notches read a step stronger, so the featured five stay findable off-screen.
+        const radius = (label.edge ? scene.targets[index].object.preset_id !== null ? NOTCH_DOT * 1.4 : NOTCH_DOT : DOT) * labelScale;
+        context.moveTo(point.x + radius, point.y);
+        context.arc(point.x, point.y, radius, 0, Math.PI * 2);
       }
       context.fillStyle = markerColor;
       context.fill();
-      context.beginPath();
-      for (let index = 0; index < scene.targets.length; index++) {
-        const point = targetProjection[index], label = targetLabels[index];
-        if (label.chosen || !label.edge) continue;
-        const dx = Math.cos(label.angle), dy = Math.sin(label.angle);
-        context.moveTo(point.x + dx * 8 * labelScale, point.y + dy * 8 * labelScale);
-        context.lineTo(point.x + dx * 16 * labelScale, point.y + dy * 16 * labelScale);
+      for (let pass = 0; pass < 2; pass++) {
+        context.beginPath();
+        for (let index = 0; index < scene.targets.length; index++) {
+          const point = targetProjection[index], label = targetLabels[index];
+          if (label.chosen || !label.edge || (scene.targets[index].object.preset_id !== null) !== (pass === 1)) continue;
+          const dx = Math.cos(label.angle), dy = Math.sin(label.angle);
+          const length = pass === 1 ? 13 : 10;
+          context.moveTo(point.x + dx * 4 * labelScale, point.y + dy * 4 * labelScale);
+          context.lineTo(point.x + dx * length * labelScale, point.y + dy * length * labelScale);
+        }
+        context.strokeStyle = pass === 1 ? presetEdgeColor : edgeColor;
+        context.stroke();
       }
-      context.strokeStyle = edgeColor;
-      context.lineWidth = labelScale;
-      context.stroke();
+      const fadeStep = Math.min(1, dt / 0.12);
       for (let index = 0; index < scene.targets.length; index++) {
         const label = targetLabels[index];
-        const highlighted = index === hovered || scene.targets[index].object.id === focusedRef.current;
+        const highlighted = index === hovered || index === selected || scene.targets[index].object.id === focusedRef.current;
         const desired = targetCandidates[index].visible ? 1 : 0;
-        const step = Math.min(1, dt / 0.15);
-        label.opacity = reduce ? desired : label.opacity + (desired - label.opacity) * step;
-        if (!reduce && Math.abs(desired - label.opacity) > 0.01) dirty = true;
-        if (!label.chosen && label.opacity > 0.01) {
+        label.opacity = reduce ? desired : label.opacity + (desired - label.opacity) * fadeStep;
+        if (Math.abs(desired - label.opacity) < 0.01) label.opacity = desired;
+        else dirty = true;
+        if (!label.chosen && label.opacity > 0) {
           context.globalAlpha = camera.fade * label.opacity;
+          if (label.leader) {
+            const point = targetProjection[index];
+            const above = label.y < point.y;
+            const endX = Math.max(label.x, Math.min(label.x + label.width * labelScale, point.x));
+            context.beginPath();
+            context.moveTo(point.x, point.y + (above ? -1 : 1) * (RING + 1) * labelScale);
+            context.lineTo(endX, label.y + (above ? 1 : -1) * (label.height / 2 - 2) * labelScale);
+            context.strokeStyle = leaderColor;
+            context.stroke();
+          }
           const sprite = label.left ? (highlighted ? label.highlightLeft : label.normalLeft)
             : highlighted ? label.highlight : label.normal;
           context.drawImage(sprite, label.x - 10 * labelScale, label.y - (label.height / 2 + 10) * labelScale,
             sprite.width / bitmapDpr * labelScale, sprite.height / bitmapDpr * labelScale);
         }
         const rect = hitRects[index];
-        const point = targetProjection[index];
-        rect.left = point.x - 22 * labelScale;
-        rect.right = point.x + 22 * labelScale;
-        rect.top = point.y - 22 * labelScale;
-        rect.bottom = point.y + 22 * labelScale;
+        const marker = markerRects[index];
+        rect.left = marker.left;
+        rect.right = marker.right;
+        rect.top = marker.top;
+        rect.bottom = marker.bottom;
         if (targetCandidates[index].visible) {
           rect.left = Math.min(rect.left, label.x);
           rect.right = Math.max(rect.right, label.x + label.width * labelScale);
@@ -899,6 +1079,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       const flight = startTargetFlight(target.object.preset_id ?? target.object.id, flightCamera(camera), { yaw, pitch }, { x, y, side: 20 * markerScale });
       markFlight("commit");
       onPickRef.current(target.object, { x, y });
+      selected = -1;
       setHovered(-1);
       void flight.then(() => onFlightEndRef.current?.());
     };
@@ -921,6 +1102,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
     let previousY = 0;
     let previousPinch = 0;
     let pendingPick = -1;
+    let downOnCanvas = false;
     let downX = 0, downY = 0;
     let moved = false;
     const interactive = (target: EventTarget | null) => target instanceof Element
@@ -934,6 +1116,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       pointerY = event.clientY;
       pointerOnCanvas = event.target === canvas;
       pendingPick = pointerOnCanvas ? hitTest(pointerX, pointerY) : -1;
+      downOnCanvas = pointerOnCanvas;
       downX = pointerX;
       downY = pointerY;
       moved = false;
@@ -957,6 +1140,11 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       pointerY = event.clientY;
       if (!pointers.has(event.pointerId)) {
         setHovered(pointerOnCanvas ? hitTest(pointerX, pointerY) : -1);
+        // Proximity labels follow the pointer; a reduced-motion scene only redraws on demand.
+        if (reduce && activeRef.current) {
+          dirty = true;
+          scheduleFrame();
+        }
         return;
       }
       if (flightIsActive()) return;
@@ -982,10 +1170,49 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       previousY = event.clientY;
     };
 
+    // Touch and narrow layouts: the first tap names and highlights a point, a second tap flies.
+    const tap = (event: PointerEvent, pending: number) => {
+      if (!activeRef.current || flightIsActive()) return;
+      if (event.pointerType === "mouse" && width >= 769 && !coarsePointer.matches) {
+        if (pending >= 0 && pending === hitTest(event.clientX, event.clientY)) pickRef.current(pending);
+        return;
+      }
+      let index = hitTest(event.clientX, event.clientY);
+      if (index < 0 && markerGrid.nearest(event.clientX, event.clientY, TAP_RADIUS, near, nearDistance) > 0) index = near[0];
+      if (index >= 0 && index === selected) {
+        pickRef.current(index);
+        return;
+      }
+      selected = index;
+      selectedPlanet = -1;
+      if (index < 0) {
+        // A tap near a planet names it (planets have no flight of their own).
+        let best = TAP_RADIUS * TAP_RADIUS;
+        for (let planet = 0; planet < scene.planets.length; planet++) {
+          const point = planetProjection[planet];
+          const distance = (point.x - event.clientX) ** 2 + (point.y - event.clientY) ** 2;
+          if (planet !== EARTH && point.depth >= 0.05 && distance < best) {
+            best = distance;
+            selectedPlanet = planet;
+          }
+        }
+      }
+      holdRef.current = hovered >= 0 || selected >= 0 || selectedPlanet >= 0 || focusedRef.current !== null;
+      dirty = true;
+      scheduleFrame();
+    };
+
+    const pointerLeave = () => {
+      pointerOnCanvas = false;
+      if (!dragging) setHovered(-1);
+      dirty = true;
+      scheduleFrame();
+    };
+
     const pointerUp = (event: PointerEvent) => {
       if (!pointers.has(event.pointerId)) return;
-      const picked = !moved && pointers.size === 1 && event.type !== "pointercancel"
-        && pendingPick === hitTest(event.clientX, event.clientY) ? pendingPick : -1;
+      const tapped = !moved && pointers.size === 1 && event.type !== "pointercancel" && downOnCanvas;
+      const pending = pendingPick;
       pendingPick = -1;
       pointers.delete(event.pointerId);
       if (pointers.size === 1) {
@@ -997,7 +1224,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
         dragging = false;
         delete wrap.dataset.dragging;
         saveHomeCamera(flightCamera(cam.current));
-        if (picked >= 0) pickRef.current(picked);
+        if (tapped) tap(event, pending);
       }
     };
 
@@ -1033,6 +1260,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
     window.addEventListener("pointermove", pointerMove);
     window.addEventListener("pointerup", pointerUp);
     window.addEventListener("pointercancel", pointerUp);
+    canvas.addEventListener("pointerleave", pointerLeave);
     window.addEventListener("wheel", wheel, { passive: false });
     window.addEventListener("keydown", keydown);
     window.addEventListener("spherex:orrery-zoom", zoomControl);
@@ -1055,6 +1283,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       window.removeEventListener("pointermove", pointerMove);
       window.removeEventListener("pointerup", pointerUp);
       window.removeEventListener("pointercancel", pointerUp);
+      canvas.removeEventListener("pointerleave", pointerLeave);
       window.removeEventListener("wheel", wheel);
       window.removeEventListener("keydown", keydown);
       window.removeEventListener("spherex:orrery-zoom", zoomControl);

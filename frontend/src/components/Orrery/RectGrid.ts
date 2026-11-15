@@ -61,6 +61,45 @@ export class RectGrid {
     return false;
   }
 
+  /**
+   * Up to `out.length` entries whose rect centres lie within `radius` of (x, y), nearest first.
+   * Writes into the caller's preallocated arrays and returns the count.
+   */
+  nearest(x: number, y: number, radius: number, out: Int32Array, distances: Float64Array) {
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !out.length) return 0;
+    const limit = radius * radius;
+    const right = this.column(x + radius), bottom = this.row(y + radius);
+    let count = 0;
+    for (let row = this.row(y - radius); row <= bottom; row++) {
+      for (let column = this.column(x - radius); column <= right; column++) {
+        const cell = row * this.columns + column;
+        for (let entry = 0; entry < this.counts[cell]; entry++) {
+          const index = this.entries[cell * this.rectangles.length + entry];
+          const rect = this.rectangles[index];
+          const dx = (rect.left + rect.right) / 2 - x, dy = (rect.top + rect.bottom) / 2 - y;
+          const distance = dx * dx + dy * dy;
+          if (distance > limit) continue;
+          let seen = false;
+          for (let k = 0; k < count; k++) if (out[k] === index) seen = true;
+          if (seen) continue;
+          let slot = count;
+          if (slot === out.length) {
+            if (distance >= distances[slot - 1]) continue;
+            slot--;
+          } else count++;
+          while (slot > 0 && distances[slot - 1] > distance) {
+            out[slot] = out[slot - 1];
+            distances[slot] = distances[slot - 1];
+            slot--;
+          }
+          out[slot] = index;
+          distances[slot] = distance;
+        }
+      }
+    }
+    return count;
+  }
+
   hit(x: number, y: number) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return -1;
     const cell = this.row(y) * this.columns + this.column(x);
