@@ -7,13 +7,30 @@ command -v gh >/dev/null 2>&1 || die 'GitHub CLI is required to store the Azure 
 gh auth status >/dev/null 2>&1 || die 'GitHub CLI is not authenticated.'
 MIN=${APP_MIN_REPLICAS:-1}
 [[ $MIN == 0 || $MIN == 1 ]] || die 'APP_MIN_REPLICAS must be 0 or 1.'
+# Resolve the active prefix, not a preview or guessed numeric IDs. Custom claim
+# templates can change branch semantics, so they require a separate review.
+OIDC=$(gh api "repos/$GH_REPO/actions/oidc/customization/sub" \
+  --jq 'if .use_default == true and (.use_immutable_subject | type) == "boolean" and (.sub_claim_prefix | type) == "string" then (.use_immutable_subject | tostring) + "\n" + .sub_claim_prefix else error("Unsupported OIDC subject configuration") end') \
+  || die 'Cannot read a supported default GitHub OIDC subject configuration.'
+IMMUTABLE=${OIDC%%$'\n'*}
+PREFIX=${OIDC#*$'\n'}
+if [[ $IMMUTABLE == false ]]; then
+  [[ $PREFIX == "repo:$GH_REPO" ]] || die 'Unexpected legacy GitHub OIDC prefix.'
+elif [[ $IMMUTABLE == true ]]; then
+  [[ $PREFIX =~ ^repo:([^@/:]+)@([1-9][0-9]*)/([^@/:]+)@([1-9][0-9]*)$ ]] \
+    || die 'Malformed immutable GitHub OIDC prefix.'
+  [[ ${BASH_REMATCH[1]}/${BASH_REMATCH[3]} == "$GH_REPO" ]] \
+    || die 'GitHub OIDC prefix belongs to another repository.'
+else
+  die 'Unexpected GitHub OIDC subject configuration.'
+fi
+SUBJECT="$PREFIX:ref:refs/heads/main"
 CI_IDENTITY=id-planetx-github
 if ! exists azs identity show -g "$RG" -n "$CI_IDENTITY"; then
   LOCATION=$(azsq containerapp env show -g "$RG" -n "$CAE" --query location -o tsv | norm_regions)
   azs identity create -g "$RG" -n "$CI_IDENTITY" -l "$LOCATION" -o none
 fi
 CI_PRINCIPAL=$(azsq identity show -g "$RG" -n "$CI_IDENTITY" --query principalId -o tsv)
-SUBJECT="repo:$GH_REPO:ref:refs/heads/main"
 ISSUER=https://token.actions.githubusercontent.com
 AUDIENCE=api://AzureADTokenExchange
 if ! exists azs identity federated-credential show -g "$RG" --identity-name "$CI_IDENTITY" -n github-main; then

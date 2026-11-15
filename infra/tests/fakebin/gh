@@ -2,6 +2,13 @@
 # Fake gh for offline tests: logs the call, never contacts GitHub.
 printf 'FAKE gh %s\n' "$*" >>"${FAKE_LOG:-/dev/null}.gh"
 case "$*" in
+  "api repos/ompatel181005/IntoTheUnknown/actions/oidc/customization/sub "*)
+    case ${FAKE_GH_OIDC:-legacy} in
+      unavailable|custom|missing|wrong-type) echo 'Unsupported OIDC metadata fixture' >&2; exit 1 ;;
+      immutable) printf 'true\n%s\n' "${FAKE_GH_PREFIX:-repo:ompatel181005@156618510/IntoTheUnknown@1457967493}" ;;
+      legacy) printf 'false\n%s\n' "${FAKE_GH_PREFIX:-repo:ompatel181005/IntoTheUnknown}" ;;
+      *) echo 'Unexpected OIDC fixture' >&2; exit 1 ;;
+    esac ;;
   "secret set "*)
     # Consume piped values, while --body invocations do not read stdin.
     [[ $* == *' --body '* ]] || cat >/dev/null ;;

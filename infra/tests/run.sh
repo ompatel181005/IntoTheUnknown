@@ -131,4 +131,34 @@ has '^role assignment create .*--role Container Apps Contributor --scope /subscr
 has '^role assignment create .*--role Managed Identity Operator --scope /subscriptions/.*/userAssignedIdentities/' calls
 lacks '^role assignment create .*--scope /subscriptions/[^/]+$' calls
 has 'variable set APP_MIN_REPLICAS .*--body 1' calls.gh
+has 'api repos/ompatel181005/IntoTheUnknown/actions/oidc/customization/sub' calls.gh
+IMMUTABLE_SUBJECT=repo:ompatel181005@156618510/IntoTheUnknown@1457967493:ref:refs/heads/main
+run_case 'CI setup creates exact immutable main trust from metadata' 0 06-ci-identity.sh FAKE_GH_OIDC=immutable "FAKE_CI_SUBJECT=$IMMUTABLE_SUBJECT" FAKE_ACR=exists
+has "^identity federated-credential create .*--subject $IMMUTABLE_SUBJECT --audiences" calls
+run_case 'CI setup reruns with existing immutable trust' 0 06-ci-identity.sh FAKE_EXISTS=yes FAKE_GH_OIDC=immutable "FAKE_CI_SUBJECT=$IMMUTABLE_SUBJECT"
+lacks '^identity federated-credential create' calls
+run_case 'CI setup refuses legacy trust for immutable metadata' 1 06-ci-identity.sh FAKE_EXISTS=yes FAKE_GH_OIDC=immutable
+has 'federation does not match' output
+lacks '^role assignment create' calls
+lacks 'secret set|variable set' calls.gh
+for metadata in unavailable custom missing wrong-type; do
+  run_case "CI setup refuses $metadata metadata before changes" 1 06-ci-identity.sh "FAKE_GH_OIDC=$metadata"
+  lacks '^identity .*create|^role assignment create' calls
+  lacks 'secret set|variable set' calls.gh
+done
+for prefix in \
+  repo:other@156618510/IntoTheUnknown@1457967493 \
+  repo:ompatel181005@156618510/other@1457967493 \
+  repo:ompatel181005/IntoTheUnknown \
+  repo:ompatel181005@wrong/IntoTheUnknown@1457967493 \
+  repo:ompatel181005@156618510/IntoTheUnknown@0 \
+  'repo:ompatel181005@156618510/IntoTheUnknown@1457967493:environment:production' \
+  'repo:ompatel181005@156618510/IntoTheUnknown@*'; do
+  run_case "CI setup refuses unexpected immutable prefix $prefix" 1 06-ci-identity.sh FAKE_GH_OIDC=immutable "FAKE_GH_PREFIX=$prefix"
+  lacks '^identity .*create|^role assignment create' calls
+  lacks 'secret set|variable set' calls.gh
+done
+run_case 'CI setup refuses foreign legacy prefix before changes' 1 06-ci-identity.sh FAKE_GH_PREFIX=repo:other/project
+lacks '^identity .*create|^role assignment create' calls
+lacks 'secret set|variable set' calls.gh
 printf '\n%s offline scenarios passed; no Azure or GitHub requests made.\n' "$passed"
