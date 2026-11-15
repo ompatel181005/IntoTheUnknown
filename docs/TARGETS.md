@@ -4,7 +4,7 @@ Single source for target astrometry and pass criteria (moved here from PLAN §6)
 
 - Astrometry is **Gaia DR3 at J2016.0**, queried 2026-11-14 (✓). It is not from SIMBAD: SIMBAD was down, and J2000 or designation coordinates are arcminutes off for the movers.
 - **(lit.)** = from literature or memory; confirm before quoting it in the pitch.
-- Nothing has been tested yet. Update the Status column as `scripts/validate.py` results land.
+- Barnard's default B1-B2 preset passes astrometry in the current React + FastAPI app: 115 cutouts in three channel-matched epochs, 0.041 px motion-vector error. See `validation.md` for evidence and limits. The other targets still await science validation.
 
 Shifts are computed at 6.15″/px.
 
@@ -20,9 +20,9 @@ Shifts are computed at 6.15″/px.
 
 | Target | Test type | RA | Dec | Status | Note |
 |---|---|---|---|---|---|
-| Barnard's Star | motion | 269.44627 | +4.76820 | not tested |  |
+| Barnard's Star | motion | 269.44627 | +4.76820 | astrometry pass | Current React/FastAPI default B1-B2 preset: 0.041 px vector error, max residual 0.170 px, three matched epochs. Saturated photometry and discovery sensitivity remain unvalidated; see `validation.md`. |
 | ε Ind B | motion | 331.09665 | −56.80066 | not tested |  |
-| WISE 0855 | motion | ≈133.7599 | ≈−7.2422 | not tested | Assumes the designation epoch is ≈2010.5. Replace with SIMBAD's value when it's back, and use FOV ≥ 6′ until then. |
+| WISE 0855 | motion | 133.75989 | −7.24240 | not tested | Position from CatWISE2020 (IRSA `catwise_2020`, J085507.96−071439.3, `ra_pm`/`dec_pm` at MJD 57170 = 2015.405, [column docs](https://irsa.ipac.caltech.edu/data/WISE/CatWISE/gator_docs/catwise_colDescriptions.html)). pm and ϖ are lit. (CatWISE's own pm misses AllWISE's 2010.59 position by 1.9″). Includes parallax. |
 | RW Aur | variability | 76.95608 | +30.40113 | not tested |  |
 | R Dra | variability | 248.16723 | +66.75502 | not tested |  |
 

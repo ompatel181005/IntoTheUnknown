@@ -1,0 +1,3 @@
+# Bash scripts must keep LF on Windows checkouts (core.autocrlf=true), or bash fails on \r.
+*.sh text eol=lf
+tests/fakebin/* text eol=lf

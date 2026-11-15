@@ -1,0 +1,150 @@
+name: Test, build and deploy main
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Reviewed main SHA; blank uses current main
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
+      REGISTRY: acrplanetxitu7q4.azurecr.io
+      RESOURCE_GROUP: rg-planetx
+      APP_NAME: ca-planetx-api
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      MIN_REPLICAS: ${{ vars.APP_MIN_REPLICAS || '1' }}
+      APP_URL: https://ca-planetx-api.politesand-6f83d8b5.westus.azurecontainerapps.io
+    steps:
+      - name: Validate requested configuration
+        shell: bash
+        run: |
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$MIN_REPLICAS" == 0 || "$MIN_REPLICAS" == 1 ]]
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require a main commit
+        run: git merge-base --is-ancestor "$SOURCE_SHA" origin/main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install check dependencies
+        run: pip install -e './backend[dev]' -r functions/requirements.txt scipy playwright
+      - name: Backend checks
+        working-directory: backend
+        run: |
+          ruff check .
+          ruff format --check .
+          pytest -q
+      - name: Frontend checks
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint
+          npm run build
+      - name: Functions checks
+        working-directory: functions
+        run: |
+          ruff check .
+          pytest -q
+      - name: Capture and infrastructure checks
+        run: |
+          pytest -q scripts/tests
+          bash infra/check-scripts.sh
+          bash infra/tests/run.sh
+      - name: Refresh and validate saved snapshots without archive downloads
+        run: python scripts/validate_integrated.py --export-golden
+      - name: Image tag
+        id: image
+        run: echo "tag=$REGISTRY/spherex-blink:${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - name: Azure login through main-only OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Registry login without a stored password
+        run: |
+          az acr login -n acrplanetxitu7q4 --subscription "$AZURE_SUBSCRIPTION_ID" --expose-token --query accessToken -o tsv |
+            docker login "$REGISTRY" --username 00000000-0000-0000-0000-000000000000 --password-stdin
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push the tested image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Check whether this push was superseded
+        id: current
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          git fetch origin main
+          if [[ "$EVENT_NAME" == push && "$SOURCE_SHA" != "$(git rev-parse origin/main)" ]]; then
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+            echo 'A newer main commit is queued; keeping the current app until that build passes.'
+          else
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Deploy exact image digest
+        id: release
+        if: steps.current.outputs.deploy == 'true'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          PREVIOUS=$(az containerapp show -g "$RESOURCE_GROUP" -n "$APP_NAME" --subscription "$AZURE_SUBSCRIPTION_ID" --query 'properties.template.containers[0].image' -o tsv)
+          echo "previous_image=$PREVIOUS" >> "$GITHUB_OUTPUT"
+          az containerapp update -g "$RESOURCE_GROUP" -n "$APP_NAME" --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --image "$REGISTRY/spherex-blink@$DIGEST" --min-replicas "$MIN_REPLICAS" --max-replicas 1 -o none
+      - name: Verify health and all saved presets
+        if: steps.current.outputs.deploy == 'true'
+        run: |
+          curl --fail --silent --show-error --retry 6 --retry-delay 10 --retry-all-errors --max-time 60 "$APP_URL/api/health"
+          python - <<'PY'
+          import json, os
+          from urllib.request import urlopen
+          for target in ('barnard', 'eps-ind-b', 'wise-0855', 'rw-aur', 'r-dra'):
+              with urlopen(f"{os.environ['APP_URL']}/golden/{target}/manifest.json", timeout=60) as response:
+                  assert json.load(response)['epochs'], target
+          print('All five saved preset manifests passed')
+          PY
+      - name: Restore previous image if deployment verification fails
+        if: failure() && steps.release.outputs.previous_image != ''
+        env:
+          PREVIOUS_IMAGE: ${{ steps.release.outputs.previous_image }}
+        run: |
+          az containerapp update -g "$RESOURCE_GROUP" -n "$APP_NAME" --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --image "$PREVIOUS_IMAGE" --min-replicas "$MIN_REPLICAS" --max-replicas 1 -o none
+      - name: Remove runner registry credentials
+        if: always()
+        run: docker logout "$REGISTRY"

@@ -27,7 +27,8 @@ from photutils.centroids import centroid_2dg
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "docs" / "skeletons"))
 import fetch  # noqa: E402
 import query  # noqa: E402
-import stack  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+from app.processing import stack  # noqa: E402
 
 OUT = Path(__file__).resolve().parent / "spike_out"
 OUT.mkdir(exist_ok=True)

@@ -4,13 +4,8 @@ Needs: numpy astropy astroquery reproject azure-storage-blob azure-identity
 Run:   python docs/skeletons/check.py
 """
 
-import astropy.units as u
-from astropy.coordinates import SkyCoord
-from astropy.time import Time
 from cache import query_key, render_key
-from gaia import predict_radec
 from query import dedupe
-from stack import channel_of, group_epochs
 
 # Cache keys: deterministic, independent of frame order, sensitive to position and pipeline version.
 qk = query_key(269.4463, 4.7682, 6, "B1-B2")
@@ -29,21 +24,6 @@ def row(rel, proc):
 out = dedupe([row("qr3", "l2b-v27-2026-300"), row("dr1", "l2b-v27-2026-100"), row("dr1", "l2b-v27-2026-196")])
 assert len(out) == 1 and out[0]["collection"] == "spherex_dr1" and "2026-196" in out[0]["url"], out
 
-# Epochs: split on a gap over 20 days, and once a cluster spans more than 40 days.
-epochs = group_epochs([{"t_mjd": t} for t in (0, 5, 10, 200, 205, 400, 415, 430, 445)])
-assert [len(e) for e in epochs] == [3, 2, 3, 1], epochs
-
-# Channels: 17 log-spaced bins per detector, clipped at the band edges.
-assert channel_of({"detector": 1, "lam_um": 0.75}) == (1, 0)
-assert channel_of({"detector": 1, "lam_um": 1.09}) == (1, 16)
-
-# Gaia propagation, Barnard's Star at 2026.0: proper motion alone lands within 1 arcsec of the preset position,
-# and the parallax term is non-zero but no larger than the parallax itself (547 mas).
-t = Time(2026.0, format="jyear", scale="tcb")
-barnard = (269.448503, 4.739420, -801.55, 10362.39)
-pm_only = SkyCoord(*predict_radec(*barnard, None, None, t), unit="deg")
-full = SkyCoord(*predict_radec(*barnard, 546.98, None, t), unit="deg")
-assert pm_only.separation(SkyCoord(269.44627, 4.76820, unit="deg")) < 1 * u.arcsec
-assert 0.05 * u.arcsec < full.separation(pm_only) <= 0.55 * u.arcsec, full.separation(pm_only).arcsec
+# Gaia propagation checks moved to backend/tests/test_gaia_barnard.py with gaia.py (#8).
 
 print("skeleton checks passed")

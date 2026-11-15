@@ -6,6 +6,8 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astroquery.ipac.irsa import Irsa
 
+from ..telemetry import operation
+
 COLL_RE = re.compile(r"^spherex_(dr|qr)(\d+)(_deep)?$")  # drops spherex_dr1_cube etc.
 PROC_RE = re.compile(r"-(\d{4})-(\d{3})\.fits$")  # processing year-doy in filename
 
@@ -15,6 +17,7 @@ def priority(coll: str) -> tuple[int, int]:
     return (1 if kind == "dr" else 0, int(num))  # DR beats QR, newer beats older
 
 
+@operation("IRSA", "collections")
 def discover_collections() -> list[str]:
     tbl = Irsa.list_collections(servicetype="SIA", filter="spherex")
     names = [str(n) for n in tbl["collection"]]  # confirm column name on first run
@@ -35,6 +38,7 @@ def dedupe(rows: list[dict]) -> list[dict]:
     return sorted(best.values(), key=lambda r: r["t_mjd"])
 
 
+@operation("IRSA", "sia")
 def query_frames_sia(ra: float, dec: float, collections: list[str]) -> list[dict]:
     t = Irsa.query_sia(pos=(SkyCoord(ra, dec, unit="deg"), 1 * u.arcsec), collection=collections)
     return dedupe(
@@ -58,6 +62,7 @@ WHERE 1 = CONTAINS(POINT('ICRS', {ra}, {dec}), p.poly)
 ORDER BY p.time_bounds_lower"""
 
 
+@operation("IRSA", "tap")
 def query_frames_tap(ra: float, dec: float) -> list[dict]:  # fresher than SIA (no ~1-day lag), slower
     t = Irsa.query_tap(TAP_SQL.format(ra=ra, dec=dec)).to_table()
     rows = [{"url": str(r["url"]), "t_mjd": float(r["t_mjd"]), "band": str(r["band"])} for r in t]

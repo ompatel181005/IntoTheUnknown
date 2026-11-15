@@ -1,0 +1,29 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": { "type": "string" },
+    "location": { "type": "string" },
+    "workspaceResourceId": { "type": "string" }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('environmentName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "workloadProfiles": [
+          { "name": "Consumption", "workloadProfileType": "Consumption" }
+        ],
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(parameters('workspaceResourceId'), '2022-10-01').customerId]",
+            "sharedKey": "[listKeys(parameters('workspaceResourceId'), '2022-10-01').primarySharedKey]"
+          }
+        }
+      }
+    }
+  ]
+}

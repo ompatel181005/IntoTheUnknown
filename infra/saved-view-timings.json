@@ -1,0 +1,102 @@
+[
+  {
+    "fov": 4,
+    "band": "B1-B2",
+    "repeat": 0,
+    "elapsed_s": 5.569,
+    "status": "ready",
+    "error": null,
+    "stages": [
+      {
+        "stage": "fetch",
+        "at_s": 1.005
+      },
+      {
+        "stage": "stack",
+        "at_s": 4.145
+      },
+      {
+        "stage": "render",
+        "at_s": 4.889
+      },
+      {
+        "stage": "ready",
+        "at_s": 5.569
+      }
+    ]
+  },
+  {
+    "fov": 4,
+    "band": "B1-B2",
+    "repeat": 1,
+    "elapsed_s": 0.71,
+    "status": "ready",
+    "error": null,
+    "stages": []
+  },
+  {
+    "fov": 6,
+    "band": "B1",
+    "repeat": 0,
+    "elapsed_s": 3.406,
+    "status": "ready",
+    "error": null,
+    "stages": [
+      {
+        "stage": "fetch",
+        "at_s": 1.052
+      },
+      {
+        "stage": "stack",
+        "at_s": 2.872
+      },
+      {
+        "stage": "ready",
+        "at_s": 3.406
+      }
+    ]
+  },
+  {
+    "fov": 6,
+    "band": "B1",
+    "repeat": 1,
+    "elapsed_s": 0.396,
+    "status": "ready",
+    "error": null,
+    "stages": []
+  },
+  {
+    "fov": 10,
+    "band": "B1-B2",
+    "repeat": 0,
+    "elapsed_s": 0.875,
+    "status": "error",
+    "error": {
+      "code": "NOT_SAVED",
+      "message": "Saved cutouts exist only for the five test targets at fields of view up to 8 arcmin. Switch the data source to Live archive or Auto."
+    },
+    "stages": [
+      {
+        "stage": "error",
+        "at_s": 0.875
+      }
+    ]
+  },
+  {
+    "fov": 10,
+    "band": "B1-B2",
+    "repeat": 1,
+    "elapsed_s": 0.849,
+    "status": "error",
+    "error": {
+      "code": "NOT_SAVED",
+      "message": "Saved cutouts exist only for the five test targets at fields of view up to 8 arcmin. Switch the data source to Live archive or Auto."
+    },
+    "stages": [
+      {
+        "stage": "error",
+        "at_s": 0.849
+      }
+    ]
+  }
+]

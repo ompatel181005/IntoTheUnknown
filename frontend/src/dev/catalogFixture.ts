@@ -1,4 +1,4 @@
-// DEV ONLY. Serves the production catalog endpoint contract without a backend.
+// DEV ONLY. Serves a synthetic catalog in place of public/catalog/<set>.json.
 import type { Catalog } from "../types";
 
 export const fixtureCatalog: Catalog = {
@@ -39,15 +39,15 @@ export const fixtureCatalog: Catalog = {
   ],
 };
 
-/** Intercept only /api/catalog on the dev page and leave every other request unchanged. */
+/** Intercept only /catalog/<set>.json on the dev page and leave every other request unchanged. */
 export function installCatalogFixture(): void {
   const networkFetch = window.fetch.bind(window);
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const requestUrl = input instanceof Request ? input.url : String(input);
     const url = new URL(requestUrl, window.location.origin);
-    if (url.pathname !== "/api/catalog") return networkFetch(input, init);
+    const setName = /^\/catalog\/(.+)\.json$/.exec(url.pathname)?.[1];
+    if (!setName) return networkFetch(input, init);
 
-    const setName = url.searchParams.get("set") ?? "targets";
     if (setName !== "targets") {
       return Promise.resolve(new Response(
         JSON.stringify({ error: { code: "UNKNOWN_CATALOG_SET", message: `Catalog set '${setName}' is not available.` } }),

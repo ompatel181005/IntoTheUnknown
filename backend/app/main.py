@@ -4,20 +4,20 @@ import logging
 import time
 import urllib.request
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import ValidationError
 
 from . import config
-from .catalog import CatalogLoadError, CatalogNotFound, get_catalog_store
-from .models import Catalog, Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus
+from .models import GaiaResult, Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus
 from .processing import views
 from .targets import TARGETS
+from .telemetry import FASTAPI_TELEMETRY, configure_telemetry
 
 logging.basicConfig(level=logging.INFO)
-app = FastAPI(title="SPHEREx Blink API", version="0.1.0")
+app = FastAPI(title="SPHEREx Blink API", version="0.1.0", telemetry=FASTAPI_TELEMETRY)
+configure_telemetry(app)
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/frames", StaticFiles(directory=config.CACHE_DIR), name="frames")
@@ -39,8 +39,11 @@ def irsa_state() -> str:
     return _irsa["state"]
 
 
-def not_found(code: str, message: str):
-    return JSONResponse(status_code=404, content={"error": {"code": code, "message": message}})
+@app.exception_handler(views.ViewError)
+def view_error(_, e: views.ViewError):
+    """Every route failure uses the {"error": {code, message}} body the frontend reads."""
+    status = 404 if e.code == "UNKNOWN_VIEW" else 503
+    return JSONResponse(status_code=status, content={"error": {"code": e.code, "message": e.message}})
 
 
 @app.get("/api/health", response_model=Health)
@@ -51,22 +54,6 @@ def health():
 @app.get("/api/targets", response_model=list[Target])
 def targets():
     return TARGETS
-
-
-@app.get("/api/catalog", response_model=Catalog)
-def catalog(set_name: str = Query("targets", alias="set")):
-    try:
-        document = get_catalog_store().load(set_name)
-        return Catalog.model_validate(document)
-    except CatalogNotFound:
-        return not_found("UNKNOWN_CATALOG_SET", f"Catalog set '{set_name}' is not available.")
-    except (CatalogLoadError, ValidationError) as exc:
-        return JSONResponse(
-            status_code=502,
-            content={
-                "error": {"code": "CATALOG_UNAVAILABLE", "message": f"Catalog set '{set_name}' is invalid: {exc}"}
-            },
-        )
 
 
 @app.post("/api/views", response_model=ViewCreated, status_code=202)
@@ -83,15 +70,13 @@ def create_view(req: ViewRequest):
 def _job(view_id: str) -> views.Job:
     job = views.JOBS.get(view_id)
     if not job:
-        raise HTTPException(status_code=404, detail="Unknown view")
+        raise views.ViewError("UNKNOWN_VIEW", "This view is not known to the server. Load it again.")
     return job
 
 
 @app.get("/api/views/{view_id}", response_model=ViewStatus)
 def view_status(view_id: str):
-    job = views.JOBS.get(view_id)
-    if not job:
-        return not_found("UNKNOWN_VIEW", "This view is not known to the server. Load it again.")
+    job = _job(view_id)
     out = {"status": job.status, "manifest_url": job.manifest_url}
     if job.total:
         out["progress"] = {"done": job.done, "total": job.total}
@@ -101,11 +86,33 @@ def view_status(view_id: str):
 
 
 @app.get("/api/views/{view_id}/spectrum", response_model=Spectrum)
-def view_spectrum(view_id: str, x: int = Query(...), y: int = Query(...), epoch: int = 0):
+def view_spectrum(view_id: str, x: int = Query(..., ge=0), y: int = Query(..., ge=0), epoch: int = 0):
     return {"points": views.spectrum(_job(view_id), x, y, epoch)}
 
 
 @app.get("/api/views/{view_id}/lightcurve", response_model=LightCurve)
-def view_lightcurve(view_id: str, x: float = Query(...), y: float = Query(...), r_px: float = 2.0):
-    pts = views.lightcurve(_job(view_id), x, y, r_px)
-    return {"points": pts, "comparison": None}
+def view_lightcurve(
+    view_id: str,
+    x: float = Query(..., ge=0),
+    y: float = Query(..., ge=0),
+    r_px: float = Query(2.0, gt=0, lt=4),  # the background annulus starts at 4 px
+):
+    job = _job(view_id)
+    return {"points": views.lightcurve(job, x, y, r_px), "comparison": views.comparison(job, x, y, r_px)}
+
+
+@app.get("/api/views/{view_id}/gaia", response_model=GaiaResult)
+def view_gaia(
+    view_id: str,
+    x: float | None = Query(None, ge=0),
+    y: float | None = Query(None, ge=0),
+    epoch: int = Query(0, ge=0),
+):
+    """Gaia overlay (#29): per-star pixel tracks and matches; with x and y, the match label of that source."""
+    return views.gaia_overlay(_job(view_id), x, y, epoch)
+
+
+# Production: the built React app (frontend/dist) is served from the same origin. Mounted last so /api and /frames win.
+_DIST = config.ROOT / "frontend" / "dist"
+if _DIST.is_dir():
+    app.mount("/", StaticFiles(directory=_DIST, html=True), name="web")

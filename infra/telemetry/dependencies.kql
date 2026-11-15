@@ -1,0 +1,17 @@
+// Logical operations, including retries inside each operation; not counts of wire requests.
+let Expected = datatable(Service:string) ["IRSA", "S3", "Gaia", "pipeline"];
+let Observed = AppDependencies
+| where TimeGenerated >= ago(24h) and AppRoleName == "spherex-blink-api"
+| extend Service = tostring(Properties["dependency.service"]),
+         Operation = tostring(Properties["dependency.operation"])
+| where Service in ("IRSA", "S3", "Gaia", "pipeline")
+| summarize Calls = sum(ItemCount), Failures = sumif(ItemCount, Success == false),
+            Unknown = sumif(ItemCount, isnull(Success)),
+            P95ms = percentilew(DurationMs, ItemCount, 95),
+            Operations = make_set(Operation) by Service;
+Expected
+| join kind=leftouter Observed on Service
+| project Service, Calls = coalesce(Calls, long(0)), Failures = coalesce(Failures, long(0)),
+          Unknown = coalesce(Unknown, long(0)), P95ms, Operations
+| extend FailurePct = iff(Calls == 0, real(null), 100.0 * todouble(Failures) / todouble(Calls))
+| order by Service asc

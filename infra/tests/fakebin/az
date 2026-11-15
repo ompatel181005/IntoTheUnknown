@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# Fake az for offline logic tests. Never contacts Azure. Logs every call to $FAKE_LOG.
+# Fails (exit 98) any subscription-scoped call that is not pinned to $FAKE_SUB_ID.
+a="$*"
+printf '%s\n' "$a" >>"${FAKE_LOG:-/dev/null}"
+SUBID="${FAKE_SUB_ID:?}"
+X="${FAKE_EXISTS:-no}"
+KEY="SECRET-KEY-DO-NOT-PRINT"
+if [[ $a == *"$KEY"* ]]; then echo "LEAK: $a" >>"$FAKE_LOG.leak"; echo "FAKE AZ: key on command line" >&2; exit 95; fi
+
+case "$1" in
+  group | storage | acr | monitor | containerapp | staticwebapp | provider | policy | cosmosdb | role | identity | functionapp | consumption | deployment)
+    if [[ $a != *" --subscription $SUBID" ]]; then
+      printf 'UNPINNED: %s\n' "$a" >>"$FAKE_LOG.unpinned"
+      echo "FAKE AZ: unpinned subscription-scoped call: $a" >&2
+      exit 98
+    fi
+    a=${a% --subscription "$SUBID"}
+    ;;
+  ad)
+    if [[ $a == *--subscription* ]]; then echo "FAKE AZ: ad call with --subscription: $a" >&2; exit 97; fi
+    if [[ ${FAKE_OIDC:-} == neterr ]]; then
+      echo "ERROR: HTTPSConnectionPool(host='graph.microsoft.com', port=443): Max retries exceeded" >&2; exit 1
+    fi ;;
+  rest)
+    if [[ $a != *"/subscriptions/$SUBID"* ]]; then
+      printf 'UNPINNED: %s\n' "$a" >>"$FAKE_LOG.unpinned"; echo "FAKE AZ: rest URL without sub id" >&2; exit 96
+    fi ;;
+esac
+
+# RG-scope policy listing: same answers, separately controllable.
+POLSCOPE=sub
+if [[ $a == "policy assignment list --resource-group rg-planetx "* ]]; then
+  POLSCOPE=rg
+  a=${a/policy assignment list --resource-group rg-planetx /policy assignment list }
+fi
+
+case "$a" in
+  # --- account / misc -----------------------------------------------------------------------
+  "account show --only-show-errors") exit 0 ;;
+  "account show --subscription $SUBID --query [id, tenantId, name] -o tsv")
+    printf '%s\n%s\n%s\n' "${FAKE_ID_OUT:-$SUBID}" "${FAKE_TENANT_OUT:-$FAKE_TENANT}" "${FAKE_SUB_NAME:-Azure for Students}" ;;
+  "account set --subscription $SUBID --only-show-errors") exit 0 ;;
+  "account show --subscription $SUBID --query {"*) printf 'Subscription        User\nAzure for Students  student@example.edu\n' ;;
+  "version --query"*) echo "2.92.0" ;;
+  "extension add"*) exit 0 ;;
+  "rest --method get --url "*"api-version=2022-12-01 --query subscriptionPolicies.quotaId -o tsv") echo "AzureForStudents_2018-01-01" ;;
+  "rest --method get --url "*"api-version=2022-12-01 --query subscriptionPolicies.spendingLimit -o tsv") echo "On" ;;
+  # --- providers / policy / regions (live values from the real preflight) --------------------
+  "provider show -n Microsoft.App --query resourceTypes"*) printf 'West US\nWest US 2\nWest US 3\nNorth Central US\nNorway East\nFrance Central\nBelgium Central\nEast US\n' ;;
+  "provider show -n Microsoft.Web --query resourceTypes"*) printf 'Central US\nEast Asia\nEast US 2\nWest Europe\nWest US 2\n' ;;
+  "provider show -n "*" --query registrationState -o tsv")
+    if [[ $a == *Microsoft.DocumentDB* ]]; then echo NotRegistered; else echo Registered; fi ;;
+  "provider register -n "*) exit 0 ;;
+  "policy assignment list --filter atScope() --query [].{"*) printf 'DisplayName                          Scope\nAllowed resource deployment regions  /providers/Microsoft.Management/managementGroups/x\n' ;;
+  "policy assignment list --filter atScope() --query length("*)
+    if [[ $POLSCOPE == rg ]]; then [[ ${FAKE_RGPOL:-ok} == fail ]] && exit 1; else [[ ${FAKE_POLICY:-ok} == fail ]] && exit 1; fi
+    echo "${FAKE_NPOL:-1}" ;;
+  "policy assignment list --filter atScope() --query [?"*"-o json") echo '[{"displayName":"Allowed resource deployment regions","parameters":{"listOfAllowedLocations":{"value":["norwayeast","northcentralus","westus","belgiumcentral","francecentral"]}}}]' ;;
+  "policy assignment list --filter atScope() --query [?"*"join("*)
+    if [[ $POLSCOPE == rg ]]; then echo "${FAKE_RG_ALLOWED-${FAKE_ALLOWED-norwayeast,northcentralus,westus,belgiumcentral,francecentral}}"
+    else echo "${FAKE_ALLOWED-norwayeast,northcentralus,westus,belgiumcentral,francecentral}"; fi ;;
+  "functionapp list-flexconsumption-locations --query [].name -o tsv") printf '%s\n' ${FAKE_FLEX:-westus northcentralus norwayeast belgiumcentral francecentral eastus} ;;
+  "functionapp list-flexconsumption-locations --runtime"*) echo "ERROR: --runtime is only valid with --details" >&2; exit 2 ;;
+  "cosmosdb list --query [?enableFreeTier].name -o tsv") exit 0 ;;
+  # --- 05: Entra ID ------------------------------------------------------------------------
+  "ad signed-in-user show --query id -o tsv") echo "99999999-9999-9999-9999-999999999999" ;;
+  "ad app show --id "*" --query appId -o tsv") [[ ${FAKE_APP_SHOW:-ok} == ok ]] || exit 3; echo "${a#ad app show --id }" ;;
+  "ad app owner list --id "*) echo "${FAKE_OWNER:-1}" ;;
+  "ad app list --display-name gh-planetx-"*) echo "${FAKE_NAME_EXISTS:-0}" ;;
+  "ad app create"*)
+    if [[ ${FAKE_OIDC:-deny} == deny ]]; then
+      echo "ERROR: Insufficient privileges to complete the operation. (Authorization_RequestDenied) Status: 403" >&2; exit 1
+    fi
+    echo "11111111-aaaa-1111-aaaa-111111111111" ;;
+  "ad sp show --id"*) exit 3 ;;
+  "ad sp create --id"*) echo "22222222-2222-2222-2222-222222222222" ;;
+  "ad app federated-credential list"*)
+    S="repo:ompatel181005/IntoTheUnknown:ref:refs/heads/main"; I="https://token.actions.githubusercontent.com"; U="api://AzureADTokenExchange"
+    case ${FAKE_FC:-none} in
+      none) exit 0 ;;
+      ok) printf '%s\n%s\n%s\n' "$S" "$I" "$U" ;;
+      badiss) printf '%s\n%s\n%s\n' "$S" "$I/" "$U" ;;
+      badaud) printf '%s\n%s\n%s\n' "$S" "$I" "api://other" ;;
+    esac ;;
+  "ad app federated-credential create"* | "ad app federated-credential update"*) printf '%s\n' "$a" >>"${FAKE_LOG}.fc"; exit 0 ;;
+  "acr show -g rg-planetx -n acrplanetxitu7q4 --query id -o tsv")
+    [[ ${FAKE_ACR:-missing} == exists || $X == yes ]] || exit 3
+    echo "/subscriptions/$SUBID/resourceGroups/rg-planetx/providers/Microsoft.ContainerRegistry/registries/acrplanetxitu7q4" ;;
+  "role assignment list"*) echo 0 ;;
+  "role assignment create"*) printf '%s\n' "$a" >>"${FAKE_LOG}.role"; exit 0 ;;
+  # --- 10: property reads (rerun verification) -----------------------------------------------
+  "group show -n rg-planetx --query location -o tsv") echo "${FAKE_RG_LOC:-westus}" ;;
+  "monitor log-analytics workspace show -g rg-planetx -n log-planetx --query location -o tsv") echo "westus" ;;
+  "monitor log-analytics workspace show -g rg-planetx -n log-planetx --query id -o tsv") echo "/subscriptions/$SUBID/resourceGroups/rg-planetx/providers/Microsoft.OperationalInsights/workspaces/log-planetx" ;;
+  "monitor log-analytics workspace show -g rg-planetx -n log-planetx --query customerId -o tsv") echo "cust-id" ;;
+  "monitor log-analytics workspace get-shared-keys"*) echo "$KEY" ;;
+  "monitor app-insights component show -g rg-planetx --app appi-planetx --query location -o tsv") echo "westus" ;;
+  "monitor app-insights component show -g rg-planetx --app appi-planetx --query workspaceResourceId || WorkspaceResourceId -o tsv")
+    echo "${FAKE_AI_WS:-/subscriptions/$SUBID/resourcegroups/rg-planetx/providers/microsoft.operationalinsights/workspaces/log-planetx}" ;;
+  "storage account show -g rg-planetx -n stplanetxitu7q4 --query location -o tsv") echo "westus" ;;
+  "storage account show -g rg-planetx -n stplanetxitu7q4 --query id -o tsv") echo "/subscriptions/$SUBID/resourceGroups/rg-planetx/providers/Microsoft.Storage/storageAccounts/stplanetxitu7q4" ;;
+  "storage account show -g rg-planetx -n stplanetxitu7q4 --query kind -o tsv") echo "StorageV2" ;;
+  "storage account show -g rg-planetx -n stplanetxitu7q4 --query sku.name -o tsv") echo "${FAKE_SA_SKU:-Standard_LRS}" ;;
+  "storage account show -g rg-planetx -n stplanetxitu7q4 --query minimumTlsVersion -o tsv") echo "${FAKE_TLS:-TLS1_2}" ;;
+  "storage account show -g rg-planetx -n stplanetxitu7q4 --query enableHttpsTrafficOnly || supportsHttpsTrafficOnly -o tsv") echo "${FAKE_HTTPS:-true}" ;;
+  "storage account show -g rg-planetx -n stplanetxitu7q4 --query allowBlobPublicAccess -o tsv") echo "${FAKE_PUBLIC:-true}" ;;
+  "storage account show -g rg-planetx -n stplanetxitu7q4 --query primaryEndpoints.web -o tsv") echo "https://stplanetxitu7q4.z22.web.core.windows.net/" ;;
+  "storage account blob-service-properties show"*) echo "${FAKE_CORS:-0}" ;;
+  "storage account blob-service-properties cors-rule add"*) printf '%s\n' "$a" >>"${FAKE_LOG}.cors"; exit 0 ;;
+  "storage blob service-properties update --account-name stplanetxitu7q4 --auth-mode login "*) printf '%s\n' "$a" >>"${FAKE_LOG}.web"; exit 0 ;;
+  "storage blob service-properties show --account-name stplanetxitu7q4 --auth-mode login --query staticWebsite.enabled -o tsv") echo "${FAKE_WEB:-true}" ;;
+  "storage blob service-properties show --account-name stplanetxitu7q4 --auth-mode login --query staticWebsite.indexDocument -o tsv") echo "index.html" ;;
+  "storage blob service-properties show --account-name stplanetxitu7q4 --auth-mode login --query staticWebsite.errorDocument404Path -o tsv") echo "${FAKE_WEB_ERROR:-index.html}" ;;
+  "storage blob service-properties"*) echo "FAKE AZ: static website call without --auth-mode login: $a" >&2; exit 94 ;;
+  "acr show -g rg-planetx -n acrplanetxitu7q4 --query location -o tsv") echo "westus" ;;
+  "acr show -g rg-planetx -n acrplanetxitu7q4 --query sku.name -o tsv") echo "${FAKE_ACR_SKU:-Standard}" ;;
+  "acr show -g rg-planetx -n acrplanetxitu7q4 --query loginServer -o tsv") echo "acrplanetxitu7q4.azurecr.io" ;;
+  "acr config authentication-as-arm show -r acrplanetxitu7q4 --query status -o tsv") echo "${FAKE_ARM_AUTH:-enabled}" ;;
+  "acr repository show -n acrplanetxitu7q4 --image "*)
+    [[ ${FAKE_IMAGE:-present} != missing ]] || exit 3
+    echo "${FAKE_DIGEST:-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}" ;;
+  "containerapp identity show -g rg-planetx -n ca-planetx-api --query principalId -o tsv") echo 'bbbbbbbb-1111-2222-3333-cccccccccccc' ;;
+  "containerapp show -g rg-planetx -n ca-planetx-api --query properties.configuration.ingress.fqdn -o tsv") echo 'app.test.invalid' ;;
+  "containerapp identity assign "* | "containerapp registry set "* | "containerapp ingress enable "*) exit 0 ;;
+  "containerapp env show -g rg-planetx -n cae-planetx --query location -o tsv") echo "West US" ;;
+  "containerapp env show -g rg-planetx -n cae-planetx --query id -o tsv") echo "/subscriptions/$SUBID/resourceGroups/rg-planetx/providers/Microsoft.App/managedEnvironments/cae-planetx" ;;
+  "identity show -g rg-planetx -n id-planetx-api --query id -o tsv") echo "/subscriptions/$SUBID/resourceGroups/rg-planetx/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-planetx-api" ;;
+  "identity show -g rg-planetx -n id-planetx-api --query clientId -o tsv") echo 'cccccccc-1111-2222-3333-dddddddddddd' ;;
+  "identity show -g rg-planetx -n id-planetx-api --query principalId -o tsv") echo 'dddddddd-1111-2222-3333-eeeeeeeeeeee' ;;
+  "identity show -g rg-planetx -n id-planetx-github --query principalId -o tsv") echo 'eeeeeeee-1111-2222-3333-ffffffffffff' ;;
+  "identity show -g rg-planetx -n id-planetx-github --query clientId -o tsv") echo 'ffffffff-1111-2222-3333-aaaaaaaaaaaa' ;;
+  "identity federated-credential show "*" --query "*)
+    printf '%s\n%s\n%s\n' 'https://token.actions.githubusercontent.com' "${FAKE_CI_SUBJECT:-repo:ompatel181005/IntoTheUnknown:ref:refs/heads/main}" 'api://AzureADTokenExchange' ;;
+  "identity federated-credential create "*) exit 0 ;;
+  "containerapp show -g rg-planetx -n ca-planetx-api --query id -o tsv") echo "/subscriptions/$SUBID/resourceGroups/rg-planetx/providers/Microsoft.App/containerApps/ca-planetx-api" ;;
+  "containerapp env show -g rg-planetx -n cae-planetx --query properties.appLogsConfiguration.destination -o tsv") echo "log-analytics" ;;
+  "containerapp env show -g rg-planetx -n cae-planetx --query properties.appLogsConfiguration.logAnalyticsConfiguration.customerId -o tsv") echo "${FAKE_CAE_WS:-cust-id}" ;;
+  "containerapp env show -g rg-planetx -n cae-planetx --query properties.defaultDomain -o tsv") echo "nice-sky-1.westus.azurecontainerapps.io" ;;
+  "containerapp env create"*) echo 'FAIL: use ARM for workspace key resolution' >&2; exit 93 ;;
+  "deployment group create -g rg-planetx --name core-app "*)
+    [[ $a == *"identityResourceId=/subscriptions/$SUBID/"* && $a == *'containerapp.json'* ]] || exit 91
+    printf '%s\n' "$a" >>"${FAKE_LOG}.deployment"; exit 0 ;;
+  "deployment group create"*)
+    [[ $a == *"workspaceResourceId=/subscriptions/$SUBID/"* ]] || exit 92
+    printf '%s\n' "$a" >>"${FAKE_LOG}.deployment"; exit 0 ;;
+  "staticwebapp show -g rg-planetx -n swa-planetx --query location -o tsv") echo "Central US" ;;
+  "staticwebapp show -g rg-planetx -n swa-planetx --query sku.name -o tsv") echo "Free" ;;
+  "staticwebapp show -g rg-planetx -n swa-planetx --query defaultHostname -o tsv") echo "nice-sky-1.azurestaticapps.net" ;;
+  *"check-name"*) echo true ;;
+  *" show "*"--only-show-errors") [[ $X == yes ]] && exit 0; exit 3 ;;
+  *" create "* | *" update "*) exit 0 ;;
+  # --- 20 -----------------------------------------------------------------------------------
+  "rest --method get --url https://management.azure.com/subscriptions/"*"/budgets/"*)
+    [[ ${FAKE_BUDGET_EXISTS:-no} == yes ]] || exit 3
+    echo '"1d34d016a593709"' ;;
+  "rest --method put --url"*)
+    printf '%s\n' "$a" >>"${FAKE_LOG}.put"
+    if [[ ${FAKE_BUDGET:-deny} == deny ]]; then
+      echo "ERROR: (BadRequest) Subscription offer type is not supported for budgets." >&2; exit 1
+    fi
+    printf 'budget-planetx\n%s\nMonthly\n2026-11-01T00:00:00Z\n2027-11-01T00:00:00Z\n%s\n' "${FAKE_AMOUNT:-20.0}" "${FAKE_THR-100,50.0,80}" ;;
+  *) echo "FAKE AZ: unhandled: $a" >&2; exit 99 ;;
+esac

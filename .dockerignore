@@ -1,0 +1,30 @@
+# Ship only the inputs used by the production Dockerfile.
+**
+!Dockerfile
+!.dockerignore
+!backend/
+!backend/**
+!frontend/
+!frontend/**
+!demo/
+!demo/**
+
+# Exclude private and generated files even inside an allowed source directory.
+**/.env
+**/.env.*
+**/.git
+**/.aws
+**/.azure
+**/*.pem
+**/*.key
+**/local.settings.json
+**/.venv
+**/venv
+**/node_modules
+**/.cache
+**/.pytest_cache
+**/.ruff_cache
+**/__pycache__
+**/*.pyc
+**/*.egg-info
+frontend/dist

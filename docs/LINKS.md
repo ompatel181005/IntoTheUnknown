@@ -5,8 +5,8 @@ Do not guess URLs. Fill the placeholders from the official pages.
 Every URL below was checked on 2026-11-14: it either returned HTTP 200 with a matching page title, or (the six tutorials) is linked from IRSA's SPHEREx DR1 and mission pages. `TODO(team)` means not found or not reachable.
 
 ## Space Apps
-- Challenge page: TODO(team): url (the site renders with JavaScript; open it in a browser)
-- Challenge resources tab: TODO(team): url
+- Challenge page: https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/ (read in a browser 2026-11-14; scope notes in `DECISIONS.md` 13:20)
+- Challenge resources tab: https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/?tab=resources. It links four things for this challenge: the IRSA mission page, the SPHEREx tutorial notebooks, WiseView, and Gaia at MAST (https://archive.stsci.edu/missions-and-data/gaia, "use the latest data release (DR3)"). The rest of the tab is CSA NEOSSat material we don't use.
 - Project Submission Guide: https://www.spaceappschallenge.org/resources/project-submission-guide/
 - Judging & Awards Guide: https://www.spaceappschallenge.org/resources/judging-awards-guide/
 
@@ -31,9 +31,13 @@ Every URL below was checked on 2026-11-14: it either returned HTTP 200 with a ma
 
 ## Other data
 - Gaia ESA archive: https://gea.esac.esa.int/archive/
+- Gaia DR3 TAP, primary (ESA): https://gea.esac.esa.int/tap-server/tap/sync
+- Gaia DR3 TAP, fallback (ARI Heidelberg): https://gaia.ari.uni-heidelberg.de/tap/sync
 - Gaia credits and acknowledgement: https://www.cosmos.esa.int/web/gaia-users/credits
+- Gaia DR3 credit and citation instructions (the acknowledgement text in `DATA.md`): https://gea.esac.esa.int/archive/documentation/GDR3/Miscellaneous/sec_credit_and_citation_instructions/
+- Gaia at MAST (linked from the challenge resources tab): https://archive.stsci.edu/missions-and-data/gaia
 - SIMBAD: TODO(team): url (CDS returned 404 on 2026-11-14)
-- WiseView: http://byw.tools/wiseview (responds, but the page has no title to match against; confirm in a browser)
+- WiseView: http://byw.tools/wiseview (this exact URL is linked from the challenge resources tab)
 
 ## Azure docs
 - Static Web Apps: https://learn.microsoft.com/en-us/azure/static-web-apps/overview

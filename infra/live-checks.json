@@ -1,0 +1,30 @@
+{
+  "base": "https://ca-planetx-api.politesand-6f83d8b5.westus.azurecontainerapps.io",
+  "build_sha": "130e42b9138545ec9a856136ad41e5d1aa19df50",
+  "reports": {
+    "spectrum": 37,
+    "lightcurve": 115,
+    "barnard": {
+      "api_offline": true,
+      "epochs": 3
+    },
+    "eps-ind-b": {
+      "api_offline": true,
+      "epochs": 4
+    },
+    "wise-0855": {
+      "api_offline": true,
+      "epochs": 3
+    },
+    "rw-aur": {
+      "api_offline": true,
+      "epochs": 3
+    },
+    "r-dra": {
+      "api_offline": true,
+      "epochs": 9
+    }
+  },
+  "browser_errors": [],
+  "external_requests": []
+}

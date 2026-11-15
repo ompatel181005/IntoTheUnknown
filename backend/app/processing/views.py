@@ -1,6 +1,7 @@
 """View jobs: find frames (demo pack or live IRSA), stack per epoch, write the manifest and arrays."""
 
 import concurrent.futures as cf
+import contextvars
 import hashlib
 import json
 import logging
@@ -17,7 +18,9 @@ from .. import config
 from ..cache import local
 from ..irsa import fetch
 from ..models import ViewRequest
-from . import stack
+from ..telemetry import operation, record_cache_hit
+from . import align, photometry, stack
+from . import gaia as gaia_dr3
 
 log = logging.getLogger("views")
 
@@ -33,8 +36,6 @@ BAND_DETECTORS = {
     "all": {1, 2, 3, 4, 5, 6},
     "auto": {1, 2, 3, 4, 5, 6},
 }
-PIX_SR = (stack.PIX_ARCSEC / 206264.806) ** 2  # pixel solid angle
-UJY_PER_MJYSR_PIX = PIX_SR * 1e12  # MJy/sr x sr -> uJy
 
 
 class ViewError(Exception):
@@ -65,7 +66,8 @@ POOL = cf.ThreadPoolExecutor(max_workers=config.MAX_RENDER_JOBS)
 
 
 def query_key(req: ViewRequest) -> str:
-    key = f"q1|{req.ra:.4f}|{req.dec:+.4f}|{req.fov_arcmin}|{req.band}"
+    # q2 invalidates pointers made before dense saved captures used the ten-frame gate.
+    key = f"q2|{config.PIPELINE_VERSION}|{req.ra:.4f}|{req.dec:+.4f}|{req.fov_arcmin}|{req.band}"
     if req.source != "auto":
         key += f"|{req.source}"
     return hashlib.sha256(key.encode()).hexdigest()[:20]
@@ -90,7 +92,7 @@ def _demo_pack(req: ViewRequest) -> tuple[Path, dict] | None:
     return None
 
 
-def demo_frames(req: ViewRequest, job: Job) -> tuple[list[dict], dict] | None:
+def demo_frames(req: ViewRequest, job: Job) -> tuple[list[dict], dict, list[dict]] | None:
     hit = _demo_pack(req)
     if not hit:
         return None
@@ -111,7 +113,7 @@ def demo_frames(req: ViewRequest, job: Job) -> tuple[list[dict], dict] | None:
         "files": len(m.get("files", [])),
         "archive_exposures": m.get("archive_exposures"),
     }
-    return out, origin
+    return out, origin, align.load_gaia_csv(folder / "gaia.csv")
 
 
 def live_frames(req: ViewRequest, job: Job) -> list[dict]:
@@ -177,6 +179,17 @@ def _flag_counts(ep: list[dict]) -> dict[str, int]:
     return {k: round(v / len(ep)) for k, v in sorted(totals.items(), key=lambda kv: -kv[1]) if v / len(ep) >= 0.5}
 
 
+def select_epochs(groups: list[list[dict]], minimum: int, saved: bool) -> list[list[dict]]:
+    """Apply the science floor to rich captures and retain the legacy sparse-demo fallback."""
+    if saved and sum(len(ep) >= config.MIN_EPOCH_FRAMES_LIVE for ep in groups) >= 2:
+        minimum = max(minimum, config.MIN_EPOCH_FRAMES_LIVE)
+    selected = [ep for ep in groups if len(ep) >= minimum]
+    if len(selected) != len(groups):
+        log.info("Dropped %d underfilled epochs (minimum %d frames)", len(groups) - len(selected), minimum)
+    return selected
+
+
+@operation("pipeline", "build", internal=True)
 def build(job: Job) -> None:
     req = job.req
     saved = demo_frames(req, job) if req.source != "live" else None
@@ -187,10 +200,13 @@ def build(job: Job) -> None:
             "Switch the data source to Live archive or Auto.",
         )
     if saved is not None:
-        frames, origin = saved
+        frames, origin, gaia = saved
+        gaia_cat = gaia_dr3.catalog_from_rows(gaia)
         source, min_frames = "golden", config.MIN_EPOCH_FRAMES_DEMO
     else:
         frames = live_frames(req, job)
+        gaia = []  # live Gaia query lands with #8; until then live views report astrom_resid_px: null
+        gaia_cat = gaia_dr3.live_catalog(req.ra, req.dec, req.fov_arcmin)  # None when Gaia is down
         source, min_frames = "irsa", config.MIN_EPOCH_FRAMES_LIVE
         origin = {
             "kind": "live",
@@ -205,7 +221,11 @@ def build(job: Job) -> None:
     for f in frames:
         f["_grid"] = stack.to_grid(f, w, shape)
         job.done += 1
-    epochs = [ep for ep in stack.group_epochs(frames) if len(ep) >= min_frames]
+    groups = stack.group_epochs(frames)
+    # Dense captured demos follow the same ten-frame science gate as live data. Keeping a
+    # thin tail can reduce the channel intersection and bias the whole sequence. Legacy
+    # sparse packs retain the small fallback until richer captures are available.
+    epochs = select_epochs(groups, min_frames, saved is not None)
 
     job.status = "render"
     collections = sorted({f["collection"] for f in frames})
@@ -217,13 +237,17 @@ def build(job: Job) -> None:
 
     stacks: list[np.ndarray] = []
     info: dict = {"channels": [], "bandpass_matched": False}
+    astrom: list[dict | None] = []
     if epochs:
-        stacks, info = stack.stack_epochs(epochs, w, shape)
+        stacks, info, astrom = align.align_epochs(epochs, w, shape, gaia)
     stretch = (
         stack.shared_asinh(stacks)
         if stacks and any(np.isfinite(s).any() for s in stacks)
         else {"kind": "asinh", "vmin": 0.0, "vmax": 1.0, "beta": 1.0}
     )
+    # Field-star ratios only measure calibration when every epoch covers the same channels; across different
+    # bandpasses they measure colour, so unmatched stacks keep 1.0 (PLAN 5.5).
+    scales = stack.phot_scales(stacks) if info["bandpass_matched"] else [1.0] * len(stacks)
 
     epoch_rows = []
     for i, (ep, img) in enumerate(zip(epochs, stacks)):
@@ -244,13 +268,25 @@ def build(job: Job) -> None:
                 "lambda_um": [round(min(lams), 3), round(max(lams), 3)],
                 "channels": len(info["channels"]),
                 "flagged_px": _flag_counts(ep),
-                "astrom_resid_px": None,
-                "phot_scale": 1.0,
+                "astrom_resid_px": round(astrom[i]["resid_px"], 4) if astrom[i] else None,
+                "astrom_offset_px": [round(astrom[i]["dx"], 4), round(astrom[i]["dy"], 4)] if astrom[i] else None,
+                "astrom_stars": astrom[i]["n_stars"] if astrom[i] else 0,
+                "phot_scale": round(scales[i], 4),
                 "image": f"e{i}.f32",
                 "mask": f"e{i}.mask.u8",
                 "png": None,
             }
         )
+
+    # Gaia overlay (#29): where each Gaia star should be in every epoch. Absent, never fatal, when Gaia is.
+    overlay = None
+    if gaia_cat is not None and len(gaia_cat) and stacks:
+        try:
+            overlay = gaia_dr3.overlay(gaia_cat, [r["t_mean_mjd"] for r in epoch_rows], stacks, w)
+        except Exception:
+            log.exception("Gaia overlay failed for view %s", job.qk)
+    if overlay is not None:
+        (out / "gaia.json").write_text(json.dumps(overlay))
 
     hdr = w.to_header()
     manifest = {
@@ -285,7 +321,7 @@ def build(job: Job) -> None:
             for i, ep in enumerate(epochs)
             for f in ep
         ],
-        "extras": {"gaia": None, "lightcurve": None, "cube": None},
+        "extras": {"gaia": "gaia.json" if overlay else None, "lightcurve": None, "cube": None},
     }
     (out / "manifest.json").write_text(json.dumps(manifest))
     local.write_pointer(job.qk, rk, catalog_version)
@@ -309,6 +345,7 @@ def create(req: ViewRequest) -> Job:
     with LOCK:
         job = JOBS.get(qk)
         if job and job.status != "error":
+            record_cache_hit(job.status == "ready", "memory" if job.status == "ready" else "pending")
             return job
         job = Job(qk=qk, req=req)
         ptr = local.read_pointer(qk)
@@ -316,8 +353,9 @@ def create(req: ViewRequest) -> Job:
             job.status, job.from_cache = "ready", True
             job.manifest_url = f"/frames/r/{ptr['render_key']}/manifest.json"
         JOBS[qk] = job
+        record_cache_hit(job.from_cache, "local" if job.from_cache else "miss")
     if job.status != "ready":
-        POOL.submit(_run, job)
+        POOL.submit(contextvars.copy_context().run, _run, job)
     return job
 
 
@@ -356,28 +394,46 @@ def spectrum(job: Job, x: int, y: int, epoch: int) -> list[dict]:
 
 
 def lightcurve(job: Job, x: float, y: float, r_px: float = 2.0) -> list[dict]:
-    """Forced aperture photometry on every frame (PLAN 5.9): r = r_px, background annulus 4-7 px."""
+    """Forced aperture photometry on every frame (PLAN 5.9): r = r_px, background annulus 4-7 px.
+
+    The position is the clicked grid pixel. Propagating a mover's position per epoch needs Gaia (#8, #29).
+    """
     ensure_frames(job)
-    ny, nx = job.shape
-    yy, xx = np.mgrid[0:ny, 0:nx]
-    d = np.hypot(xx - x, yy - y)
-    ap, ann = d <= r_px, (d >= 4) & (d <= 7)
-    pts = []
-    for ep in job.epochs:
-        for f in ep:
-            im = f["_grid"][0]
-            bkg_px = im[ann & np.isfinite(im)]
-            if bkg_px.size < 5:
-                continue
-            bkg = float(np.median(bkg_px))
-            vals = im[ap]
-            flagged = bool((~np.isfinite(vals)).any())
-            npix = int(np.isfinite(vals).sum())
-            if npix == 0:
-                continue
-            flux = (float(np.nansum(vals)) - npix * bkg) * UJY_PER_MJYSR_PIX
-            err = float(np.std(bkg_px)) * np.sqrt(npix) * UJY_PER_MJYSR_PIX
-            pts.append(
-                {"t_mjd": f["t_mjd"], "lambda_um": f["lam_um"], "flux_ujy": flux, "err": err, "flagged": flagged}
-            )
+    w, _ = stack.common_grid(job.req.ra, job.req.dec, job.req.fov_arcmin)
+    world = SkyCoord.from_pixel(x, y, w)
+    pts = [p for ep in job.epochs for f in ep if (p := photometry.measure(f, x, y, r_px, world)) is not None]
     return sorted(pts, key=lambda p: p["t_mjd"])
+
+
+def comparison(job: Job, x: float, y: float, r_px: float = 2.0) -> dict | None:
+    """Calibration floor for the light curve: scatter of 3-6 field stars (None if the field has too few)."""
+    ensure_frames(job)
+    w, _ = stack.common_grid(job.req.ra, job.req.dec, job.req.fov_arcmin)
+    return photometry.comparison([f for ep in job.epochs for f in ep], (x, y), r_px, w)
+
+
+# ---------------------------------------------------------------- Gaia overlay (#29)
+
+
+def _render_folder(job: Job) -> Path:
+    if job.status != "ready" or not job.manifest_url:
+        raise ViewError("NOT_READY", "This view is still being built. Try again when it is ready.")
+    return config.CACHE_DIR / job.manifest_url.removeprefix("/frames/").rsplit("/", 1)[0]
+
+
+def gaia_overlay(job: Job, x: float | None = None, y: float | None = None, epoch: int = 0) -> dict:
+    """gaia.json of the view; with x and y, also the Gaia match label of the source there in one epoch."""
+    folder = _render_folder(job)
+    m = json.loads((folder / "manifest.json").read_text())
+    name = (m.get("extras") or {}).get("gaia")
+    if not name:
+        raise ViewError("NO_GAIA", "No Gaia overlay for this view: the Gaia archive did not answer when it was built.")
+    result = json.loads((folder / name).read_text())
+    result["selection"] = None
+    if x is not None and y is not None:
+        n = m["grid"]["ny"], m["grid"]["nx"]
+        if not 0 <= epoch < len(m["epochs"]):
+            raise ViewError("BAD_EPOCH", f"Epoch {epoch} is not in this view (0 to {len(m['epochs']) - 1}).")
+        stacks = [np.fromfile(folder / e["image"], "<f4").reshape(n) for e in m["epochs"]]
+        result["selection"] = gaia_dr3.match_label(result, stacks, x, y, epoch)
+    return result

@@ -11,19 +11,19 @@ Canonical agent instructions. Claude Code reads this through `CLAUDE.md` (`@AGEN
 SPHEREx releases, IRSA endpoints, and Azure limits change. Before writing code that depends on them, check the official link in `docs/LINKS.md` and record anything surprising in `docs/DECISIONS.md`.
 
 ## 3. Repo map
-- `backend/`: Python 3.11 + FastAPI. `app/api`, `app/irsa`, `app/processing`, `app/cache`.
-- `frontend/`: React + Vite + TypeScript.
+- `frontend/`: React + Vite + TypeScript app. Talks only to our backend.
+- `backend/`: Python 3.11 + FastAPI. `app/irsa` (query, cutout fetch, demo reader), `app/processing` (stacking, views), `app/cache`. In production it also serves `frontend/dist`.
+- `demo/`: real SPHEREx cutouts of the 5 targets; the backend builds presets from it, so they work with IRSA down. Rebuilt by `tools/fetch_demo.py`.
+- `Dockerfile`: one container (API + built web app) for Azure Container Apps.
 - `functions/`: Azure Functions (Python), timer-trigger new data watcher.
 - `infra/`: Azure scripts (`az`, `swa`, `func`) and `infra/README.md`.
-- `docs/`: IDEA, TARGETS, DATA, LINKS, DECISIONS, SUBMISSION.
-- `scripts/`: `update_status.py` (writes STATUS.md on main via the GitHub API).
+- `docs/`: IDEA, PLAN, TARGETS, DATA, LINKS, DECISIONS, SUBMISSION.
+- `scripts/`: `update_status.py` (writes STATUS.md on main via the GitHub API), `spike_barnard.py`.
 - `.claude/skills/`: playbooks (see section 10).
 - `.github/`: PR template, issue template, CI.
 - `STATUS.md`: one row per person, snapshot for agents.
 
 ## 4. Commands
-Once scaffolded.
-
 Backend (`backend/`):
 ```
 python -m venv .venv
@@ -37,14 +37,20 @@ uvicorn app.main:app --reload --port 8000
 Frontend (`frontend/`):
 ```
 npm ci
-npm run dev
+npm run dev        # http://localhost:5173, proxies /api and /frames to :8000
 npm run lint
 npm run build
+```
+
+Container (repo root):
+```
+docker build -t spherex-blink . && docker run -p 8000:8000 spherex-blink
 ```
 
 Functions (`functions/`):
 ```
 ruff check .
+pytest -q
 func start
 ```
 
@@ -53,7 +59,7 @@ Checks pass for every touched area, PR merged, issue closed, STATUS.md row updat
 
 ## 6. Ownership and shared hotspots
 - Work is split by feature slice, one owner per GitHub issue. Only edit files inside your issue's slice.
-- Shared hotspots: `backend/pyproject.toml`, `frontend/package.json` and lockfile, `backend/app/main.py`, `frontend/src/App.tsx`, `.github/workflows/*`, root `README.md`, `AGENTS.md`.
+- Shared hotspots: `backend/pyproject.toml`, `frontend/package.json` and lockfile, `backend/app/main.py`, `backend/app/models.py` + `frontend/src/types.ts` (the API contract), `frontend/src/App.tsx`, `Dockerfile`, `.github/workflows/*`, root `README.md`, `AGENTS.md`.
 - Before editing a hotspot, the human posts in team chat: TODO(team) channel.
 - Agents must ask the human before touching a hotspot.
 

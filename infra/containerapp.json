@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {"type": "string"},
+    "location": {"type": "string"},
+    "environmentId": {"type": "string"},
+    "identityResourceId": {"type": "string"},
+    "identityClientId": {"type": "string"},
+    "image": {"type": "string"},
+    "registryServer": {"type": "string"},
+    "storageAccountUrl": {"type": "string"},
+    "applicationInsightsName": {"type": "string", "defaultValue": "appi-planetx"},
+    "framesContainer": {"type": "string", "defaultValue": "frames"},
+    "stateContainer": {"type": "string", "defaultValue": "state"},
+    "minReplicas": {"type": "int", "defaultValue": 0, "minValue": 0, "maxValue": 1}
+  },
+  "resources": [{
+    "type": "Microsoft.App/containerApps",
+    "apiVersion": "2024-03-01",
+    "name": "[parameters('appName')]",
+    "location": "[parameters('location')]",
+    "identity": {
+      "type": "UserAssigned",
+      "userAssignedIdentities": {"[parameters('identityResourceId')]": {}}
+    },
+    "properties": {
+      "environmentId": "[parameters('environmentId')]",
+      "managedEnvironmentId": "[parameters('environmentId')]",
+      "workloadProfileName": "Consumption",
+      "configuration": {
+        "activeRevisionsMode": "Single",
+        "secrets": [{"name": "application-insights", "value": "[reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').ConnectionString]"}],
+        "registries": [{"server": "[parameters('registryServer')]", "identity": "[parameters('identityResourceId')]"}],
+        "ingress": {"external": true, "targetPort": 8000, "transport": "auto", "allowInsecure": false}
+      },
+      "template": {
+        "containers": [{
+          "name": "[parameters('appName')]",
+          "image": "[parameters('image')]",
+          "resources": {"cpu": 1.0, "memory": "2Gi"},
+          "env": [
+            {"name": "APPLICATIONINSIGHTS_CONNECTION_STRING", "secretRef": "application-insights"},
+            {"name": "AZURE_CLIENT_ID", "value": "[parameters('identityClientId')]"},
+            {"name": "STORAGE_ACCOUNT_URL", "value": "[parameters('storageAccountUrl')]"},
+            {"name": "FRAMES_CONTAINER", "value": "[parameters('framesContainer')]"},
+            {"name": "STATE_CONTAINER", "value": "[parameters('stateContainer')]"},
+            {"name": "FRAMES_PUBLIC_BASE", "value": "[concat(parameters('storageAccountUrl'), '/', parameters('framesContainer'))]"}
+          ]
+        }],
+        "scale": {"minReplicas": "[parameters('minReplicas')]", "maxReplicas": 1}
+      }
+    }
+  }]
+}

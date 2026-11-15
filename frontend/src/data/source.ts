@@ -1,4 +1,4 @@
-import { ApiRequestError, createView, fetchAsset, getViewStatus } from "../api";
+import { ApiRequestError, createView, fetchAsset, getViewStatus, registerGoldenView } from "../api";
 import { findPreset } from "../lib/targets";
 import type { Manifest, ViewRequest, ViewStage } from "../types";
 
@@ -62,7 +62,7 @@ const dirOf = (url: string) => url.slice(0, url.lastIndexOf("/") + 1);
 /** docs/PLAN.md 4.4: presets in their default view load from /golden first, which needs no backend. */
 async function tryGolden(q: ViewQuery, signal: AbortSignal): Promise<LoadedView | null> {
   const p = findPreset(q.presetId);
-  if (!p || p.fov !== q.fov_arcmin || p.band !== q.band || q.source === "live") return null;
+  if (!p || p.ra !== q.ra || p.dec !== q.dec || p.fov !== q.fov_arcmin || p.band !== q.band || q.source === "live") return null;
   const base = `/golden/${p.id}/`;
   let res: Response;
   try {
@@ -74,6 +74,9 @@ async function tryGolden(q: ViewQuery, signal: AbortSignal): Promise<LoadedView 
   if (!res.ok || !(res.headers.get("content-type") ?? "").includes("json")) return null;
   const manifest = (await res.json()) as Manifest;
   const arrays = await loadArrays(manifest, base, signal);
+  const { presetId: _presetId, ...request } = q;
+  void _presetId;
+  registerGoldenView(manifest.render_key, request);
   return { viewId: manifest.render_key, manifest, ...arrays, fromCache: true };
 }
 
