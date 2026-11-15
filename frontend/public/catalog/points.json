@@ -1,9 +1,9 @@
 {
  "version": "2026-11-15.r1",
- "generated_at": "2026-11-15T00:20:00Z",
+ "generated_at": "2026-11-15T07:11:22Z",
  "source": {
-  "kind": "local",
-  "uri": "frontend/public/catalog/points.json"
+  "kind": "azure_blob",
+  "uri": "https://stplanetxitu7q4.blob.core.windows.net/frames/catalog/points.json"
  },
  "objects": [
   {
@@ -22,6 +22,19 @@
    "provenance": {
     "catalog": "Gaia DR3",
     "ref": "https://measuredcosmos.com/stars/barnards-star"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/8955fe655c3e0dd80b3b4c21/manifest.json",
+    "query": {
+     "ra": 269.446077,
+     "dec": 4.77071,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:11Z",
+    "passes": 3
    }
   },
   {
@@ -40,6 +53,19 @@
    "provenance": {
     "catalog": "Chen et al. 2022 astrometric solution",
     "ref": "https://www.pure.ed.ac.uk/ws/portalfiles/portal/372528683/2205.08077v1.pdf"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/7228801a427650c9aede88d5/manifest.json",
+    "query": {
+     "ra": 331.098332,
+     "dec": -56.801701,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:11Z",
+    "passes": 4
    }
   },
   {
@@ -58,6 +84,19 @@
    "provenance": {
     "catalog": "WISE and Spitzer astrometry literature",
     "ref": "https://en.wikipedia.org/wiki/WISE_0855%E2%88%920714"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/d38e5f47bc8b66a4a3650486/manifest.json",
+    "query": {
+     "ra": 133.757501,
+     "dec": -7.242057,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:12Z",
+    "passes": 3
    }
   },
   {
@@ -76,6 +115,19 @@
    "provenance": {
     "catalog": "Gaia DR3",
     "ref": "https://onlinelibrary.wiley.com/doi/full/10.1002/asna.20230118"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/759efeeb24a6a5efdaf0993b/manifest.json",
+    "query": {
+     "ra": 76.956712,
+     "dec": 30.401207,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:12Z",
+    "passes": 3
    }
   },
   {
@@ -94,6 +146,19 @@
    "provenance": {
     "catalog": "Gaia DR3 via SIMBAD",
     "ref": "https://simbad.u-strasbg.fr/simbad/sim-id?Ident=R+Dra"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/d6154ebc60a2a8d5f61d8cb6/manifest.json",
+    "query": {
+     "ra": 248.16722,
+     "dec": 66.755026,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:12Z",
+    "passes": 9
    }
   },
   {
@@ -112,6 +177,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Proxima+Cen"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/3c35ae39851ccd373b134b7e/manifest.json",
+    "query": {
+     "ra": 217.367437,
+     "dec": -62.673746,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:12Z",
+    "passes": 3
    }
   },
   {
@@ -130,6 +208,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+33793"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/a65a48029690639749a4e54a/manifest.json",
+    "query": {
+     "ra": 77.987702,
+     "dec": -45.060805,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:13Z",
+    "passes": 3
    }
   },
   {
@@ -148,6 +239,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+103095"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/9bb167c822cb5a88aec602e5/manifest.json",
+    "query": {
+     "ra": 178.283368,
+     "dec": 37.67524,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:13Z",
+    "passes": 3
    }
   },
   {
@@ -166,6 +270,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+217987"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/1b61b8c7a699d4f4f80c2a18/manifest.json",
+    "query": {
+     "ra": 346.52915,
+     "dec": -35.843163,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:13Z",
+    "passes": 3
    }
   },
   {
@@ -184,6 +301,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Wolf+28"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/97c347c92889cf6297797045/manifest.json",
+    "query": {
+     "ra": 12.30581,
+     "dec": 5.367059,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:13Z",
+    "passes": 3
    }
   },
   {
@@ -202,6 +332,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Wolf+359"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/22fa5b760d7dd08aa70c478d/manifest.json",
+    "query": {
+     "ra": 164.091382,
+     "dec": 6.994315,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:14Z",
+    "passes": 3
    }
   },
   {
@@ -220,6 +363,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Ross+128"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/d46bf6d06463472eb663ef51/manifest.json",
+    "query": {
+     "ra": 176.939621,
+     "dec": 0.795414,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:14Z",
+    "passes": 3
    }
   },
   {
@@ -238,6 +394,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=GJ+273"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/1fe7e079bcce2b5a38f2c7da/manifest.json",
+    "query": {
+     "ra": 111.85639,
+     "dec": 5.197441,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:14Z",
+    "passes": 2
    }
   },
   {
@@ -256,6 +425,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=NAME+Teegarden%27s+Star"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/ee7cdf1244e04bf8173c5351/manifest.json",
+    "query": {
+     "ra": 43.280465,
+     "dec": 16.852881,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:14Z",
+    "passes": 3
    }
   },
   {
@@ -274,6 +456,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+95735"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/e15a292c852a5865cd301acd/manifest.json",
+    "query": {
+     "ra": 165.828775,
+     "dec": 35.934223,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:15Z",
+    "passes": 3
    }
   },
   {
@@ -292,6 +487,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=GJ+1"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/bfcc3666391018c05eb5f7cf/manifest.json",
+    "query": {
+     "ra": 1.3629,
+     "dec": -37.369915,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:15Z",
+    "passes": 3
    }
   },
   {
@@ -310,6 +518,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+173739"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/65916e10f797786872515094/manifest.json",
+    "query": {
+     "ra": 280.702659,
+     "dec": 59.645769,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:15Z",
+    "passes": 5
    }
   },
   {
@@ -328,6 +549,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+173740"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/1c282165fbd69182fff6ecd3/manifest.json",
+    "query": {
+     "ra": 280.715289,
+     "dec": 59.643465,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:15Z",
+    "passes": 5
    }
   },
   {
@@ -346,6 +580,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Ross+248"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/df0832bd150c64b2fcaf69cd/manifest.json",
+    "query": {
+     "ra": 355.477637,
+     "dec": 44.165384,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:16Z",
+    "passes": 3
    }
   },
   {
@@ -364,6 +611,19 @@
    "provenance": {
     "catalog": "SIMBAD (2MASS / Cutri et al. 2003)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Luhman+16"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/234cfed205dd449798f8201a/manifest.json",
+    "query": {
+     "ra": 162.294232,
+     "dec": -53.316802,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:16Z",
+    "passes": 3
    }
   },
   {
@@ -382,6 +642,19 @@
    "provenance": {
     "catalog": "SIMBAD (Dupuy & Liu 2012)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J072227.27-054029.9"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/23f33cbea610d4c57de4235d/manifest.json",
+    "query": {
+     "ra": 110.609497,
+     "dec": -5.672346,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:16Z",
+    "passes": 2
    }
   },
   {
@@ -400,6 +673,19 @@
    "provenance": {
     "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J182831.08%2B265037.7"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/50e0cd107b6b26ee74459068/manifest.json",
+    "query": {
+     "ra": 277.134791,
+     "dec": 26.845057,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:16Z",
+    "passes": 3
    }
   },
   {
@@ -418,6 +704,19 @@
    "provenance": {
     "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J035000.32-565830.2"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/efe7c7fb806ec90dc30b52d3/manifest.json",
+    "query": {
+     "ra": 57.506078,
+     "dec": -56.971359,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:17Z",
+    "passes": 3
    }
   },
   {
@@ -436,6 +735,19 @@
    "provenance": {
     "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J154151.65-225024.9"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/c541f81b896137440872a4e2/manifest.json",
+    "query": {
+     "ra": 235.460559,
+     "dec": -22.840932,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:16Z",
+    "passes": 3
    }
   },
   {
@@ -454,6 +766,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=GJ+229+B"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/860c000eca224b7b6deedbe6/manifest.json",
+    "query": {
+     "ra": 92.658769,
+     "dec": -21.763749,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:17Z",
+    "passes": 3
    }
   },
   {
@@ -472,6 +797,19 @@
    "provenance": {
     "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISEA+J153429.75-104303.3"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/324bbc4e699708d7928268ab/manifest.json",
+    "query": {
+     "ra": 233.638325,
+     "dec": -10.736225,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:17Z",
+    "passes": 3
    }
   },
   {
@@ -490,6 +828,19 @@
    "provenance": {
     "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISEA+J083011.95%2B283716.0"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/7a377c45da748476d99a7614/manifest.json",
+    "query": {
+     "ra": 127.548219,
+     "dec": 28.605782,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:18Z",
+    "passes": 2
    }
   },
   {
@@ -508,6 +859,19 @@
    "provenance": {
     "catalog": "SIMBAD (Marocco et al. 2021)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J124908.94%2B362122.4"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/94376b333970492e77f37afa/manifest.json",
+    "query": {
+     "ra": 192.284466,
+     "dec": 36.35016,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:18Z",
+    "passes": 3
    }
   },
   {
@@ -526,6 +890,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=GJ+570+D"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/edabb8af5465a7deea2c290c/manifest.json",
+    "query": {
+     "ra": 224.269088,
+     "dec": -21.011988,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:18Z",
+    "passes": 3
    }
   },
   {
@@ -544,6 +921,19 @@
    "provenance": {
     "catalog": "SIMBAD (Kasper et al. 2006)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=SCR+J1845-6357B"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/79709e71dc3ac3b14e38c54d/manifest.json",
+    "query": {
+     "ra": 281.230046,
+     "dec": -63.958659,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:18Z",
+    "passes": 3
    }
   },
   {
@@ -562,6 +952,19 @@
    "provenance": {
     "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J053516.80-750024.9"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/1b758f4eedacc57785c437d6/manifest.json",
+    "query": {
+     "ra": 83.824743,
+     "dec": -75.00671,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:18Z",
+    "passes": 6
    }
   },
   {
@@ -580,6 +983,19 @@
    "provenance": {
     "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J205628.91%2B145953.2"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/6caf8e681f8a2e79960f3f41/manifest.json",
+    "query": {
+     "ra": 314.124337,
+     "dec": 15.002439,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:19Z",
+    "passes": 3
    }
   },
   {
@@ -598,6 +1014,19 @@
    "provenance": {
     "catalog": "SIMBAD (Burningham et al. 2009)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Wolf+940B"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/d870c6584291fedab841b60b/manifest.json",
+    "query": {
+     "ra": 324.889919,
+     "dec": -0.220399,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:19Z",
+    "passes": 3
    }
   },
   {
@@ -616,6 +1045,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=T+Tau"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/04312d0562c5f3606150cfc1/manifest.json",
+    "query": {
+     "ra": 65.497726,
+     "dec": 19.535013,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:19Z",
+    "passes": 3
    }
   },
   {
@@ -634,6 +1076,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=FU+Ori"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/ee84d3dece6d17e1e5b9b651/manifest.json",
+    "query": {
+     "ra": 86.343205,
+     "dec": 9.070062,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:19Z",
+    "passes": 3
    }
   },
   {
@@ -652,6 +1107,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V%2A+V1647+Ori"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/abf8bdee9dc9f5b6ccb3427c/manifest.json",
+    "query": {
+     "ra": 86.581524,
+     "dec": -0.101194,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:20Z",
+    "passes": 3
    }
   },
   {
@@ -670,6 +1138,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=chi+Cyg"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/07f7464dea9442eca375efe2/manifest.json",
+    "query": {
+     "ra": 296.904894,
+     "dec": 32.913921,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:20Z",
+    "passes": 4
    }
   },
   {
@@ -688,6 +1169,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=R+Leo"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/e95bcf89b8896a8447d730f9/manifest.json",
+    "query": {
+     "ra": 146.77671,
+     "dec": 11.428666,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:20Z",
+    "passes": 2
    }
   },
   {
@@ -706,6 +1200,19 @@
    "provenance": {
     "catalog": "SIMBAD (2MASS / Cutri et al. 2003)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=IRC+%2B10216"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/74474276e96870d6ce7b48a1/manifest.json",
+    "query": {
+     "ra": 146.989453,
+     "dec": 13.278843,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:20Z",
+    "passes": 3
    }
   },
   {
@@ -724,6 +1231,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V1057+Cyg"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/0b0d148951d01ee6520ee4e5/manifest.json",
+    "query": {
+     "ra": 314.654244,
+     "dec": 44.249461,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:20Z",
+    "passes": 3
    }
   },
   {
@@ -742,6 +1262,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V1515+Cyg"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/91f1fbc294ca52a037a0fb3a/manifest.json",
+    "query": {
+     "ra": 305.938836,
+     "dec": 51.841344,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:21Z",
+    "passes": 3
    }
   },
   {
@@ -760,6 +1293,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=EX+Lup"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/0ebe992d7fc5e405d93a089a/manifest.json",
+    "query": {
+     "ra": 242.067216,
+     "dec": -40.313114,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:21Z",
+    "passes": 3
    }
   },
   {
@@ -778,6 +1324,19 @@
    "provenance": {
     "catalog": "SIMBAD (2MASS / Cutri et al. 2003)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V346+Nor"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/0cc44532009cd43760ea424d/manifest.json",
+    "query": {
+     "ra": 248.064583,
+     "dec": -44.757778,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:21Z",
+    "passes": 3
    }
   },
   {
@@ -796,6 +1355,19 @@
    "provenance": {
     "catalog": "SIMBAD (Hipparcos)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Z+CMa"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/b5bcb20b065751092b138e26/manifest.json",
+    "query": {
+     "ra": 105.908298,
+     "dec": -11.554413,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:21Z",
+    "passes": 3
    }
   },
   {
@@ -814,6 +1386,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V883+Ori"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/e3fb44be84708d26a4242d4b/manifest.json",
+    "query": {
+     "ra": 84.588749,
+     "dec": -7.039657,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:22Z",
+    "passes": 3
    }
   },
   {
@@ -832,6 +1417,19 @@
    "provenance": {
     "catalog": "SIMBAD (Gaia DR3)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=PV+Cep"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/8e5b15c9b437995543d6190d/manifest.json",
+    "query": {
+     "ra": 313.238298,
+     "dec": 67.962349,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:22Z",
+    "passes": 3
    }
   },
   {
@@ -850,6 +1448,19 @@
    "provenance": {
     "catalog": "SIMBAD (Hipparcos)",
     "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=DG+Tau"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/df7e665b6679cefc621bee28/manifest.json",
+    "query": {
+     "ra": 66.772644,
+     "dec": 26.027434,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:22Z",
+    "passes": 3
    }
   }
  ]
