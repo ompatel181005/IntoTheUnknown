@@ -418,6 +418,8 @@ export default function App({ source }: { source: ViewSource }) {
               onSeek={pb.seek}
               onMode={setMode}
               onCustomize={() => setCustomizeOpen(!customizeOpen)}
+              onDetails={() => openPanel(drawerOpen ? null : "pass")}
+              detailsOpen={drawerOpen}
             />
           </div>
         )
