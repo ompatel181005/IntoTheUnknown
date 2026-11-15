@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import type { LoadedView } from "../../data/source";
 import { useCatalog } from "../../hooks/useCatalog";
 import type { ViewState as LoadState } from "../../hooks/useView";
-import { markFlight, registerDomeFlight, setFlightFocus } from "../../lib/flight";
+import { flightIsActive, getFlightStartPose, markFlight, setDomeDestination, subscribeFlight, type FlightPose } from "../../lib/flight";
 import { formatDec, formatRa } from "../../lib/format";
 import { renderDifference, renderEpoch, tokenRgb } from "../../lib/stretch";
 import { PRESETS, type Preset } from "../../lib/targets";
@@ -37,9 +37,7 @@ interface SkyStageProps {
   onSelect: (xy: [number, number] | null) => void;
   onRetry: () => void;
   onPreset: (p: Preset) => void;
-  /** Opening a target from the home orrery; `from` is where the flight ended on screen. */
   onOpenFromHome: (p: Preset, from: { x: number; y: number } | null) => void;
-  flightOrigin: { x: number; y: number } | null;
   onFlightStart: (p: Preset) => void;
   onFlightEnd: () => void;
   /** Move the measuring cursor without opening the drawer (keyboard). */
@@ -56,24 +54,29 @@ export function SkyStage(props: SkyStageProps) {
   useEffect(() => {
     if (load.kind === "ready") markFlight("data-ready");
   }, [load.kind]);
-  if (load.kind === "idle") return <Home targets={catalog.catalog?.objects ?? NO_TARGETS} onPick={props.onOpenFromHome} onFlightStart={props.onFlightStart} onFlightEnd={props.onFlightEnd} onTour={props.onTour} flying={props.flying} onFullscreen={props.onFullscreen} />;
+  const home = load.kind === "idle";
   const empty = load.kind === "ready" && load.view.manifest.epochs.length === 0;
   return (
-    <section className={s.stage} aria-label="Sky view">
-      {load.kind === "error" && <ErrorCard message={load.message} onRetry={props.onRetry} />}
-      {empty && <NoCoverage onRetry={props.onRetry} />}
-      {(load.kind === "loading" || (load.kind === "ready" && !empty)) && (
-        // Keyed by position so the telescope zoom plays once per target, not again when data arrives.
-        <Eyepiece key={`${props.ra},${props.dec}`} {...props} view={load.kind === "ready" ? load.view : null}>
-          {load.kind === "loading" && <Loading load={load} />}
-        </Eyepiece>
-      )}
-    </section>
+    <>
+      <div className={s.homeLayer} data-home={home}>
+        <Home active={home} targets={catalog.catalog?.objects ?? NO_TARGETS} onPick={props.onOpenFromHome} onFlightStart={props.onFlightStart} onFlightEnd={props.onFlightEnd} onTour={props.onTour} flying={props.flying} onFullscreen={props.onFullscreen} />
+      </div>
+      {!home && <section className={s.stage} aria-label="Sky view">
+        {load.kind === "error" && <ErrorCard message={load.message} onRetry={props.onRetry} />}
+        {empty && <NoCoverage onRetry={props.onRetry} />}
+        {(load.kind === "loading" || (load.kind === "ready" && !empty)) && (
+          <Eyepiece key={`${props.ra},${props.dec}`} {...props} view={load.kind === "ready" ? load.view : null}>
+            {load.kind === "loading" && <Loading load={load} />}
+          </Eyepiece>
+        )}
+      </section>}
+    </>
   );
 }
 
 /** First visit: a live holographic orrery, with the five targets on the sky around the solar system. */
 function Home({
+  active,
   targets,
   onPick,
   onFlightStart,
@@ -81,6 +84,7 @@ function Home({
   flying,
   onFullscreen,
 }: {
+  active: boolean;
   targets: readonly CatalogObject[];
   onPick: (p: Preset, from: { x: number; y: number } | null) => void;
   onFlightStart: (p: Preset) => void;
@@ -112,6 +116,7 @@ function Home({
       </div>
       <div className={s.homeMap} data-tour="orrery">
         <Orrery
+          active={active}
           targets={targets}
           onPick={(object, from) => {
             const preset = PRESETS.find((candidate) => candidate.id === object.preset_id);
@@ -152,121 +157,92 @@ function Home({
 function useBox<T extends HTMLElement>() {
   const ref = useRef<T>(null);
   const [box, setBox] = useState<{ left: number; top: number; side: number; vw: number; vh: number } | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     const measure = () => {
-      // Mid-zoom the frame is scaled and offset; measuring then would place the grid wrongly.
-      if (el.closest("[data-zooming]")) return;
-      const r = el.getBoundingClientRect();
-      const next = { left: Math.round(r.left), top: Math.round(r.top), side: Math.round(r.width), vw: window.innerWidth, vh: window.innerHeight };
-      setBox((prev) =>
-        prev && prev.left === next.left && prev.top === next.top && prev.side === next.side && prev.vw === next.vw && prev.vh === next.vh
-          ? prev
-          : next,
-      );
+      // Local geometry never includes the flight or drawer transform.
+      const side = parseFloat(getComputedStyle(el).width);
+      setBox((prev) => prev && prev.side === side && prev.vw === innerWidth && prev.vh === innerHeight
+        ? prev : { left: 0, top: 0, side, vw: innerWidth, vh: innerHeight });
     };
+    measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    const stage = el.closest("section");
-    if (stage) ro.observe(stage);
-    const onTransitionEnd = (event: TransitionEvent) => {
-      if (event.propertyName.startsWith("padding")) measure();
-    };
     window.addEventListener("resize", measure);
-    window.addEventListener("spherex:dome-landed", measure);
-    document.addEventListener("transitionend", onTransitionEnd);
-    const raf = requestAnimationFrame(measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("spherex:dome-landed", measure);
-      document.removeEventListener("transitionend", onTransitionEnd);
-      cancelAnimationFrame(raf);
-    };
+    return () => { ro.disconnect(); window.removeEventListener("resize", measure); };
   }, []);
   return [ref, box] as const;
 }
 
-/** The dome: circular frame, position-angle ring, RA/Dec grid across the sky, and the target label. */
+/** Every visible part of the eyepiece shares this one coordinate system and transform. */
 function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: ReactNode }) {
   const { view, ra, dec, index, mode } = props;
   const [frameRef, box] = useBox<HTMLDivElement>();
   const columnRef = useRef<HTMLDivElement>(null);
-  const onFlightEndRef = useRef(props.onFlightEnd);
-  useEffect(() => {
-    onFlightEndRef.current = props.onFlightEnd;
-  }, [props.onFlightEnd]);
-  // Captured once at mount: the dome grows out of the spot the flight ended (or the centre).
-  const [origin] = useState(() => {
-    markFlight("eyepiece-render");
-    return props.flightOrigin;
-  });
+  const previousLayout = useRef<FlightPose | null>(null);
+  const flip = useRef<Animation | null>(null);
+  const layout = useRef<FlightPose | null>(null);
 
-  // Telescope zoom on the real DOM (stays crisp, unlike a scaled snapshot), one easing for the whole move.
   useLayoutEffect(() => {
-    markFlight("eyepiece-layout");
-    const col = columnRef.current;
-    if (!col) return;
+    const col = columnRef.current, frame = frameRef.current;
+    if (!col || !frame) return;
+    const r = frame.getBoundingClientRect();
+    const destination = { x: r.left + r.width / 2, y: r.top + r.height / 2, side: r.width };
+    layout.current = destination;
+    setDomeDestination(destination);
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const r = col.getBoundingClientRect();
-    setFlightFocus(r.left + r.width / 2, r.top + r.height / 2);
-    const dx = origin ? origin.x - (r.left + r.width / 2) : 0;
-    const dy = origin ? origin.y - (r.top + r.height / 2) : 0;
-    col.dataset.zooming = "1";
-    let cancelled = false;
-    const land = () => {
-      if (cancelled) return;
-      markFlight("dome-land");
-      delete col.dataset.zooming;
-      window.dispatchEvent(new Event("spherex:dome-landed"));
-      const defer = window.requestIdleCallback ?? ((callback: IdleRequestCallback) => window.setTimeout(callback, 50));
-      defer(() => onFlightEndRef.current?.(), { timeout: 200 });
+    const apply = (pose: FlightPose) => {
+      const base = layout.current ?? destination;
+      col.style.transform = `translate3d(${pose.x - base.x}px, ${pose.y - base.y}px, 0) scale(${pose.side / base.side})`;
     };
-    const unregister = registerDomeFlight({
-      centre: () => {
-        const box = col.getBoundingClientRect();
-        return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
-      },
-      shrink: async () => {
-        if (typeof col.animate !== "function") return;
-        const box = col.getBoundingClientRect();
-        const x = window.innerWidth / 2 - (box.left + box.width / 2);
-        const y = window.innerHeight / 2 - (box.top + box.height / 2);
-        col.dataset.zooming = "1";
-        const animation = col.animate(
-          [
-            { transform: "translate(0, 0) scale(1)", opacity: 1 },
-            { transform: `translate(${x}px, ${y}px) scale(0.06)`, opacity: 0 },
-          ],
-          { duration: reduce ? 150 : 300, easing: "cubic-bezier(0.65, 0, 0.35, 1)", fill: "forwards" },
-        );
-        await animation.finished.catch(() => undefined);
-        delete col.dataset.zooming;
-      },
-    });
-    if (typeof col.animate !== "function") {
-      land();
-      return unregister;
+    if (flightIsActive()) {
+      col.dataset.flight = reduce ? "reduced" : "forward";
+      const start = getFlightStartPose();
+      if (start && !reduce) apply(start);
+      if (reduce) col.style.opacity = "0";
     }
-    const zoom = reduce
-      ? col.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: "linear" })
-      : col.animate(
-          [
-            { transform: `translate(${dx}px, ${dy}px) scale(0.06)`, opacity: 0 },
-            { opacity: 1, offset: 0.3 },
-            { transform: "translate(0, 0) scale(1)", opacity: 1 },
-          ],
-          { duration: 750, easing: "cubic-bezier(0.65, 0, 0.35, 1)" },
-        );
-    zoom.finished.then(land, land);
+    const unsubscribe = subscribeFlight((sample) => {
+      if (sample.progress === 0) flip.current?.cancel();
+      col.dataset.flight = sample.reduced ? "reduced" : sample.direction === 1 ? "forward" : "return";
+      if (sample.reduced) {
+        col.style.opacity = String(sample.direction === 1 ? sample.progress : 1 - sample.progress);
+      } else apply(sample.pose);
+      if (sample.progress === 1 && sample.direction === 1) {
+        delete col.dataset.flight;
+        col.style.removeProperty("transform");
+        col.style.removeProperty("opacity");
+      }
+    });
     return () => {
-      cancelled = true;
-      zoom.cancel();
-      delete col.dataset.zooming;
-      unregister();
+      unsubscribe();
+      flip.current?.cancel();
+      col.style.removeProperty("transform");
+      col.style.removeProperty("opacity");
+      delete col.dataset.flight;
     };
-  }, [origin]);
+  }, [frameRef]);
+
+  // FLIP the shared parent after instantaneous layout. Interrupted toggles start at the visible pose.
+  useLayoutEffect(() => {
+    const col = columnRef.current, frame = frameRef.current;
+    if (!col || !frame || props.flying || flightIsActive()) { previousLayout.current = null; return; }
+    const previous = previousLayout.current;
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(col).transform);
+    const visible = previous ? { x: previous.x + matrix.e, y: previous.y + matrix.f, side: previous.side * matrix.a } : null;
+    flip.current?.cancel();
+    const r = frame.getBoundingClientRect();
+    const next = { x: r.left + r.width / 2, y: r.top + r.height / 2, side: r.width };
+    previousLayout.current = next;
+    layout.current = next;
+    setDomeDestination(next);
+    if (!visible || Math.abs(visible.x - next.x) + Math.abs(visible.y - next.y) + Math.abs(visible.side - next.side) < 0.1) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    flip.current = col.animate([
+      { transform: `translate3d(${visible.x - next.x}px, ${visible.y - next.y}px, 0) scale(${visible.side / next.side})` },
+      { transform: "translate3d(0, 0, 0) scale(1)" },
+    ], { duration: 180, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+  });
   const m = view?.manifest;
   const fovDeg = m ? (m.grid.nx * m.grid.pix_arcsec) / 3600 : props.fov / 60;
   const fovArcmin = fovDeg * 60;
@@ -285,21 +261,21 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
   );
 
   // Room between the frame and the tool rail on the right (rail 52px + gutters).
-  const labelRoom = box ? box.vw - (box.left + box.side / 2 + (box.side / 2 + 36) * 0.7071 + 60) - 84 : 0;
+  const labelRoom = box ? (box.vw - box.side) / 2 - 150 : 0;
   const showLabel = props.showLabel && labelRoom > 160 && box !== null;
 
   return (
-    <>
+    <div ref={columnRef} className={s.column} data-eyepiece>
       {box && outer && (
         <svg
-          className={`${s.sky} ${s.skyIn}`}
-          width={box.vw}
-          height={box.vh}
+          className={s.sky}
+          viewBox={`0 0 ${box.side} ${box.side}`}
+          width="100%"
           aria-hidden="true"
         >
           <defs>
             <mask id="frame-hole">
-              <rect width={box.vw} height={box.vh} fill="white" />
+              <rect x={-box.vw} y={-box.vh} width={box.vw * 3} height={box.vh * 3} fill="white" />
               <circle cx={box.left + box.side / 2} cy={box.top + box.side / 2} r={box.side / 2 + 1} fill="black" />
             </mask>
           </defs>
@@ -323,7 +299,7 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
         </svg>
       )}
 
-      <div ref={columnRef} className={s.column}>
+      <div className={s.imageColumn}>
         <div className={`${s.topRow} mono`}>
           <ScaleBar side={box?.side ?? 0} fovArcmin={fovArcmin} />
           {diff ? (
@@ -400,12 +376,16 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
             props.children
           )}
         </div>
-        <div className={s.bottomRow} />
+        <div className={s.bottomRow}>
+          {!showLabel && ra !== null && dec !== null && (
+            <span className={`${s.positionReadout} mono`}>RA {formatRa(ra)} <span>DEC {formatDec(dec)}</span></span>
+          )}
+        </div>
       </div>
 
       {showLabel && box && (
         <TargetLabel
-          className={s.labelIn}
+          className=""
           left={box.left + box.side / 2 + (box.side / 2 + 36) * 0.7071 + 60}
           top={box.top + box.side / 2 - (box.side / 2 + 36) * 0.7071 - 20}
           maxWidth={Math.min(280, labelRoom)}
@@ -417,57 +397,19 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
           provenance={view?.manifest.origin ? `SPHEREx Level 2 · ${view.manifest.origin.kind === "saved" ? "Saved cutouts" : "Live archive"} · North up · East left` : null}
         />
       )}
-    </>
+    </div>
   );
 }
 
-/** Planetarium rim: an atmosphere glow, a position-angle ring with ticks every 5°, and N/E/S/W (east left). */
+/** One hairline rim, with north up and east left. */
 function DomeRing({ left, top, side }: { left: number; top: number; side: number }) {
-  const cx = left + side / 2;
-  const cy = top + side / 2;
-  const r = side / 2;
-  const ring = r + 10;
-  const ticks = Array.from({ length: 72 }, (_, i) => {
-    const pa = i * 5; // degrees east of north
-    const a = (pa * Math.PI) / 180;
-    const len = pa % 30 === 0 ? 8 : 4;
-    // North up, east left: screen angle measured from up, counter-clockwise.
-    const sx = Math.sin(a);
-    const sy = Math.cos(a);
-    return `M${cx - sx * ring},${cy - sy * ring}L${cx - sx * (ring + len)},${cy - sy * (ring + len)}`;
-  }).join("");
-  const letters: [string, number][] = [
-    ["N", 0],
-    ["E", 90],
-    ["S", 180],
-    ["W", 270],
-  ];
+  const cx = left + side / 2, cy = top + side / 2, r = side / 2 + 10;
   return (
-    <g>
-      <defs>
-        <radialGradient id="atmo" cx={cx} cy={cy} r={r + 70} gradientUnits="userSpaceOnUse">
-          <stop offset={r / (r + 70)} stopColor="var(--sky-band)" stopOpacity="0.28" />
-          <stop offset="1" stopColor="var(--sky-band)" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <circle cx={cx} cy={cy} r={r + 70} fill="url(#atmo)" />
-      <circle cx={cx} cy={cy} r={ring} className={s.ringLine} />
-      <path d={ticks} className={s.ticks} />
-      {letters.map(([t, pa]) => {
-        const a = (pa * Math.PI) / 180;
-        return (
-          <text
-            key={t}
-            x={cx - Math.sin(a) * (ring + 22)}
-            y={cy - Math.cos(a) * (ring + 22)}
-            className={s.cardinal}
-            textAnchor="middle"
-            dominantBaseline="central"
-          >
-            {t}
-          </text>
-        );
-      })}
+    <g data-dome-ring>
+      <circle cx={cx} cy={cy} r={r} className={s.ringLine} />
+      <path d={`M${cx},${cy - r}v-7M${cx - r},${cy}h-7`} className={s.ticks} />
+      <text x={cx} y={cy - r - 18} className={s.cardinal} textAnchor="middle" dominantBaseline="central">N</text>
+      <text x={cx - r - 20} y={cy} className={s.cardinal} textAnchor="middle" dominantBaseline="central">E</text>
     </g>
   );
 }
@@ -621,6 +563,7 @@ function FrameCanvas({ view, index, mode, stretch, invert, smooth, gain, refInde
     ctx.clearRect(0, 0, cv.width, cv.height);
     markFlight("image-upload-start");
     ctx.drawImage(src, 0, 0, cv.width, cv.height);
+    cv.dataset.ready = "true";
     markFlight("image-upload-end");
   }, [images, index, mode, stretch, invert, smooth, gain, refIndex, nx, ny, m, k]);
 

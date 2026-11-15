@@ -97,22 +97,8 @@
 
 .target:hover .ring::before,
 .target:focus-visible .ring::before {
-  scale: 1.2;
+  opacity: 1;
 }
-
-/* One outward pulse on the target you picked. */
-.target[data-picked="true"] .ring::before {
-  animation: pulse 600ms var(--ease-cinematic);
-}
-
-@keyframes pulse {
-  to {
-    scale: 3;
-    opacity: 0;
-  }
-}
-
-
 
 .target[data-label-left="true"] .label {
   text-align: right;
@@ -211,4 +197,14 @@
   .target {
     transition: none;
   }
+}
+
+.orrery[data-active="false"] .canvas,
+.orrery[data-active="false"] .target {
+  pointer-events: none !important;
+}
+
+:global([data-app-shell][data-flying="true"]) .target[data-flight-target="true"] .ring,
+:global([data-app-shell][data-flying="true"]) .target[data-flight-target="true"] .label {
+  visibility: hidden;
 }

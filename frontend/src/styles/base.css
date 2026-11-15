@@ -126,7 +126,6 @@ button:disabled {
 /* Pause the existing dock entrance so its delay still begins at the reveal. */
 [data-app-shell] > div:has(> [data-flight-chrome="playback"][aria-hidden="true"]) {
   animation-play-state: paused;
-  height: 0;
 }
 
 [data-flight-chrome="panels"][aria-hidden="true"] > * {

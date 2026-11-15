@@ -19,8 +19,7 @@ import { useIdle } from "./hooks/useIdle";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import { usePlayback } from "./hooks/usePlayback";
 import { useView } from "./hooks/useView";
-import { DATA_CREDIT } from "./lib/brand";
-import { markFlight, prepareReturnFlight, shrinkDomeForHome } from "./lib/flight";
+import { markFlight, prepareReturnFlight, requestTargetFlight } from "./lib/flight";
 import { readFlag, writeFlag } from "./lib/storage";
 import { findPreset, PRESETS, type Preset } from "./lib/targets";
 import { DEFAULTS, parseUrl, toSearch, type Panel, type ViewMode, type ViewState } from "./lib/url";
@@ -108,7 +107,6 @@ export default function App({ source }: { source: ViewSource }) {
 
   const pickPreset = (p: Preset) => update({ ra: p.ra, dec: p.dec, fov: p.fov, band: p.band, target: p.id, epoch: 0, sel: null, ref: 0 });
   // Starfield jump starts the instant a flight starts, before the target is committed.
-  const [flightKey, setFlightKey] = useState<string | null>(null);
   const [flightActive, setFlightActive] = useState(false);
   // Prepare controls after first paint, rather than mounting them at landing.
   const [chromeReady, setChromeReady] = useState(false);
@@ -119,39 +117,33 @@ export default function App({ source }: { source: ViewSource }) {
   const returningHome = useRef(false);
   const finishFlight = useCallback(() => {
     returningHome.current = false;
-    window.setTimeout(() => {
-      markFlight("chrome-reveal");
-      setFlightActive(false);
-    }, reducedMotion ? 0 : 250);
-  }, [reducedMotion]);
-  /** Where on screen the last home flight ended, so the dome can grow out of that spot. */
-  const [flightOrigin, setFlightOrigin] = useState<{ x: number; y: number } | null>(null);
-  const openFromHome = (p: Preset, from: { x: number; y: number } | null) => {
+    markFlight("chrome-reveal");
+    setFlightActive(false);
+  }, []);
+  const openFromHome = (p: Preset) => {
     markFlight("target-mount");
-    setFlightOrigin(from);
     pickPreset(p);
   };
   const pickCoords = (ra: number, dec: number) => {
-    setFlightOrigin(null);
-    setFlightActive(true);
+    if (flightActive) return;
     update({ ra, dec, target: null, epoch: 0, sel: null, ref: 0 });
   };
-  /** Target chips and search: no home flight, so the dome zooms from the centre. */
   const pickFromBar = (p: Preset) => {
+    if (flightActive) return;
     markFlight("search-start");
-    setFlightOrigin(null);
-    setFlightActive(true);
+    if (url.ra === null && requestTargetFlight(p.id)) return;
     pickPreset(p);
   };
   const goHome = () => {
-    if (url.ra === null || url.dec === null || returningHome.current) return;
+    if (url.ra === null || url.dec === null || returningHome.current || flightActive) return;
     markFlight("home-start");
     returningHome.current = true;
     setFlightActive(true);
-    prepareReturnFlight({ id: preset?.id ?? null, ra: url.ra, dec: url.dec });
-    void shrinkDomeForHome().then(() => {
-      setFlightKey(null);
+    const r = document.querySelector('[data-tour="dome"]')?.getBoundingClientRect();
+    const dome = r ? { x: r.left + r.width / 2, y: r.top + r.height / 2, side: r.width } : null;
+    void prepareReturnFlight({ id: preset?.id ?? null, ra: url.ra, dec: url.dec }, dome).then(() => {
       update({ ra: null, dec: null, target: null, epoch: 0, panel: null, mode: "all", sel: null });
+      finishFlight();
     });
   };
   const openPanel = (panel: Panel | null) => {
@@ -275,16 +267,6 @@ export default function App({ source }: { source: ViewSource }) {
   const guideDone: [boolean, boolean, boolean] = [load.kind !== "idle", pb.played, pb.loops > 0];
   const showGuide = !guideHidden && !(mobile && (drawerOpen || sheetOpen));
 
-  const status = view
-    ? [
-        view.label ?? null,
-        view.manifest.catalog.collections.join(" + "),
-        `${epochs.length} ${epochs.length === 1 ? "pass" : "passes"}`,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : DATA_CREDIT;
-
   const left = mobile || load.kind === "idle" ? GUTTER : customizeOpen ? PANEL_W + GUTTER * 2 : 44 + GUTTER * 2;
   const right = mobile ? GUTTER : drawerOpen ? DRAWER_W + RAIL_W + GUTTER * 3 : RAIL_W + GUTTER * 2;
   // The map and the dome are centred on the screen, so the stage reserves the same space on both sides.
@@ -306,7 +288,6 @@ export default function App({ source }: { source: ViewSource }) {
       backdrop={
         <SkyBackdrop
           dim={load.kind !== "idle"}
-          travelKey={url.ra === null || url.dec === null ? flightKey : `${url.ra},${url.dec}`}
         />
       }
       top={
@@ -356,11 +337,9 @@ export default function App({ source }: { source: ViewSource }) {
           onRetry={() => setAttempt((a) => a + 1)}
           onPreset={pickPreset}
           onOpenFromHome={openFromHome}
-          flightOrigin={flightOrigin}
-          onFlightStart={(p) => {
+          onFlightStart={() => {
             markFlight("marker-start");
             setFlightActive(true);
-            setFlightKey(`${p.ra},${p.dec}`);
           }}
           onFlightEnd={finishFlight}
           onCursor={(xy) => update({ sel: xy })}
@@ -377,7 +356,7 @@ export default function App({ source }: { source: ViewSource }) {
               playing={pb.playing}
               canPlay={pb.canPlay}
               mode={url.mode}
-              status={status}
+              status={null}
               loading={load.kind === "loading"}
               customizeOpen={customizeOpen}
               onToggle={pb.toggle}

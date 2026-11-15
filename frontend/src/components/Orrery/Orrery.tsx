@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { toEcliptic } from "../../lib/catalog";
 import {
-  finishReturnFlight,
+  flightIsActive,
+  getFlightSample,
   getHomeCamera,
-  getReturnFlight,
   initialCamera,
   markFlight,
+  registerHomeNavigation,
   saveHomeCamera,
-  saveTargetCommit,
-  setFlightFocus,
   startTargetFlight,
+  subscribeFlight,
   type OrreryCameraState,
 } from "../../lib/flight";
 import {
@@ -30,6 +30,7 @@ import s from "./Orrery.module.css";
 
 interface OrreryProps {
   targets: readonly CatalogObject[];
+  active: boolean;
   onFlightStart?: (target: CatalogObject) => void;
   onPick: (target: CatalogObject, from: { x: number; y: number } | null) => void;
   onFlightEnd?: () => void;
@@ -53,8 +54,6 @@ interface LabelCandidate {
   visible: boolean;
 }
 
-const FLY_MS = 700;
-const COMMIT_AT = 0.78;
 const FOV_RADIANS = Math.PI / 3;
 const MIN_DIST = 2.5;
 const MAX_DIST = 120;
@@ -121,31 +120,27 @@ function getScene(targets: readonly CatalogObject[]) {
 }
 
 /** Interactive heliocentric view with a rotation-only celestial background. */
-export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryProps) {
+export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: OrreryProps) {
   const anchorRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const markerRefs = useRef<(HTMLElement | null)[]>([]);
   const clockRef = useRef<HTMLSpanElement>(null);
-  const returnHandledRef = useRef(false);
   const wakeRef = useRef<() => void>(() => undefined);
-  const [returnFlight] = useState(getReturnFlight);
-  const cam = useRef<Camera>(cloneCamera(returnFlight?.from ?? homeCamera()));
-  const fly = useRef<
-    | { mode: "forward"; start: number; from: Camera; to: { yaw: number; pitch: number }; target: CatalogObject; index: number }
-    | { mode: "return"; start: number; from: Camera; to: Camera; targetId: string | null; index: number }
-    | null
-  >(null);
+  const activeRef = useRef(active);
+  const cam = useRef<Camera>(homeCamera());
   const onPickRef = useRef(onPick);
   const onFlightStartRef = useRef(onFlightStart);
   const onFlightEndRef = useRef(onFlightEnd);
   const holdRef = useRef(false);
 
   useEffect(() => {
+    activeRef.current = active;
+    wakeRef.current();
     onPickRef.current = onPick;
     onFlightStartRef.current = onFlightStart;
     onFlightEndRef.current = onFlightEnd;
-  }, [onPick, onFlightStart, onFlightEnd]);
+  }, [active, onPick, onFlightStart, onFlightEnd]);
 
   useEffect(() => {
     const anchor = anchorRef.current;
@@ -182,32 +177,6 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
     let viewGlide: { start: number; from: Camera; to: Camera } | null = null;
 
     let disposed = false;
-    if (returnFlight && !returnHandledRef.current) {
-      if (reduce) {
-        cam.current = cloneCamera(returnFlight.to);
-        targetDist = cam.current.dist;
-        queueMicrotask(() => {
-          if (disposed || returnHandledRef.current) return;
-          returnHandledRef.current = true;
-          finishReturnFlight(flightCamera(cam.current));
-          onFlightEndRef.current?.();
-        });
-      } else if (!fly.current) {
-        fly.current = {
-          mode: "return", start: -1,
-          from: cloneCamera(returnFlight.from), to: cloneCamera(returnFlight.to),
-          targetId: returnFlight.targetId,
-          index: returnFlight.targetId
-            ? scene.targets.findIndex((target) => target.object.preset_id === returnFlight.targetId) : -1,
-        };
-      }
-    }
-
-    const activeReturn = fly.current;
-    if (activeReturn?.mode === "return") {
-      activeReturn.index = scene.targets.findIndex((target) => target.object.preset_id === activeReturn.targetId);
-    }
-
     let width = 0;
     let height = 0;
     let focalLength = 1;
@@ -244,8 +213,8 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
       };
       focalLength = height / (2 * Math.tan(FOV_RADIANS / 2));
       if (galaxyContext) {
-        const gw = Math.max(1, Math.ceil(width / 16));
-        const gh = Math.max(1, Math.ceil(height / 16));
+        const gw = Math.max(1, Math.ceil(width / 16) + 2);
+        const gh = Math.max(1, Math.ceil(height / 16) + 2);
         if (galaxyCanvas.width !== gw || galaxyCanvas.height !== gh || !galaxyImage) {
           galaxyCanvas.width = gw;
           galaxyCanvas.height = gh;
@@ -259,8 +228,8 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
         }
         for (let y = 0; y < gh; y++) {
           for (let x = 0; x < gw; x++) {
-            const rx = ((x + 0.5) * width / gw - sceneBox.left - sceneBox.width / 2) / focalLength;
-            const rz = (sceneBox.top + sceneBox.height / 2 - (y + 0.5) * height / gh) / focalLength;
+            const rx = ((x + 0.5) * (width + 32) / gw - 16 - sceneBox.left - sceneBox.width / 2) / focalLength;
+            const rz = (sceneBox.top + sceneBox.height / 2 + 16 - (y + 0.5) * (height + 32) / gh) / focalLength;
             const length = Math.hypot(rx, 1, rz);
             const i = (y * gw + x) * 3;
             galaxyRays[i] = rx / length;
@@ -392,7 +361,7 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
     };
 
     const zoomBy = (factor: number) => {
-      if (fly.current) return;
+      if (!activeRef.current || flightIsActive()) return;
       viewGlide = null;
       const limitedFactor = Math.min(1.2, Math.max(0.8, factor));
       let next = targetDist * limitedFactor;
@@ -427,44 +396,11 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
       const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
       lastTime = now;
       const camera = cam.current;
-      const activeFlight = fly.current;
+      const currentFlight = getFlightSample();
 
-      if (activeFlight) {
-        if (activeFlight.start < 0) activeFlight.start = now;
-        const t = Math.min(1, (now - activeFlight.start) / FLY_MS);
-        const eased = cinematic(t);
-        if (activeFlight.mode === "forward") {
-          const turn = cinematic(Math.min(1, t / 0.7));
-          camera.yaw = activeFlight.from.yaw + (activeFlight.to.yaw - activeFlight.from.yaw) * turn;
-          camera.pitch = activeFlight.from.pitch + (activeFlight.to.pitch - activeFlight.from.pitch) * turn;
-          camera.dist = activeFlight.from.dist + (MIN_DIST - activeFlight.from.dist) * eased ** 1.6;
-          camera.fade = 1 - eased * 0.85;
-          const projected = projectTarget(scene.targets[activeFlight.index], camera);
-          setFlightFocus(projected.x, projected.y);
-          saveTargetCommit(activeFlight.target.preset_id ?? activeFlight.target.id, flightCamera(camera));
-          if (t >= COMMIT_AT) {
-            fly.current = null;
-            markFlight("commit");
-            onPickRef.current(activeFlight.target, { x: projected.x, y: projected.y });
-            return;
-          }
-        } else {
-          camera.yaw = activeFlight.from.yaw + (activeFlight.to.yaw - activeFlight.from.yaw) * eased;
-          camera.pitch = activeFlight.from.pitch + (activeFlight.to.pitch - activeFlight.from.pitch) * eased;
-          camera.dist = activeFlight.from.dist + (activeFlight.to.dist - activeFlight.from.dist) * eased;
-          camera.fade = activeFlight.from.fade + (activeFlight.to.fade - activeFlight.from.fade) * eased;
-          if (activeFlight.index >= 0) {
-            const projected = projectTarget(scene.targets[activeFlight.index], camera);
-            setFlightFocus(projected.x, projected.y);
-          }
-          if (t >= 1) {
-            fly.current = null;
-            targetDist = camera.dist;
-            returnHandledRef.current = true;
-            finishReturnFlight(flightCamera(camera));
-            onFlightEndRef.current?.();
-          }
-        }
+      if (flightIsActive() && currentFlight) {
+        Object.assign(camera, currentFlight.camera);
+        targetDist = camera.dist;
         dirty = true;
       } else if (viewGlide) {
         if (viewGlide.start < 0) viewGlide.start = now;
@@ -486,18 +422,19 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
         } else {
           camera.dist = targetDist;
         }
-        if (!reduce && !dragging && !holdRef.current) {
+        if (activeRef.current && !reduce && !dragging && !holdRef.current) {
           camera.yaw += dt * 0.025;
           dirty = true;
         }
-        saveHomeCamera(flightCamera(camera));
+        if (activeRef.current) saveHomeCamera(flightCamera(camera));
       }
 
       if (!dirty) {
-        if (!reduce) scheduleFrame();
+        if (activeRef.current && !reduce) scheduleFrame();
         return;
       }
       dirty = false;
+      context.setTransform(canvas.width / width, 0, 0, canvas.height / height, 0, 0);
       context.clearRect(0, 0, width, height);
       context.globalAlpha = camera.fade;
       cameraTrig(camera);
@@ -526,7 +463,7 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
           pixels[pixel] = 255 * (0.012 + 0.045 * inner) * falloff ** 3 * clouds;
         }
         galaxyContext.putImageData(galaxyImage, 0, 0);
-        context.drawImage(galaxyCanvas, 0, 0, width, height);
+        context.drawImage(galaxyCanvas, -16, -16, width + 32, height + 32);
       }
 
       if (stars) {
@@ -624,6 +561,13 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
           markerY = centerY + dy * factor;
           edgeAngle = Math.atan2(dy, dx) * 180 / Math.PI;
         }
+        const flight = getFlightSample();
+        const chosen = flightIsActive() && flight && target.object.preset_id
+          && target.object.preset_id === flight.targetId;
+        if (chosen) {
+          markerX = flight.pose.x;
+          markerY = flight.pose.y;
+        }
         raw.x = markerX;
         raw.y = markerY;
         const labelWidth = targetLabelWidths[index] * labelScale;
@@ -635,6 +579,7 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
           ? markerY - 32 * labelScale - labelHeight / 2 : markerY;
         const element = markerRefs.current[index];
         if (element) {
+          element.dataset.flightTarget = String(Boolean(chosen));
           element.style.setProperty("--label-top", `${22 + (labelY - markerY) / labelScale}px`);
           element.dataset.labelLeft = String(labelLeft);
           element.style.setProperty("--label-offset", `${22 + (labelX - markerX) / labelScale}px`);
@@ -730,15 +675,34 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
       });
       context.globalAlpha = 1;
 
-      const moving = fly.current || viewGlide || Math.abs(targetDist - camera.dist) > 0.001;
-      if (!reduce || moving) scheduleFrame();
+      const moving = flightIsActive() || viewGlide || Math.abs(targetDist - camera.dist) > 0.001;
+      if ((activeRef.current && !reduce) || moving) scheduleFrame();
     };
 
     scheduleFrame = () => {
-      if (!animationFrame) animationFrame = requestAnimationFrame(frame);
+      if (!flightIsActive() && !animationFrame) animationFrame = requestAnimationFrame(frame);
     };
     wakeRef.current = () => { dirty = true; scheduleFrame(); };
     scheduleFrame();
+    const unsubscribe = subscribeFlight((sample) => {
+      cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
+      frame(sample.now);
+    });
+    const unregisterNavigation = registerHomeNavigation({
+      pick: (id) => {
+        const index = targets.findIndex((target) => target.preset_id === id);
+        if (index < 0) return false;
+        markerRefs.current[index]?.click();
+        return true;
+      },
+      locate: (id) => {
+        const target = scene.targets.find((target) => target.object.preset_id === id);
+        if (!target) return null;
+        const projected = projectTarget(target, getHomeCamera());
+        return { x: projected.x, y: projected.y, side: 20 };
+      },
+    });
 
     const tickClock = () => {
       if (clockRef.current) clockRef.current.textContent = new Date().toISOString().slice(0, 19).replace("T", " ");
@@ -754,7 +718,7 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
       && Boolean(target.closest('button, a, input, select, textarea, [role="button"], [role="slider"], [role="dialog"], [contenteditable="true"]'));
 
     const pointerDown = (event: PointerEvent) => {
-      if (fly.current || interactive(event.target) || event.shiftKey) return;
+      if (!activeRef.current || flightIsActive() || interactive(event.target) || event.shiftKey) return;
       if (event.pointerType === "mouse" && event.button !== 0) return;
       viewGlide = null;
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -769,7 +733,7 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
     };
 
     const pointerMove = (event: PointerEvent) => {
-      if (!pointers.has(event.pointerId) || fly.current) return;
+      if (!pointers.has(event.pointerId) || flightIsActive()) return;
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (pointers.size >= 2) {
         const pair = [...pointers.values()].slice(0, 2);
@@ -803,7 +767,7 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
     };
 
     const wheel = (event: WheelEvent) => {
-      if (interactive(event.target) || fly.current) return;
+      if (!activeRef.current || interactive(event.target) || flightIsActive()) return;
       event.preventDefault();
       const sensitivity = event.ctrlKey ? 0.003 : 0.0015;
       zoomBy(Math.exp(Math.max(-150, Math.min(150, event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? height : 1))) * sensitivity));
@@ -811,7 +775,7 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
 
     const keydown = (event: KeyboardEvent) => {
       const editing = event.target instanceof Element && event.target.closest('input, select, textarea, [role="dialog"], [contenteditable="true"]');
-      if (editing || event.metaKey || event.ctrlKey || event.altKey || fly.current) return;
+      if (!activeRef.current || editing || event.metaKey || event.ctrlKey || event.altKey || flightIsActive()) return;
       if (event.key === "+" || event.key === "=") {
         event.preventDefault();
         zoomBy(0.8);
@@ -839,6 +803,8 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
 
     return () => {
       disposed = true;
+      unsubscribe();
+      unregisterNavigation();
       delete wrap.dataset.dragging;
       wakeRef.current = () => undefined;
       cancelAnimationFrame(animationFrame);
@@ -852,22 +818,28 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
       window.removeEventListener("keydown", keydown);
       window.removeEventListener("spherex:orrery-zoom", zoomControl);
     };
-  }, [returnFlight, targets]);
+  }, [targets]);
 
   const pick = (target: CatalogObject, index: number) => {
-    if (fly.current || !target.preset_id) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return onPick(target, null);
-    markerRefs.current[index]?.setAttribute("data-picked", "true");
-    onFlightStartRef.current?.(target);
+    if (flightIsActive() || !target.preset_id) return;
+    markerRefs.current.forEach((marker, candidate) => {
+      if (marker) marker.dataset.flightTarget = String(candidate === index);
+    });
     const astrometry = toEcliptic(target);
     const camera = cam.current;
-    startTargetFlight(target.preset_id, flightCamera(camera));
+    const ring = markerRefs.current[index]?.querySelector<HTMLElement>(`.${s.ring}`)?.getBoundingClientRect();
+    if (!ring) return;
     let yaw = Math.atan2(astrometry.direction[0], astrometry.direction[1]);
     while (yaw - camera.yaw > Math.PI) yaw -= 2 * Math.PI;
     while (camera.yaw - yaw > Math.PI) yaw += 2 * Math.PI;
     const pitch = Math.atan2(-astrometry.direction[2], Math.hypot(astrometry.direction[0], astrometry.direction[1]));
-    fly.current = { mode: "forward", start: -1, from: cloneCamera(camera), to: { yaw, pitch }, target, index };
-    wakeRef.current();
+    onFlightStartRef.current?.(target);
+    const flight = startTargetFlight(target.preset_id, flightCamera(camera), { yaw, pitch }, {
+      x: ring.left + ring.width / 2, y: ring.top + ring.height / 2, side: ring.width * 20 / 44,
+    });
+    markFlight("commit");
+    onPickRef.current(target, { x: ring.left + ring.width / 2, y: ring.top + ring.height / 2 });
+    void flight.then(() => onFlightEndRef.current?.());
   };
 
   return (
@@ -879,7 +851,7 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
           </span>
         </p>
       </div>
-      <div ref={wrapRef} className={s.orrery} aria-label="Solar system and sky targets">
+      <div ref={wrapRef} className={s.orrery} data-active={active} aria-hidden={!active} inert={!active} aria-label="Solar system and sky targets">
         <canvas ref={canvasRef} className={s.canvas} aria-hidden="true" />
         {targets.map((target, index) => {
           const content = (

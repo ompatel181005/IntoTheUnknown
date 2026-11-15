@@ -1,24 +1,21 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
-import { flightFocus, getHomeCamera, markFlight } from "../../lib/flight";
+import { useEffect, useRef } from "react";
+import { flightIsActive, getHomeCamera, markFlight, subscribeFlight } from "../../lib/flight";
 import { drawStarfield, loadStarfield, type Starfield } from "../../lib/starfield";
 import s from "./SkyBackdrop.module.css";
 
-const TRAVEL_MS = 1000;
 const NEAR = 0.04;
 
 /**
  * BSC5 catalogue directions, visual magnitudes and B-V colours behind the science dome.
  * The warp is decorative: its synthetic travel depths are not stellar distances.
- * `travelKey` starts forward or reverse travel without blocking the first paint.
+ * The shared flight clock supplies position, direction and speed.
  */
-export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: string | null }) {
+export function SkyBackdrop({ dim }: { dim: boolean }) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLCanvasElement>(null);
   const prepare = useRef<() => void>(() => {});
   const draw = useRef<(streak: number, travel?: number) => void>(() => {});
   const settle = useRef<(travel: number) => void>(() => {});
-  const lastKey = useRef<string | null | undefined>(undefined);
-  const anim = useRef(0);
   /** Current vanishing point in canvas pixels (NaN = canvas centre). */
   const focus = useRef({ x: NaN, y: NaN });
 
@@ -77,6 +74,7 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       }
     };
     draw.current = (streak: number, travel = 0) => {
+      ctx.setTransform(cv.width / w, 0, 0, cv.height / h, 0, 0);
       ctx.clearRect(0, 0, w, h);
       if (!field) return;
       const cx = Number.isFinite(focus.current.x) ? focus.current.x : w / 2;
@@ -132,56 +130,43 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
     };
   }, []);
 
-  // Fly when the target changes. Skipped on first render and under reduced motion.
-  useLayoutEffect(() => {
-    const prev = lastKey.current;
-    lastKey.current = travelKey;
-    if (prev === undefined || prev === travelKey) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const dir = travelKey === null ? -1 : 1;
-    if (dir > 0) prepare.current();
-    const backdrop = backdropRef.current;
-    cancelAnimationFrame(anim.current);
-    if (backdrop) backdrop.dataset.traveling = "true";
-    const start = performance.now();
-    let last = start;
-    let travel = 0;
-    const PAD = 24; // the canvas overhangs the viewport by 24 px on each side
-    const step = (now: number) => {
-      const t = Math.min(1, (now - start) / TRAVEL_MS);
-      // Ease the vanishing point toward the star or dome the camera is flying at.
-      if (Number.isFinite(flightFocus.tx)) {
-        const fx = focus.current;
-        const tx = flightFocus.tx + PAD;
-        const ty = flightFocus.ty + PAD;
-        if (!Number.isFinite(fx.x)) {
-          fx.x = tx;
-          fx.y = ty;
-        } else {
-          const k = Math.min(1, ((now - last) / 1000) * 10);
-          fx.x += (tx - fx.x) * k;
-          fx.y += (ty - fx.y) * k;
+  useEffect(() => {
+    let lastProgress = 0;
+    return subscribeFlight((sample) => {
+      const backdrop = backdropRef.current;
+      if (sample.progress === 0) {
+        if (ref.current) {
+          ref.current.style.transition = "none";
+          ref.current.style.translate = "0px 0px";
         }
+        prepare.current();
+        lastProgress = 0;
       }
-      const wave = Math.sin(Math.PI * t);
-      const speed = wave * wave * 1.6; // ease in and out, in z-units per second
-      const dz = (speed * (now - last)) / 1000;
-      last = now;
-      travel += dir * dz;
-      if (t < 1) {
-        draw.current(dir * dz * 6, travel);
-        anim.current = requestAnimationFrame(step);
-      } else {
+      if (backdrop) {
+        backdrop.style.transition = "none";
+        backdrop.style.opacity = String(0.55 * (1 - sample.camera.fade));
+        backdrop.dataset.traveling = String(sample.progress < 1);
+      }
+      if (sample.progress === 1 && ref.current) ref.current.style.removeProperty("transition");
+      if (sample.reduced) return;
+      focus.current = { x: sample.pose.x + 24, y: sample.pose.y + 24 };
+      const speed = 6 * sample.progress * (1 - sample.progress);
+      const travel = sample.u * 0.8;
+      draw.current(sample.direction * speed * (sample.progress - lastProgress) * 4, travel);
+      lastProgress = sample.progress;
+      if (sample.progress === 1) {
         if (backdrop) delete backdrop.dataset.traveling;
         settle.current(travel);
       }
-    };
-    anim.current = requestAnimationFrame(step);
-    return () => {
-      cancelAnimationFrame(anim.current);
-      if (backdrop) delete backdrop.dataset.traveling;
-    };
-  }, [travelKey]);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!flightIsActive() && backdropRef.current) {
+      backdropRef.current.style.removeProperty("opacity");
+      backdropRef.current.style.removeProperty("transition");
+    }
+  }, [dim]);
 
   // Slow parallax on pointer move. Skipped under reduced motion.
   useEffect(() => {
@@ -190,6 +175,7 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
     if (!dim || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let raf = 0;
     const onMove = (e: PointerEvent) => {
+      if (flightIsActive()) return;
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const dx = (e.clientX / window.innerWidth - 0.5) * -16;

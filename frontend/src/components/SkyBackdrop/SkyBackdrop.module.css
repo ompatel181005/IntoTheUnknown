@@ -8,7 +8,7 @@
 
 .backdrop[data-dim="true"] {
   opacity: 0.55;
-  transition-delay: 1.2s; /* stay bright while flying in */
+  transition-delay: 0ms;
 }
 
 /* The orrery owns the whole sky on home. This layer appears only for the flight handoff. */
