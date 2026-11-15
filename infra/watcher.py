@@ -255,7 +255,7 @@ def main():
     if not args.apply:
         print(
             "PLAN ONLY: reuse project storage/Insights; dedicated id-planetx-watcher; Flex FC1 Python3.11, "
-            "2048 MB, max1, no always-ready. Private host/package containers, container-scoped Blob RBAC; "
+            "2048 MB, max2, no always-ready. Private host/package containers, container-scoped Blob RBAC; "
             "MI host/deployment storage. Preserve or securely generate one refresh key in memory, "
             "wire API and watcher; OneDeploy tracked code with remote Linux build. No Azure calls."
         )

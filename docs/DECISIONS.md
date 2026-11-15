@@ -200,16 +200,17 @@ Owner: Himanshu-1804 (cache), dflow11 (merge onto main)
 
 The activation template reuses project storage/Insights, adds a dedicated watcher
 user identity and private host/package containers, and limits Flex to Python3.11,
-2048MB/max1/no always-ready. Host Blob Data Owner is scoped to precreated host
+2048MB/max2/no always-ready. Host Blob Data Owner is scoped to precreated host
 containers; state/frames/package receive Blob Data Contributor. Container-scoped
 host startup remains a live verification gate. A dedicated main-only code workflow
 receives Website Contributor only on the Function app through the existing OIDC
 identity. No subscription/RG role or storage shared key is added.
 
 Current official migration guidance allows maximumInstanceCount 1-1000, although
-an older ARM quickstart still has minimum40. The low-frequency watcher chooses1;
-HTTP throttling under load is acceptable and live provider validation remains
-required. Official Flex guidance explicitly supports config-zip remote builds
+an older ARM quickstart still has minimum40. The provider accepted 1, but protected
+calls returned platform503; at 2 the handler executed and reported IRSA_DOWN.
+Keep max2 with zero always-ready instances. This is an operational observation,
+not a load test. Official Flex guidance explicitly supports config-zip remote builds
 through OneDeploy without local Core Tools. References, exact commands and live
 gates are in [WATCHER-ACTIVATION.md](../infra/WATCHER-ACTIVATION.md).
 
@@ -218,4 +219,18 @@ secure ARM parameter/CAsecretRef/Function setting. Full manual API deployment
 preserves it; unwired bootstrap initializes safely, while withheld/dangling keys
 or cross-app disagreement fail closed. A refresh202 is accepted work, not proof
 of completed frames; the existing watcher targets metadata plus five pinned Live
-views, not all47 catalog renders. No cloud activation is claimed by this change.
+views, not all47 catalog renders. The host is provisioned and both functions are
+indexed. Authentication rejection checks pass; a successful metadata refresh is
+still pending upstream IRSA availability.
+Owner: ompatel181005 (Codex)
+
+## 2026-11-15: readable files in the Functions deployment ZIP (#7)
+
+The first package built and uploaded but logged "Zip permission validation failed"
+and could not index its functions. CPython's string-name `ZipFile.writestr`
+[defaults to 0600](https://github.com/python/cpython/blob/3.11/Lib/zipfile.py#L1716-L1735).
+Package runtime files explicitly as Unix regular files with mode0644. After this
+fix OneDeploy succeeded and both functions indexed. No storage role was widened.
+The regression test inspects the actual ZIP entries. Remote Linux build remains
+enabled; only committed runtime files are packaged.
+Owner: ompatel181005 (Codex)

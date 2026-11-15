@@ -189,7 +189,7 @@
             }
           },
           "scaleAndConcurrency": {
-            "maximumInstanceCount": 1,
+            "maximumInstanceCount": 2,
             "instanceMemoryMB": 2048,
             "alwaysReady": []
           }

@@ -10,7 +10,7 @@ The production Dockerfile builds React and runs FastAPI on port 8000. The defaul
 | User-assigned identity | Registry pulls and runtime Blob access | `id-planetx-api`; scoped AcrPull and Blob Data Contributor; runtime Blob test passed |
 | Log Analytics | Container platform logs | Workspace created and linked to the environment |
 | Application Insights | API latency, ready-cache hits and archive operation failures | Opt-in instrumentation and KQL in #26; live verification required after activation |
-| Blob Storage | Persistent render cache and watcher state | Live account and containers verified; backend integration belongs to #12 |
+| Blob Storage | Persistent render cache, prepared target catalog and watcher state | Backend Blob integration is live; the public catalog and all 47 prepared targets passed browser checks ([evidence](catalog-live-checks.json)) |
 | Functions + dedicated watcher identity + private host/package containers | Metadata watcher and five pinned Live refresh requests | Reviewed FC1 activation/template and scoped OIDC code deployment; [activation runbook](WATCHER-ACTIVATION.md); live host verification pending |
 | Blob website / Static Web Apps | Alternative frontend hosts | Off by default; SWA blocked by recorded region policy |
 
@@ -29,7 +29,7 @@ Never post that file, tokens, connection strings or keys. Every script verifies 
 
 ## Execution order
 
-Have another teammate review and merge the Azure and integrated-validation PRs, then fetch `origin/main`. Deployment requires the selected commit to contain `.dockerignore` and the Barnard golden manifest.
+Merge reviewed changes once CI passes, then fetch `origin/main`. Authors may merge their own tested PRs under the repository rules. Deployment requires the selected commit to contain `.dockerignore` and the Barnard golden manifest. Python 3.11+ is required for the secure ARM helpers.
 
 ```bash
 bash infra/check-scripts.sh
@@ -39,7 +39,11 @@ bash infra/00-preflight.sh           # provider registration; otherwise read-onl
 export LOC=westus SWA_LOC=none FRONTEND_HOST=container  # confirm fresh preflight
 bash infra/10-core.sh                # creates billable core resources
 ALERT_EMAIL=you@example.com bash infra/20-cost-alert.sh
-SOURCE_REF=origin/main bash infra/30-app.sh --apply
+# Build/deploy through the approved main OIDC workflow; ACR Tasks is blocked here.
+gh workflow run build-image.yml --ref main
+# Watcher provisioning and code deployment (after reviewing its offline plan):
+LOC=westus bash infra/40-watcher.sh --plan
+LOC=westus bash infra/40-watcher.sh --apply
 ```
 
 The recorded 2026-11-14 preflight allowed westus, northcentralus, norwayeast, belgiumcentral and francecentral. Container Apps and Functions Flex were available; no SWA region overlapped. Rerun before creation. Core verifies region policy at subscription and resource-group scopes and checks existing locations, SKUs, TLS, HTTPS, CORS and workspace links. An unreadable policy blocks creation unless a human explicitly sets `ALLOW_UNVERIFIED_REGION=1` after checking it.
@@ -54,7 +58,7 @@ The `build-image.yml` workflow now runs for every push to `main`, with manual di
 
 One-time setup: `bash infra/06-ci-identity.sh` after core/app provisioning. This creates dedicated identity `id-planetx-github`, validates a federation restricted to this repository's main branch, and stores only Azure IDs in Actions secrets. It grants registry AcrPush/Reader, app-scoped Container Apps Contributor, Managed Identity Operator on the runtime identity, and environment Reader. It has no resource-group Contributor or Blob data role. The runtime identity remains separate. No client password or periodically refreshed ACR token is needed. [Microsoft's managed-identity federation guide](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust-user-assigned-managed-identity).
 
-Repository variable `APP_MIN_REPLICAS` is **1 during testing**, explicitly requested by the human; this keeps one instance warm and incurs compute charges. Set it to `0` to return future automatic deployments to scale-to-zero. Maximum replicas remains one while jobs live in process memory. CI login, deployment and rollback still need one live workflow verification after this update merges.
+Repository variable `APP_MIN_REPLICAS` is **1 during testing**, explicitly requested by the human; this keeps one instance warm and incurs compute charges. Set it to `0` to return future automatic deployments to scale-to-zero. Maximum replicas remains one while jobs live in process memory. OIDC login, exact-digest deployment and all five saved-manifest checks passed in [run 43702625872](https://github.com/ompatel181005/IntoTheUnknown/actions/runs/43702625872). Rollback is configured; it has not been deliberately triggered in production.
 
 ## Alternative hosts and legacy authentication
 
@@ -80,7 +84,9 @@ For a manual infrastructure redeploy, `MIN_REPLICAS=1 SOURCE_REF=<built-full-sha
 
 Live URL: https://ca-planetx-api.politesand-6f83d8b5.westus.azurecontainerapps.io
 
-Image source: `130e42b9138545ec9a856136ad41e5d1aa19df50`. The [GitHub build](https://github.com/ompatel181005/IntoTheUnknown/actions/runs/43654638715) succeeded and its temporary ACR secret was deleted. Health returned HTTP 200. Public Chrome checks passed for all five saved presets with every API request denied; normal API checks returned 37 Barnard spectrum points and 115 light-curve points. No browser errors or external browser requests occurred. [Recorded browser results](live-checks.json). These checks do not add science validation for the other targets.
+Verification snapshot on 2026-11-15: source `67c700e8c436cc1aa9a4ef7a6570ede256a40885` deployed and passed health/saved-manifest checks in [run 43702625872](https://github.com/ompatel181005/IntoTheUnknown/actions/runs/43702625872). Fresh Chrome contexts painted all five saved defaults with API requests denied, tested all nine language/activity combinations at mobile width, and checked sharing and PNG downloads. No browser errors, external requests or view builds occurred ([preset evidence](preset-live-checks.json)). The published Blob catalog's 47 targets also painted with zero API requests or browser errors ([catalog evidence](catalog-live-checks.json)). These are availability/UI checks, not additional science validation. Later main pushes can advance the deployed image.
+
+The [initial bootstrap record](live-checks.json) remains historical: source `130e42b9138545ec9a856136ad41e5d1aa19df50`, including 37 Barnard spectrum points and 115 light-curve points. Its temporary ACR secret was deleted after the successful build; current deployment uses OIDC.
 
 CLI PATCH updates failed with `ExpressSystemAssignedIdentityNotSupported` despite the app referencing the standard Consumption environment. A full ARM create/update with a dedicated user-assigned identity succeeded. Runtime identity access to private Blob state was tested inside the deployed container. `30-app.sh` now uses this reproducible ARM/UserAssigned path. Keep maximum replicas at one until shared job state is implemented.
 
@@ -109,4 +115,4 @@ Verification procedure: run one supported Saved custom view and repeat it once r
 
 Saved-data timings from the public app are recorded in [saved-view-timings.json](saved-view-timings.json): Barnard at 4 arcmin / B1-B2 took 5.569 s on first build and 0.710 s on repeat; B1 at 6 arcmin took 3.406 s then 0.396 s. A 10 arcmin Saved request returned NOT_SAVED in under one second. These observations are not a load test or a cold-start benchmark.
 
-Default preset snapshots avoid backend rebuilding. Other supported coordinates/FOV/bands rebuild saved cutouts and then hit the render cache on repeat. Auto can contact the archive beyond the saved footprint; the downloads cover five fields, not the full sky. Use Saved to prevent live fallback while demonstrating the downloaded data. Persistent cache and job lifecycle improvements remain owned by #12/#13, rather than being duplicated in the deployment slice.
+Default preset snapshots and the 47 prepared catalog views avoid backend rebuilding. Other supported coordinates/FOV/bands can rebuild saved cutouts and then hit the render cache on repeat. Auto can contact the archive beyond the saved footprint; the downloads cover selected fields, not the full sky. Use Saved to prevent live fallback while demonstrating the downloaded data. The Blob cache survives app restarts; the bounded in-process render queue is documented in [JOBS.md](../docs/JOBS.md).

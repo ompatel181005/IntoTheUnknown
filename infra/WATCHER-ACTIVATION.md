@@ -19,7 +19,7 @@ workspace or Insights account. `watcher.json` creates:
 | Resource | Purpose and bounds |
 |---|---|
 | `id-planetx-watcher` | Dedicated runtime and deployment-storage user identity |
-| `plan-planetx-watcher` / `func-planetx-itu7q4` | FC1/Linux/Python 3.11; 2048 MB; max 1 instance; no always-ready instances |
+| `plan-planetx-watcher` / `func-planetx-itu7q4` | FC1/Linux/Python 3.11; 2048 MB; max 2 instances; no always-ready instances |
 | Private `azure-webjobs-hosts`, `azure-webjobs-secrets` containers | Timer leases/locks and Function access-key storage; Blob Data Owner scoped to these two containers |
 | Private `watcher-packages` | Flex deployment content; Blob Data Contributor scoped to this container |
 | Existing `state` and `frames` | Blob Data Contributor for private checkpoints and public metadata; no account-wide data grant |
@@ -97,7 +97,7 @@ a rerunnable provisioning/code-deployment recovery path.
 - [Flex management/deployment](https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-how-to): explicit `config-zip --build-remote true`.
 - [Python builds](https://learn.microsoft.com/en-us/azure/azure-functions/python-build-options) and [deployment technologies](https://learn.microsoft.com/en-us/azure/azure-functions/functions-deployment-technologies): Flex uses OneDeploy and its configured Blob container.
 - [Identity connections](https://learn.microsoft.com/en-us/azure/azure-functions/manage-connections?tabs=host,identity) and the [official ARM sample](https://github.com/Azure-Samples/azure-functions-flex-consumption-samples/blob/main/IaC/armtemplate/azuredeploy.json): MI host/deployment storage, Blob Data Owner for host storage.
-- [Current migration guidance](https://learn.microsoft.com/en-us/azure/azure-functions/migration/migrate-plan-consumption-to-flex): scale limit 1–1000; HTTP limits below 40 may throttle. An older ARM quickstart still sets minValue 40. This low-frequency timer deliberately sets 1; live provider validation is required.
+- [Current migration guidance](https://learn.microsoft.com/en-us/azure/azure-functions/migration/migrate-plan-consumption-to-flex): scale limit 1–1000; HTTP limits below 40 may throttle. An older ARM quickstart still sets minValue 40. Azure accepted 1, but protected calls received platform 503s during verification. At 2, the handler executed and reported its upstream IRSA error. Keep the small ceiling of 2 and zero always-ready instances; this observation is not a load test.
 - [Website Contributor](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/web-and-mobile#website-contributor): app management without granting RBAC assignment rights.
 
 CLI help was checked locally for `config-zip --build-remote`, timeout, and Flex

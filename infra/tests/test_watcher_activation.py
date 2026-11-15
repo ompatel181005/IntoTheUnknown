@@ -276,7 +276,7 @@ class ActivationTests(unittest.TestCase):
         self.assertEqual(config["runtime"], {"name": "python", "version": "3.11"})
         self.assertEqual(
             config["scaleAndConcurrency"],
-            {"maximumInstanceCount": 1, "instanceMemoryMB": 2048, "alwaysReady": []},
+            {"maximumInstanceCount": 2, "instanceMemoryMB": 2048, "alwaysReady": []},
         )
         self.assertEqual(
             config["deployment"]["storage"]["authentication"]["type"],
