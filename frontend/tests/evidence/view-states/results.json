@@ -1,0 +1,98 @@
+{
+  "evidence": [
+    {
+      "target": "barnard",
+      "api_calls": 0,
+      "painted": true
+    },
+    {
+      "target": "eps-ind-b",
+      "api_calls": 0,
+      "painted": true
+    },
+    {
+      "target": "r-dra",
+      "api_calls": 0,
+      "painted": true
+    },
+    {
+      "target": "rw-aur",
+      "api_calls": 0,
+      "painted": true
+    },
+    {
+      "target": "wise-0855",
+      "api_calls": 0,
+      "painted": true
+    },
+    {
+      "error": "QUEUE_FULL",
+      "width": 1440,
+      "saved_recovery": true,
+      "api_calls_after_recovery": 0
+    },
+    {
+      "error": "IRSA_DOWN",
+      "width": 1440,
+      "saved_recovery": true,
+      "api_calls_after_recovery": 0
+    },
+    {
+      "error": "QUEUE_FULL",
+      "width": 390,
+      "saved_recovery": true,
+      "api_calls_after_recovery": 0
+    },
+    {
+      "error": "IRSA_DOWN",
+      "width": 390,
+      "saved_recovery": true,
+      "api_calls_after_recovery": 0
+    },
+    {
+      "mismatched_target_id": "Custom position",
+      "no_wrong_field_recovery": true
+    },
+    {
+      "state": "single",
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "state": "empty",
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "state": "missing-scatter",
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "state": "single-details",
+      "width": 1440,
+      "passed": true
+    },
+    {
+      "state": "single",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "state": "empty",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "state": "missing-scatter",
+      "width": 390,
+      "passed": true
+    },
+    {
+      "state": "single-details",
+      "width": 390,
+      "passed": true
+    }
+  ],
+  "browser_errors": []
+}
