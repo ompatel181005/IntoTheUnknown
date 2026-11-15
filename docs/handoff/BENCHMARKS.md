@@ -9,6 +9,6 @@ Targets: idle p95 <= 16.8 ms with zero frames over 33 ms; flights p95 <= 17 ms w
 | B1 | Starfield balance (10c): broad Milky Way raster plus about 500 visible stars with halos | idle, to target, home: e4ac7b8-era numbers (idle 16.7, to target p95 33 with 4 to 6 frames over 33 ms) vs now | The 2026-11-15 run showed idle 33 ms, but the GPU was 63% busy from Windows, and the slowdown also appeared with 10c stashed, so it is unconfirmed | pending |
 | B2 | Design pass (14, b2ac653): glass blur 10 px, no saturate | same | Backdrop-filter changes usually help, but they were never measured on GPU | pending |
 | B3 | Continuous flights (13, 660aae6) | to target, search pick, home, plus the continuity check (no velocity jump > 3x the median step) | Motion rebuild | pending. Software runs got slower in Chromium because the orrery now keeps drawing under the dome during flights; check on GPU |
-| B4 | Planets as spheres and moving orbits (11) | idle and flights | More drawing per frame | pending (task not run yet) |
+| B4 | Planets as spheres and moving orbits (11) | idle and flights | More drawing per frame | pending (committed) |
 
 Bisect recipe if a regression shows: `git stash push -- <files>`, rerun, `git stash pop`.
