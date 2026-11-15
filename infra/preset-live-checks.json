@@ -1,0 +1,116 @@
+{
+    "checked_at_utc":  "2026-11-15T10:40:24.9519326Z",
+    "app_source_commit":  "67c700e8c436cc1aa9a4ef7a6570ede256a40885",
+    "scope":  "Fresh Chrome context, API denied, mobile language/activity checks, sharing and PNG downloads; single-run timings",
+    "results":  {
+                    "reports":  [
+                                    {
+                                        "lang":  "en",
+                                        "mission":  "motion",
+                                        "mobile":  320,
+                                        "saved_only":  true,
+                                        "ready_seconds":  1.082
+                                    },
+                                    {
+                                        "lang":  "en",
+                                        "mission":  "wavelength",
+                                        "mobile":  320,
+                                        "saved_only":  true,
+                                        "ready_seconds":  0.506
+                                    },
+                                    {
+                                        "lang":  "en",
+                                        "mission":  "uncertainty",
+                                        "mobile":  320,
+                                        "saved_only":  true,
+                                        "ready_seconds":  0.453
+                                    },
+                                    {
+                                        "lang":  "es",
+                                        "mission":  "motion",
+                                        "mobile":  320,
+                                        "saved_only":  true,
+                                        "ready_seconds":  0.507
+                                    },
+                                    {
+                                        "lang":  "es",
+                                        "mission":  "wavelength",
+                                        "mobile":  320,
+                                        "saved_only":  true,
+                                        "ready_seconds":  0.467
+                                    },
+                                    {
+                                        "lang":  "es",
+                                        "mission":  "uncertainty",
+                                        "mobile":  320,
+                                        "saved_only":  true,
+                                        "ready_seconds":  0.451
+                                    },
+                                    {
+                                        "lang":  "hi",
+                                        "mission":  "motion",
+                                        "mobile":  320,
+                                        "saved_only":  true,
+                                        "ready_seconds":  0.602
+                                    },
+                                    {
+                                        "lang":  "hi",
+                                        "mission":  "wavelength",
+                                        "mobile":  320,
+                                        "saved_only":  true,
+                                        "ready_seconds":  0.462
+                                    },
+                                    {
+                                        "lang":  "hi",
+                                        "mission":  "uncertainty",
+                                        "mobile":  320,
+                                        "saved_only":  true,
+                                        "ready_seconds":  0.511
+                                    },
+                                    {
+                                        "preset":  "barnard",
+                                        "api_offline":  true,
+                                        "painted":  true,
+                                        "ready_seconds":  0.934
+                                    },
+                                    {
+                                        "preset":  "eps-ind-b",
+                                        "api_offline":  true,
+                                        "painted":  true,
+                                        "ready_seconds":  1.105
+                                    },
+                                    {
+                                        "preset":  "wise-0855",
+                                        "api_offline":  true,
+                                        "painted":  true,
+                                        "ready_seconds":  0.919
+                                    },
+                                    {
+                                        "preset":  "rw-aur",
+                                        "api_offline":  true,
+                                        "painted":  true,
+                                        "ready_seconds":  0.797
+                                    },
+                                    {
+                                        "preset":  "r-dra",
+                                        "api_offline":  true,
+                                        "painted":  true,
+                                        "ready_seconds":  1.12
+                                    }
+                                ],
+                    "browser_errors":  [
+
+                                       ],
+                    "external_requests":  [
+
+                                          ],
+                    "view_builds":  [
+
+                                    ],
+                    "share_round_trip":  true,
+                    "png_downloads":  [
+                                          "en",
+                                          "hi"
+                                      ]
+                }
+}

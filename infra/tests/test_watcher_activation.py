@@ -303,6 +303,9 @@ class ActivationTests(unittest.TestCase):
                 names = archive.namelist()
                 self.assertIn("function_app.py", names)
                 self.assertIn("host.json", names)
+                for entry in archive.infolist():
+                    self.assertEqual(entry.create_system, 3)
+                    self.assertEqual((entry.external_attr >> 16) & 0o777, 0o644)
                 self.assertFalse(
                     any(
                         name.startswith("functions/")

@@ -7,6 +7,7 @@ import copy
 import hashlib
 import os
 import secrets
+import stat
 import subprocess
 import sys
 import tempfile
@@ -55,7 +56,13 @@ def package_functions(destination: Path) -> str:
                 check=True,
                 capture_output=True,
             ).stdout
-            archive.writestr(name.removeprefix("functions/"), content)
+            # writestr defaults to 0600. Flex extracts as a different runtime user,
+            # which must be able to read host.json and the Python entry point.
+            info = zipfile.ZipInfo(name.removeprefix("functions/"))
+            info.create_system = 3
+            info.external_attr = (stat.S_IFREG | 0o644) << 16
+            info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(info, content)
     return hashlib.sha256(destination.read_bytes()).hexdigest()
 
 
