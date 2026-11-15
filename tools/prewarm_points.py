@@ -187,6 +187,7 @@ def process_object(
     fov: int,
     target_epoch: float,
     timeout_s: float,
+    band: str = "auto",
 ) -> dict:
     """Prewarm a single catalog object and return processing status and view data."""
     obj_id = obj.get("id", "unknown")
@@ -207,7 +208,7 @@ def process_object(
         "ra": prop_ra,
         "dec": prop_dec,
         "fov_arcmin": fov,
-        "band": "auto",
+        "band": band,
         "mode": "stack",
         "source": "auto",
     }

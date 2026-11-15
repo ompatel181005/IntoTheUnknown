@@ -82,7 +82,7 @@ def _cached(monkeypatch, tmp_path, rows):
         job.rk, job.status = "rk-new", "ready"
 
     monkeypatch.setattr(views, "get_cache", lambda: cache)
-    monkeypatch.setattr(views, "live_rows", lambda req: rows)
+    monkeypatch.setattr(views, "live_rows", lambda req, **kw: rows)
     monkeypatch.setattr(views, "build", build)
     monkeypatch.setattr(views, "JOBS", {})
     return qk, built

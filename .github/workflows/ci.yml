@@ -82,7 +82,7 @@ jobs:
           python-version: '3.11'
       - run: |
           pip install pytest ruff
-          ruff check infra/*.py infra/tests/test_*.py tools/prewarm_points.py tools/tests
+          ruff check infra/*.py infra/tests/test_*.py tools/prewarm_points.py tools/prewarm_bands.py tools/tests
           pytest -q infra/tests tools/tests
           bash infra/check-scripts.sh
           bash infra/tests/run.sh

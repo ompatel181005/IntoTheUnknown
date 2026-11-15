@@ -62,7 +62,7 @@ def refresh_view(req: ViewRequest) -> bool:
     old_rk = ptr.get("render_key") if isinstance(ptr, dict) else None
     if old_rk:
         manifest = json.loads(cache.read(old_rk, "manifest.json"))
-        if not frames_changed(manifest, views.live_rows(req)):
+        if not frames_changed(manifest, views.live_rows(req, max_age_s=0, allow_stale=False)):
             return False
     job = views.Job(qk=qk, req=req)
     views.build(job)  # writes r/{rk}/ and swaps the pointer last; raises without touching the old render

@@ -5,6 +5,7 @@ import contextvars
 import json
 import logging
 import threading
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -118,24 +119,91 @@ def demo_frames(req: ViewRequest, job: Job) -> tuple[list[dict], dict, list[dict
     return out, origin, align.load_gaia_csv(folder / "gaia.csv")
 
 
-def live_rows(req: ViewRequest) -> list[dict]:
-    """IRSA's frame list for this position and band (no downloads)."""
+# IRSA's frame list depends only on position (SIA is a 1 arcsec point query; the band filter runs after), so one
+# list per position serves every band and FOV there (#96). It is kept in the cache and reused when fresh, and while
+# IRSA is down, so changing band or FOV at a spot someone has viewed never waits on, or fails with, the archive.
+ROWS_TTL_S = 6 * 3600  # the watcher's daily refresh re-asks IRSA regardless (max_age_s=0)
+IRSA_COOLDOWN_S = 120  # after a failed query, skip IRSA for this long instead of spending another ~30 s on it
+_irsa = {"failed_at": None}
+IRSA_DOWN_MESSAGE = (
+    "NASA's SPHEREx archive (IRSA) is not answering right now. The five test targets still work from "
+    "cached data. Try this position again in a few minutes."
+)
+
+
+def rows_key(req: ViewRequest) -> str:
+    return f"{req.ra:.4f}{req.dec:+.4f}"  # the same 4-decimal bucket as the query key
+
+
+def irsa_recently_down() -> bool:
+    failed = _irsa["failed_at"]
+    return failed is not None and time.monotonic() - failed < IRSA_COOLDOWN_S
+
+
+def cached_rows(req: ViewRequest, cache: FrameCache | None = None) -> dict | None:
+    """{"at": unix seconds, "rows": [...]} saved from IRSA for this position, or None."""
+    get = getattr(cache or get_cache(), "get_rows", None)  # test doubles may not implement it
+    try:
+        body = get(rows_key(req)) if get else None
+    except Exception as e:
+        log.warning("frame list for %s unreadable: %s", rows_key(req), e)
+        return None
+    ok = isinstance(body, dict) and isinstance(body.get("rows"), list) and isinstance(body.get("at"), (int, float))
+    return body if ok else None
+
+
+def _query_irsa(req: ViewRequest) -> list[dict]:
     from ..irsa import query  # astroquery import is slow; only for live views
 
     try:
+        return query.query_frames_sia(req.ra, req.dec, query.collections())
+    except Exception:
+        return query.query_frames_tap(req.ra, req.dec)
+
+
+def archive_rows(req: ViewRequest, max_age_s: float | None = None, allow_stale: bool = True) -> list[dict]:
+    """Every detector's frames at this position: the saved list when fresh, else IRSA (then saved), else the
+    saved list of any age while IRSA is down. Raises IRSA_DOWN when IRSA fails and nothing usable is saved."""
+    max_age_s = ROWS_TTL_S if max_age_s is None else max_age_s
+    cache = get_cache()
+    saved = cached_rows(req, cache)
+    if saved and time.time() - saved["at"] <= max_age_s:
+        return saved["rows"]
+    if not irsa_recently_down():
         try:
-            rows = query.query_frames_sia(req.ra, req.dec, query.collections())
-        except Exception:
-            rows = query.query_frames_tap(req.ra, req.dec)
-    except Exception as e:  # both SIA and TAP failed
-        log.warning("IRSA metadata fallback exhausted: %s", type(e).__name__)
-        raise ViewError(
-            "IRSA_DOWN",
-            "NASA's SPHEREx archive (IRSA) is not answering right now. The five test targets still work from "
-            "cached data. Try this position again in a few minutes.",
-        ) from e
+            rows = [{k: v for k, v in r.items() if k != "_rank"} for r in _query_irsa(req)]
+        except Exception as e:  # both SIA and TAP failed
+            _irsa["failed_at"] = time.monotonic()
+            log.warning("IRSA metadata fallback exhausted: %s", type(e).__name__)
+        else:
+            _irsa["failed_at"] = None
+            put = getattr(cache, "put_rows", None)
+            if put and rows:  # an empty answer is not worth keeping over a real list
+                try:
+                    put(rows_key(req), {"at": time.time(), "rows": rows})
+                except Exception as e:
+                    log.warning("could not save frame list for %s: %s", rows_key(req), e)
+            return rows
+    if saved and allow_stale:
+        log.info("IRSA unavailable; using the frame list saved %.0f min ago", (time.time() - saved["at"]) / 60)
+        return saved["rows"]
+    raise ViewError("IRSA_DOWN", IRSA_DOWN_MESSAGE)
+
+
+def live_rows(req: ViewRequest, max_age_s: float | None = None, allow_stale: bool = True) -> list[dict]:
+    """IRSA's frame list for this position and band (no downloads)."""
+    rows = archive_rows(req, max_age_s, allow_stale)
     dets = BAND_DETECTORS[req.band]
     return [r for r in rows if r["band"].startswith("SPHEREx-D") and int(r["band"][-1]) in dets]
+
+
+def doomed_live_view(req: ViewRequest, cache: FrameCache) -> bool:
+    """True when this view would need IRSA, IRSA just failed, and no frame list is saved: fail now, not in a slot."""
+    if req.source == "saved" or not irsa_recently_down():
+        return False
+    if req.source == "auto" and _demo_pack(req) is not None:
+        return False
+    return cached_rows(req, cache) is None
 
 
 def live_frames(req: ViewRequest, job: Job) -> list[dict]:
@@ -444,6 +512,8 @@ def create(req: ViewRequest) -> Job:
     ptr = cache.lookup(qk)
     rk = ptr.get("render_key") if isinstance(ptr, dict) else None
     manifest_url = cache.manifest_url(rk) if rk else None
+    if not rk and doomed_live_view(req, cache):
+        raise ViewError("IRSA_DOWN", IRSA_DOWN_MESSAGE)
     with LOCK:
         if job := _existing(qk):
             return job
