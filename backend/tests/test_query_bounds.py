@@ -86,6 +86,22 @@ def test_pyvo_session_sets_http_timeout_and_closes_response(monkeypatch):
     assert closed == [True]
 
 
+def test_sia_uses_known_query_endpoint_without_capabilities_request(monkeypatch):
+    calls = []
+    service = object()
+
+    def constructor(url, **kwargs):
+        calls.append((url, kwargs))
+        return service
+
+    monkeypatch.setattr(query, "SIA2Service", constructor)
+    with query.metadata_service("sia") as actual:
+        assert actual is service
+    assert calls[0][0] == query.Irsa.sia_url
+    assert isinstance(calls[0][1]["session"], query.MetadataSession)
+    assert calls[0][1]["check_baseurl"] is False
+
+
 def test_collection_refresh_does_not_block_metadata_query(monkeypatch):
     release = threading.Event()
     entered = threading.Event()

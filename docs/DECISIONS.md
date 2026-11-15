@@ -286,6 +286,16 @@ Live checks from this machine returned HTTP502 for both SIA capabilities and
 TAP collection discovery in 0.56 s; this is an upstream failure, not a successful
 metadata query or proof of archive availability.
 
+Review caught that constructing a fresh SIA2Service with its default
+check_baseurl=True adds a capabilities request, unlike astroquery's cached
+singleton. Irsa.sia_url is already the configured SIA query endpoint. Use PyVO's
+documented check_baseurl=False to avoid that extra network dependency; the
+constructor test fixes this behavior explicitly.
+The corrected direct SIA query was then exercised against Barnard's Star: it
+stopped at the configured 20 s socket-read timeout (20.27 s measured) and returned
+DALFormatError wrapping ReadTimeout. Metadata success is still unverified during
+this upstream incident; the real request did demonstrate bounded return.
+
 The browser distinguishes prepared-file loading from server build stages, shows
 actual completed-attempt counts and elapsed time, and offers saved-default
 recovery after a long wait. A 200 ms pre-submission debounce avoids jobs for rapid

@@ -132,7 +132,7 @@ async def run(base, chrome):
 
         # Exercise two real control changes within the submission debounce.
         await page.set_viewport_size({"width": 1440, "height": 1000})
-        await page.get_by_role("button", name="Customize", exact=True).first.click()
+        await page.get_by_role("button", name="Show Customize", exact=True).click()
         group = page.get_by_role("radiogroup", name="Field of view in arcminutes")
         before = len(posts)
         await group.evaluate(

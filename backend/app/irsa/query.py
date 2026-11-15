@@ -47,7 +47,9 @@ class MetadataSession(Session):
 def metadata_service(kind):
     with MetadataSession() as session:
         yield (
-            SIA2Service(Irsa.sia_url, session=session) if kind == "sia" else TAPService(Irsa.tap_url, session=session)
+            SIA2Service(Irsa.sia_url, session=session, check_baseurl=False)
+            if kind == "sia"
+            else TAPService(Irsa.tap_url, session=session)
         )
 
 
