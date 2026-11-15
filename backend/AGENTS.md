@@ -6,7 +6,7 @@ FastAPI service (Python 3.11). The only component that talks to IRSA, the cache,
 - `app/main.py`: HTTP routes (docs/PLAN.md 4.3). `app/models.py`: the contract, mirrored by `frontend/src/types.ts`.
 - `app/irsa`: SIA/TAP queries, cutout fetch, demo-pack reader.
 - `app/processing`: epoch grouping, stacking, stretch (`stack.py`); view jobs, spectrum, light curve (`views.py`).
-- `app/cache`: render cache. Local files today (`backend/.cache/`); Azure Blob replaces it behind the same functions.
+- `app/cache`: two-level render cache (PLAN 4.4). `get_cache()` returns Azure Blob via managed identity when `STORAGE_ACCOUNT_URL` is set, else a local folder (`backend/.cache/`, served at `/frames`). Keys come from `blob.query_key` / `blob.render_key`; `r/` is write-once.
 
 ## Data sources
 - The five targets build from the real cutouts in `demo/` (from `tools/fetch_demo.py`), so they work while IRSA is down.

@@ -1,6 +1,7 @@
 """SPHEREx frame query: SIA first, TAP fallback, release dedupe. From docs/skeletons/query.py."""
 
 import re
+import time
 
 import astropy.units as u
 from astropy.coordinates import SkyCoord
@@ -22,6 +23,21 @@ def discover_collections() -> list[str]:
     tbl = Irsa.list_collections(servicetype="SIA", filter="spherex")
     names = [str(n) for n in tbl["collection"]]  # confirm column name on first run
     return sorted((n for n in names if COLL_RE.match(n)), key=priority, reverse=True)
+
+
+FALLBACK_COLLECTIONS = ["spherex_dr1", "spherex_qr3"]  # list_collections is TAP-backed (DECISIONS 2026-11-14)
+_collections = {"at": 0.0, "names": FALLBACK_COLLECTIONS}
+
+
+def collections(ttl_s: float = 3600) -> list[str]:
+    """Collection names, asked of IRSA at most once per ttl_s; a failed lookup keeps the fallback until then."""
+    if time.monotonic() - _collections["at"] > ttl_s or not _collections["at"]:
+        try:
+            names = discover_collections() or FALLBACK_COLLECTIONS
+        except Exception:
+            names = FALLBACK_COLLECTIONS
+        _collections.update(at=time.monotonic(), names=names)
+    return _collections["names"]
 
 
 def _stem(url: str) -> str:  # level2_<obs>_<n>D<det>
