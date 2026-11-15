@@ -114,7 +114,22 @@
 
 
 
+.target[data-label-left="true"] .label {
+  text-align: right;
+}
+
+.target[data-label-hidden="true"] .label {
+  opacity: 0;
+}
+
 .label {
+  position: absolute;
+  left: var(--label-offset, 54px);
+  top: var(--label-top, 22px);
+  translate: 0 -50%;
+  width: max-content;
+  max-width: min(240px, 60vw);
+  transition: opacity 150ms linear;
   display: grid;
   gap: 1px;
   white-space: nowrap;
@@ -122,6 +137,8 @@
 
 /* Eyes label style: uppercase, wide tracking, dimmed until hovered. */
 .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.3em;
@@ -137,6 +154,8 @@
 }
 
 .kind {
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.3em;
@@ -176,18 +195,31 @@
 }
 
 @media (max-width: 768px) {
+  .hud {
+    left: 16px;
+    translate: 0;
+    font-size: 10px;
+  }
+
+  .live {
+    display: none;
+  }
+
   .kind {
+  overflow: hidden;
+  text-overflow: ellipsis;
     display: none;
   }
 
   .name {
-    font-size: 12px;
+    font-size: 14px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ring::before,
-  .name {
+  .name,
+  .label {
     transition: none;
   }
 
