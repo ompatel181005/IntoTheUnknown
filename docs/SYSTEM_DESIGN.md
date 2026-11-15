@@ -34,7 +34,8 @@ flowchart LR
   end
   subgraph Azure
     CA[Container App ca-planetx-api<br/>FastAPI + built site]
-    BL[(Blob stplanetxitu7q4<br/>frames / state)]
+    BL[(Blob public frames<br/>stplanetxitu7q4)]
+    ST[(Blob private state<br/>measurement inputs + watcher state)]
     FN[Watcher<br/>Azure Functions, 06:00 UTC]
     ACR[Container Registry<br/>acrplanetxitu7q4]
     AI[App Insights]
@@ -46,14 +47,16 @@ flowchart LR
   end
   GH[GitHub Actions] --> ACR --> CA
   B -- API calls --> CA
-  B -- manifests + arrays --> BL
+  B -- public manifests + arrays --> BL
   CA -- write renders --> BL
+  CA -- persist and restore analysis --> ST
   CA --> IRSA
   CA --> S3
   CA --> GAIA
   CA -.-> AI
   FN -- check new frames --> IRSA
-  FN -- state --> BL
+  FN -- private state --> ST
+  FN -- public catalog --> BL
   FN -- POST /internal/refresh --> CA
 ```
 
@@ -62,6 +65,7 @@ flowchart LR
 | React frontend (`frontend/`) | The user's browser | Target picker, flip-book canvas, stretch, blink, difference, measurement drawer, Gaia overlay |
 | FastAPI backend (`backend/`) | Azure Container App `ca-planetx-api` | Views API, render pipeline, measurements, refresh endpoint, serves the site |
 | Render cache | Azure Blob `stplanetxitu7q4`, container `frames` | Immutable renders, query pointers, the home-screen point list |
+| Analysis cache | The same account, private container `state` | Lossless per-render measurement inputs restored after app restart |
 | Watcher (`functions/`) | Azure Functions, daily at 06:00 UTC | Detects new SPHEREx data and asks the API to refresh the pinned views |
 | Upstream archives | NASA/IPAC IRSA, AWS S3 mirror, ESA and ARI Gaia TAP | Frame lists, image pixels, Gaia DR3 star positions |
 | CI/CD | GitHub Actions + Azure Container Registry | Tests, builds and deploys every push to `main` |
@@ -87,7 +91,9 @@ flowchart TD
   G --> PL
 ```
 
-Two requests for the same view share one job, and a failed job is retried as a fresh miss. Measurements (spectrum, light curve, Gaia label) are separate `GET` calls made only when the drawer asks for them; for a golden preset, the frontend first registers a live view in the background so those calls have a job to read from.
+Two requests for the same view share one job, and a failed job is retried as a fresh miss. Measurements (spectrum, light curve, Gaia label) are separate `GET` calls made only when the drawer asks for them. A golden preset lazily registers its Saved query; concurrent panels share one registration. Requests carry the displayed render key so a watcher update cannot silently change the measured image. One panel leaving does not cancel a registration another panel still needs.
+
+Rapid field changes are debounced for 200 ms before submission. Changing fields stops that browser's polling; submitted jobs can still serve other visitors. Archive metadata calls have a 30 s wall-clock budget per service, backed by HTTP timeouts and a four-worker admission limit. Collection discovery refreshes in the background using cached/fallback names.
 
 ## Data pipeline
 
@@ -132,6 +138,8 @@ The contract lives in `backend/app/models.py` and is mirrored by `frontend/src/t
 | `IRSA_DOWN` | 503 | SIA and TAP both failed, or every cutout download failed |
 | `NOT_SAVED` | 503 | `source=saved` for a position with no saved snapshot |
 | `NOT_READY` | 503 | A measurement was asked for before the view finished |
+| `RENDER_CHANGED` | 503 | The displayed image differs from the current job; reopen the updated view |
+| `MEASUREMENTS_UNAVAILABLE` | 503 | Original measurement inputs cannot safely be recovered for this immutable image |
 | `NO_GAIA` | 503 | Gaia did not answer when the view was built |
 | `BAD_EPOCH` | 503 | Pass index out of range (should be 4xx: [#89](https://github.com/ompatel181005/IntoTheUnknown/issues/89)) |
 | `BAD_REFRESH_KEY` | 401 | Missing or wrong refresh key |
@@ -152,21 +160,24 @@ A render is written once and never changed, and a small pointer says which rende
 
 **Lookup.** `POST /api/views` checks an in-memory job table, then the Blob pointer. A hit returns 200 with the manifest's public Blob URL at once; a miss takes a render slot and returns 202. The browser then reads the manifest and arrays straight from Blob.
 
+**Measurements after restart.** New builds save aligned per-frame arrays, variance, flags and WCS/frame metadata as pickle-free `state/analysis/v1/{rk}.npz` files. Locally these sit beside, outside, the public cache directory. A measurement restores the exact inputs under a per-job lock. Legacy images need one recovery; frame identity and original image bytes must match, and recovery never rolls back the query pointer. The five bundled Saved targets recover without IRSA. This does not prepopulate analysis for every existing prepared field.
+
 | Store | Where | Size | Purpose |
 | --- | --- | --- | --- |
 | Demo pack | `demo/` in the image | 12 MB | Real SPHEREx cutouts and Gaia catalogues for the five presets, built by `tools/fetch_demo.py`; presets render with IRSA down |
 | Golden snapshots | `frontend/public/golden/` | 0.7 MB | Finished renders of the five presets, served with the site; presets load with the API stopped |
 | Render cache | Blob `frames/r`, `frames/q` | Grows with use | Every view anyone has built |
+| Analysis inputs | Private Blob `state/analysis/v1` | Grows with builds | Exact aligned inputs for spectra/light curves across restarts; inaccessible anonymously |
 | Point list | Blob `frames/catalog/points.json` | Small | The home screen's curated targets, pre-rendered by `tools/prewarm_points.py` |
 | Watcher state | Blob `state/` (private), public copy at `frames/meta/catalog.json` | Small | Newest frame seen per position, for the "data as of" badge |
 
 ## Deployment and infrastructure
 
-Every push to `main` is tested, built into one image and deployed automatically, with no stored Azure secrets. All resources sit in resource group `rg-planetx` in `westus`, on an Azure for Students subscription.
+Pushes to `main` are tested and built into one image; passing current commits deploy automatically, while superseded pushes skip deployment. GitHub uses main-only OIDC instead of stored Azure login credentials. The watcher refresh secret remains in Azure app settings/secrets. All resources sit in resource group `rg-planetx` in `westus`, on an Azure for Students subscription.
 
 | Resource | Name | Configuration |
 | --- | --- | --- |
-| Container App | `ca-planetx-api` | 1 vCPU, 2 GiB, 0 to 1 replicas (one replica, because view jobs live in memory) |
+| Container App | `ca-planetx-api` | 1 vCPU, 2 GiB; one warm instance during testing, maximum one (jobs live in memory); template default minimum is zero |
 | Container Registry | `acrplanetxitu7q4` | Images tagged by commit; deploys pin the exact digest |
 | Storage account | `stplanetxitu7q4` | `frames` (public read, anonymous listing off), `state` (private); shared-key auth disabled |
 | Managed identity | `id-planetx-api` | Storage Blob Data Contributor on the account, AcrPull on the registry, nothing else |
@@ -205,11 +216,11 @@ The system is built to keep the demo working when NASA's archive is not, and eve
 **Limits by design.**
 
 - One replica only. View jobs live in memory, so a second replica would answer `UNKNOWN_VIEW` for jobs started on the first. Scale-to-zero also drops in-flight refresh retries until the next catalog change.
-- Live views are capped at 120 frames and take about 1.5 to 2 minutes; presets load in under 8 seconds.
+- Live views are capped at 120 frames. The 2026-11-15 two-hour Azure diagnostic measured a 6.49 minute median pipeline build and a 28.78 s median S3 cutout operation (including FITS/WCS work), not a guaranteed latency. Prepared images avoid these builds. New subspans separate header/WCS/array reads; a local single-cutout benchmark is not an Azure speedup measurement.
 - SPHEREx pixels are 6.15 arcsec, so neighbours can blend. Bright stars (Barnard's Star, RW Aur, R Dra) saturate, so their cores are masked and their photometry is flagged.
 - Name search covers only the 47 listed targets; any other place needs RA, Dec.
 
-**Open issues from QA on 2026-11-15** (all on [GitHub](https://github.com/ompatel181005/IntoTheUnknown/issues)):
+**QA findings on 2026-11-15** (current status on [GitHub](https://github.com/ompatel181005/IntoTheUnknown/issues)):
 
 | Issue | Area | Summary |
 | --- | --- | --- |
@@ -219,11 +230,11 @@ The system is built to keep the demo working when NASA's archive is not, and eve
 | [#87](https://github.com/ompatel181005/IntoTheUnknown/issues/87) | Docs | Name search covers only the listed targets |
 | [#88](https://github.com/ompatel181005/IntoTheUnknown/issues/88) | Frontend | Verify Share copies the link in a normal browser |
 | [#89](https://github.com/ompatel181005/IntoTheUnknown/issues/89) | Backend | A bad pass index on `/gaia` returns 503 instead of 4xx |
-| [#90](https://github.com/ompatel181005/IntoTheUnknown/issues/90) | Frontend | Each view load sends `POST /api/views` twice |
+| [#90](https://github.com/ompatel181005/IntoTheUnknown/issues/90) | Frontend | Concurrent measurement registration now shared; Chrome StrictMode Brightness check records one POST and two render-bound measurement GETs |
 
 ## Sources
 
-- Repository: `main` @ `3832124`, read 2026-11-15
+- Initial repository review: `main` @ `3832124`; updated for cache/loading changes in #92/#94 and measurement registration in #95 on 2026-11-15
 - Plan and decisions: [PLAN.md](PLAN.md), [DECISIONS.md](DECISIONS.md)
 - Azure resources: [infra/BLOB-HANDOFF.md](../infra/BLOB-HANDOFF.md), `infra/containerapp.json`
 - Live app: [ca-planetx-api](https://ca-planetx-api.politesand-6f83d8b5.westus.azurecontainerapps.io), tested 2026-11-15
