@@ -50,6 +50,7 @@ class FrameCache(Protocol):
     def point(self, qk: str, rk: str, catalog_version: str) -> None: ...  # after put_render
     def read(self, rk: str, name: str) -> bytes: ...  # one file of a render, manifest.json included
     def manifest_url(self, rk: str) -> str: ...
+    def catalog(self) -> dict | None: ...  # meta/catalog.json from the new-data watcher; None until it has run
 
 
 class BlobCache:
@@ -101,6 +102,14 @@ class BlobCache:
 
     def manifest_url(self, rk: str) -> str:
         return f"{self.public_base}/r/{rk}/manifest.json"
+
+    def catalog(self) -> dict | None:
+        from azure.core.exceptions import AzureError
+
+        try:
+            return json.loads(self.c.download_blob("meta/catalog.json").readall())
+        except (AzureError, ValueError):  # missing, unreadable or not JSON: the badge just has no data
+            return None
 
 
 _cache: FrameCache | None = None

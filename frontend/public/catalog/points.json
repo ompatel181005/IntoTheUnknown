@@ -26,8 +26,8 @@
    "view": {
     "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/8955fe655c3e0dd80b3b4c21/manifest.json",
     "query": {
-     "ra": 269.446077,
-     "dec": 4.77071,
+     "ra": 269.446078,
+     "dec": 4.770709,
      "fov_arcmin": 6,
      "band": "auto",
      "mode": "stack",
@@ -491,8 +491,8 @@
    "view": {
     "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/bfcc3666391018c05eb5f7cf/manifest.json",
     "query": {
-     "ra": 1.3629,
-     "dec": -37.369915,
+     "ra": 1.362904,
+     "dec": -37.369913,
      "fov_arcmin": 6,
      "band": "auto",
      "mode": "stack",

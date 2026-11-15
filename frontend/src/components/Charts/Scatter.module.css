@@ -26,13 +26,21 @@
   font-size: 9px;
 }
 
+.band {
+  fill: var(--match);
+  opacity: 0.16;
+}
+
+/* `color` carries an optional per-point colour (Scatter's `color` prop). */
 .dot {
-  fill: var(--text-1);
+  color: var(--text-1);
+  fill: currentColor;
 }
 
 .hollow {
+  color: var(--text-2);
   fill: none;
-  stroke: var(--text-2);
+  stroke: currentColor;
   stroke-width: 1.25;
 }
 
@@ -41,10 +49,11 @@
   stroke-width: 1;
 }
 
+/* The pass on screen: larger (r in Scatter.tsx) with a bright outline, keeping its own colour. */
 .active .dot,
 .active .hollow {
-  fill: var(--accent);
-  stroke: var(--accent);
+  stroke: var(--text-1);
+  stroke-width: 1.5;
 }
 
 .caption {

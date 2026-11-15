@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { formatFovMoonFraction } from "../../lib/format";
 import { GAINS, SPEEDS, type StretchKind } from "../../lib/url";
+import type { SourcePresentation } from "../../lib/viewPresentation";
 import { BAND_OPTIONS, FOV_OPTIONS, type Band, type DataSource, type Epoch, type FovArcmin, type Manifest } from "../../types";
 import { GlassButton, GlassPanel, Icon, Segmented, Switch, Term } from "../glass";
 import s from "./CustomizePanel.module.css";
@@ -26,6 +27,7 @@ interface CustomizePanelProps {
   epochs: Epoch[];
   /** Where the loaded images came from (null before a view loads). */
   origin: Manifest["origin"] | null;
+  provenance: SourcePresentation | null;
   collections: string[];
   loading: boolean;
   /** Mobile renders the same panel as a bottom sheet. */
@@ -52,7 +54,7 @@ const BAND_LABEL: Record<Band, string> = {
  * Always-visible customize panel, docked on the left like the NASA Eyes story rail.
  * The common choices sit on top; less common ones fold away under "More".
  */
-export function CustomizePanel({ open, onOpenChange, values: v, onChange, onReset, epochs, origin, collections, loading, sheet }: CustomizePanelProps) {
+export function CustomizePanel({ open, onOpenChange, values: v, onChange, onReset, epochs, origin, provenance, collections, loading, sheet }: CustomizePanelProps) {
   const [more, setMore] = useState(false);
   const tabRef = useRef<HTMLButtonElement>(null);
   const prevOpen = useRef(open);
@@ -148,16 +150,18 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
             <p className={s.origin} aria-live="polite">
               {loading ? (
                 "Loading…"
-              ) : origin ? (
+              ) : provenance ? (
                 <>
-                  <span className={s.originKind}>{origin.kind === "saved" ? "Saved cutouts" : "Live archive"}</span>
+                  <span className={s.originKind}>{provenance.label}</span>
+                  <span>{provenance.cache}</span>
                   <span className="mono">
-                    {collections.join(" + ")} · {origin.files} files
-                    {origin.fetched ? ` · fetched ${origin.fetched.slice(0, 10)}` : ""}
+                    {collections.join(" + ")}
+                    {origin ? ` · ${origin.files} ${origin.kind === "saved" ? "cutouts in saved pack" : "archive input cutouts"}` : ""}
+                    {origin?.fetched ? ` · fetched ${origin.fetched.slice(0, 10)}` : ""}
                   </span>
                 </>
               ) : (
-                "Pick a target."
+                "No loaded image."
               )}
             </p>
           </section>

@@ -1,0 +1,60 @@
+{
+    "checked_at_utc":  "2026-11-15T11:13:07.7382650Z",
+    "provisioning":  "Succeeded",
+    "zip_permission_fix":  "Explicit Unix regular files 0644; OneDeploy succeeded and both functions indexed",
+    "capacity":  "2048 MB; maximum 2; zero always-ready",
+    "verification":  {
+                         "host":  "func-planetx-itu7q4.azurewebsites.net",
+                         "site_state":  "Running",
+                         "public_network":  null,
+                         "enabled":  true,
+                         "runtime":  {
+                                         "name":  "python",
+                                         "version":  "3.11"
+                                     },
+                         "functions":  [
+                                           {
+                                               "name":  "func-planetx-itu7q4/new_data_watcher",
+                                               "bindings":  [
+                                                                {
+                                                                    "type":  "timerTrigger",
+                                                                    "schedule":  "0 0 6 * * *",
+                                                                    "authLevel":  null
+                                                                }
+                                                            ]
+                                           },
+                                           {
+                                               "name":  "func-planetx-itu7q4/run_now",
+                                               "bindings":  [
+                                                                {
+                                                                    "type":  "httpTrigger",
+                                                                    "schedule":  null,
+                                                                    "authLevel":  "FUNCTION"
+                                                                },
+                                                                {
+                                                                    "type":  "http",
+                                                                    "schedule":  null,
+                                                                    "authLevel":  null
+                                                                }
+                                                            ]
+                                           }
+                                       ],
+                         "manual_run":  {
+                                            "status":  502,
+                                            "ok":  false,
+                                            "refresh_sent":  false,
+                                            "changed":  null,
+                                            "catalog":  null,
+                                            "error_code":  "IRSA_DOWN",
+                                            "error_message":  "list_collections: DALServiceError: 502 Server Error: Proxy Error for url: https://irsa.ipac.caltech.edu/TAP/sync"
+                                        },
+                         "api_status":  {
+                                            "status":  200,
+                                            "catalog":  null
+                                        },
+                         "anonymous_private_state_status":  404,
+                         "auth_rejection_checks_passed":  true
+                     },
+    "metadata_refresh":  "Pending: upstream IRSA TAP/sync returned HTTP 502; no new catalog or completed-frame claim",
+    "automatic_oidc_deployment":  "Pending PR merge"
+}

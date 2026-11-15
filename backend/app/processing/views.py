@@ -117,10 +117,10 @@ def demo_frames(req: ViewRequest, job: Job) -> tuple[list[dict], dict, list[dict
     return out, origin, align.load_gaia_csv(folder / "gaia.csv")
 
 
-def live_frames(req: ViewRequest, job: Job) -> list[dict]:
+def live_rows(req: ViewRequest) -> list[dict]:
+    """IRSA's frame list for this position and band (no downloads)."""
     from ..irsa import query  # astroquery import is slow; only for live views
 
-    job.status = "query"
     try:
         try:
             rows = query.query_frames_sia(req.ra, req.dec, query.collections())
@@ -134,7 +134,12 @@ def live_frames(req: ViewRequest, job: Job) -> list[dict]:
             "cached data. Try this position again in a few minutes.",
         ) from e
     dets = BAND_DETECTORS[req.band]
-    rows = [r for r in rows if r["band"].startswith("SPHEREx-D") and int(r["band"][-1]) in dets]
+    return [r for r in rows if r["band"].startswith("SPHEREx-D") and int(r["band"][-1]) in dets]
+
+
+def live_frames(req: ViewRequest, job: Job) -> list[dict]:
+    job.status = "query"
+    rows = live_rows(req)
     if len(rows) > config.MAX_FRAMES_PER_VIEW:
         idx = np.linspace(0, len(rows) - 1, config.MAX_FRAMES_PER_VIEW).round().astype(int)
         rows = [rows[i] for i in idx]

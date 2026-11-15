@@ -1,14 +1,18 @@
 import { ApiRequestError, createView, fetchAsset, getViewStatus, registerGoldenView } from "../api";
 import { findPreset } from "../lib/targets";
-import type { Manifest, ViewRequest, ViewStage } from "../types";
+import type { GaiaResult, Manifest, ViewRequest, ViewStage } from "../types";
 
 export interface LoadedView {
   viewId: string;
   manifest: Manifest;
   images: Float32Array[];
   masks: (Uint8Array | null)[];
+  /** Gaia predictions for the overlay; null when the view has none (the overlay then hides). */
+  gaia?: GaiaResult | null;
   /** True when served from a cache layer (golden snapshot or an already-rendered view). */
   fromCache: boolean;
+  /** Set only when bundled golden snapshot assets actually supplied this view. */
+  cacheLayer?: "snapshot";
   /** Set by non-production sources so the UI can label the data honestly. */
   label?: string;
 }
@@ -57,7 +61,13 @@ function wait(ms: number, signal: AbortSignal) {
 async function loadArrays(m: Manifest, base: string, signal: AbortSignal) {
   const assetUrl = (path: string) => /^(https?:|\/)/.test(path) ? path : base + path;
   throwIfAborted(signal);
-  const arrays = await Promise.all(m.epochs.map(async (e) => {
+  const gaiaPromise: Promise<GaiaResult | null> = !m.extras?.gaia ? Promise.resolve(null) : fetchAsset(assetUrl(m.extras.gaia), signal)
+    .then((response) => response.json() as Promise<GaiaResult>)
+    .catch((error: unknown) => {
+      if (signal.aborted || (error as { name?: string } | null)?.name === "AbortError") throw error;
+      return null; // A missing gaia.json only disables the Gaia overlay.
+    });
+  const [arrays, gaia] = await Promise.all([Promise.all(m.epochs.map(async (e) => {
     const imagePromise = fetchAsset(assetUrl(e.image), signal).then(async (response) => {
       const buffer = await response.arrayBuffer();
       throwIfAborted(signal);
@@ -75,17 +85,27 @@ async function loadArrays(m: Manifest, base: string, signal: AbortSignal) {
       });
     const [image, mask] = await Promise.all([imagePromise, maskPromise]);
     return { image, mask };
-  }));
+  })), gaiaPromise]);
   throwIfAborted(signal);
   const images = arrays.map(({ image }) => image);
   const masks = arrays.map(({ mask }) => mask);
-  return { images, masks };
+  return { images, masks, gaia };
 }
 
 const dirOf = (url: string) => url.slice(0, url.lastIndexOf("/") + 1);
 
 function viewRequest(q: ViewQuery): ViewRequest {
   return { ra: q.ra, dec: q.dec, fov_arcmin: q.fov_arcmin, band: q.band, mode: q.mode, source: q.source };
+}
+
+/** URLs round coordinates to five decimals; never accept a different field or band. */
+export function matchesManifestQuery(value: unknown, q: ViewRequest): boolean {
+  if (!value || typeof value !== "object") return false;
+  const actual = value as Record<string, unknown>;
+  return typeof actual.ra === "number" && Number.isFinite(actual.ra)
+    && typeof actual.dec === "number" && Number.isFinite(actual.dec)
+    && Math.abs(actual.ra - q.ra) < 0.0000051 && Math.abs(actual.dec - q.dec) < 0.0000051
+    && actual.fov_arcmin === q.fov_arcmin && actual.band === q.band;
 }
 
 /** docs/PLAN.md 4.4: presets in their default view load from /golden first, which needs no backend. */
@@ -106,21 +126,23 @@ async function tryGolden(q: ViewQuery, signal: AbortSignal): Promise<LoadedView 
   const manifest = (await res.json()) as Manifest;
   const arrays = await loadArrays(manifest, base, signal);
   registerGoldenView(manifest.render_key, viewRequest(q));
-  return { viewId: manifest.render_key, manifest, ...arrays, fromCache: true };
+  return { viewId: manifest.render_key, manifest, ...arrays, fromCache: true, cacheLayer: "snapshot" };
 }
 
 export const apiSource: ViewSource = {
   async load(q, onProgress, signal) {
     throwIfAborted(signal);
-    if (q.manifestUrl) {
+    const golden = await tryGolden(q, signal);
+    if (golden) return golden;
+    if (q.manifestUrl && q.source === "auto") {
       onProgress({ stage: "fetch" });
       const manifest = (await (await fetchAsset(q.manifestUrl, signal)).json()) as Manifest;
+      throwIfAborted(signal);
+      if (!matchesManifestQuery(manifest?.query, q)) throw new ApiRequestError("BAD_RESPONSE", "Prepared images do not match the requested position, field of view or band.");
       const arrays = await loadArrays(manifest, dirOf(q.manifestUrl), signal);
       registerGoldenView(manifest.render_key, viewRequest(q));
       return { viewId: manifest.render_key, manifest, ...arrays, fromCache: true };
     }
-    const golden = await tryGolden(q, signal);
-    if (golden) return golden;
 
     onProgress({ stage: "queued" });
     const created = await createView(viewRequest(q), signal);

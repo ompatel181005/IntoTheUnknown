@@ -1,0 +1,264 @@
+{
+    "checked_at_utc":  "2026-11-15T10:40:24.5866985Z",
+    "app_source_commit":  "67c700e8c436cc1aa9a4ef7a6570ede256a40885",
+    "workflow_run":  "https://github.com/ompatel181005/IntoTheUnknown/actions/runs/43702625872",
+    "scope":  "Anonymous catalog/asset availability plus real Chrome paint checks; no science validation for added targets",
+    "publication":  {
+                        "objects":  47,
+                        "passes":  152,
+                        "all_manifest_queries_match":  true,
+                        "all_image_mask_sizes_cors_checked":  true,
+                        "archive_calls":  0,
+                        "builds":  0,
+                        "published":  true,
+                        "url":  "https://stplanetxitu7q4.blob.core.windows.net/frames/catalog/points.json"
+                    },
+    "browser":  {
+                    "results":  [
+                                    {
+                                        "id":  "barnard",
+                                        "painted":  true,
+                                        "seconds":  2.243
+                                    },
+                                    {
+                                        "id":  "eps-ind-b",
+                                        "painted":  true,
+                                        "seconds":  1.483
+                                    },
+                                    {
+                                        "id":  "wise-0855",
+                                        "painted":  true,
+                                        "seconds":  1.005
+                                    },
+                                    {
+                                        "id":  "rw-aur",
+                                        "painted":  true,
+                                        "seconds":  0.946
+                                    },
+                                    {
+                                        "id":  "r-dra",
+                                        "painted":  true,
+                                        "seconds":  0.984
+                                    },
+                                    {
+                                        "id":  "proxima-cen",
+                                        "painted":  true,
+                                        "seconds":  1.199
+                                    },
+                                    {
+                                        "id":  "kapteyn",
+                                        "painted":  true,
+                                        "seconds":  1.091
+                                    },
+                                    {
+                                        "id":  "groombridge-1830",
+                                        "painted":  true,
+                                        "seconds":  1.055
+                                    },
+                                    {
+                                        "id":  "lacaille-9352",
+                                        "painted":  true,
+                                        "seconds":  1.103
+                                    },
+                                    {
+                                        "id":  "van-maanen",
+                                        "painted":  true,
+                                        "seconds":  1.091
+                                    },
+                                    {
+                                        "id":  "wolf-359",
+                                        "painted":  true,
+                                        "seconds":  1.111
+                                    },
+                                    {
+                                        "id":  "ross-128",
+                                        "painted":  true,
+                                        "seconds":  1.074
+                                    },
+                                    {
+                                        "id":  "luyten-star",
+                                        "painted":  true,
+                                        "seconds":  1.023
+                                    },
+                                    {
+                                        "id":  "teegarden",
+                                        "painted":  true,
+                                        "seconds":  1.019
+                                    },
+                                    {
+                                        "id":  "lalande-21185",
+                                        "painted":  true,
+                                        "seconds":  1.089
+                                    },
+                                    {
+                                        "id":  "gliese-1",
+                                        "painted":  true,
+                                        "seconds":  1.061
+                                    },
+                                    {
+                                        "id":  "struve-2398-a",
+                                        "painted":  true,
+                                        "seconds":  1.076
+                                    },
+                                    {
+                                        "id":  "struve-2398-b",
+                                        "painted":  true,
+                                        "seconds":  1.041
+                                    },
+                                    {
+                                        "id":  "ross-248",
+                                        "painted":  true,
+                                        "seconds":  1.037
+                                    },
+                                    {
+                                        "id":  "luhman-16",
+                                        "painted":  true,
+                                        "seconds":  1.081
+                                    },
+                                    {
+                                        "id":  "ugps-0722",
+                                        "painted":  true,
+                                        "seconds":  1.033
+                                    },
+                                    {
+                                        "id":  "wise-1828",
+                                        "painted":  true,
+                                        "seconds":  1.0
+                                    },
+                                    {
+                                        "id":  "wise-0350",
+                                        "painted":  true,
+                                        "seconds":  1.074
+                                    },
+                                    {
+                                        "id":  "wise-1541",
+                                        "painted":  true,
+                                        "seconds":  1.077
+                                    },
+                                    {
+                                        "id":  "gliese-229-b",
+                                        "painted":  true,
+                                        "seconds":  1.504
+                                    },
+                                    {
+                                        "id":  "wise-1534",
+                                        "painted":  true,
+                                        "seconds":  1.595
+                                    },
+                                    {
+                                        "id":  "wise-0830",
+                                        "painted":  true,
+                                        "seconds":  1.053
+                                    },
+                                    {
+                                        "id":  "cwise-1249",
+                                        "painted":  true,
+                                        "seconds":  1.055
+                                    },
+                                    {
+                                        "id":  "gliese-570-d",
+                                        "painted":  true,
+                                        "seconds":  1.048
+                                    },
+                                    {
+                                        "id":  "scr-1845-b",
+                                        "painted":  true,
+                                        "seconds":  1.027
+                                    },
+                                    {
+                                        "id":  "wise-0535",
+                                        "painted":  true,
+                                        "seconds":  1.107
+                                    },
+                                    {
+                                        "id":  "wise-2056",
+                                        "painted":  true,
+                                        "seconds":  1.056
+                                    },
+                                    {
+                                        "id":  "wolf-940-b",
+                                        "painted":  true,
+                                        "seconds":  1.014
+                                    },
+                                    {
+                                        "id":  "t-tau",
+                                        "painted":  true,
+                                        "seconds":  1.003
+                                    },
+                                    {
+                                        "id":  "fu-ori",
+                                        "painted":  true,
+                                        "seconds":  1.002
+                                    },
+                                    {
+                                        "id":  "v1647-ori",
+                                        "painted":  true,
+                                        "seconds":  0.972
+                                    },
+                                    {
+                                        "id":  "chi-cyg",
+                                        "painted":  true,
+                                        "seconds":  1.092
+                                    },
+                                    {
+                                        "id":  "r-leo",
+                                        "painted":  true,
+                                        "seconds":  0.916
+                                    },
+                                    {
+                                        "id":  "cw-leo",
+                                        "painted":  true,
+                                        "seconds":  0.958
+                                    },
+                                    {
+                                        "id":  "v1057-cyg",
+                                        "painted":  true,
+                                        "seconds":  1.008
+                                    },
+                                    {
+                                        "id":  "v1515-cyg",
+                                        "painted":  true,
+                                        "seconds":  0.999
+                                    },
+                                    {
+                                        "id":  "ex-lup",
+                                        "painted":  true,
+                                        "seconds":  1.011
+                                    },
+                                    {
+                                        "id":  "v346-nor",
+                                        "painted":  true,
+                                        "seconds":  1.015
+                                    },
+                                    {
+                                        "id":  "z-cma",
+                                        "painted":  true,
+                                        "seconds":  0.969
+                                    },
+                                    {
+                                        "id":  "v883-ori",
+                                        "painted":  true,
+                                        "seconds":  1.0
+                                    },
+                                    {
+                                        "id":  "pv-cep",
+                                        "painted":  true,
+                                        "seconds":  1.001
+                                    },
+                                    {
+                                        "id":  "dg-tau",
+                                        "painted":  true,
+                                        "seconds":  1.023
+                                    }
+                                ],
+                    "api_requests":  [
+
+                                     ],
+                    "blocked_external_requests":  [
+
+                                                  ],
+                    "browser_errors":  [
+
+                                       ]
+                }
+}

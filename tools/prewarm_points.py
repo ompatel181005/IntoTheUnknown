@@ -17,8 +17,8 @@ What this script does:
     8. Prints a summary table (id, status, seconds, passes).
 
 Idempotency and rerun safety:
-    The script is fully idempotent. If a position has already been rendered to Azure Blob,
-    the API returns HTTP 200 with status 'ready' instantly (< 0.5s), avoiding duplicate
+    If a position has already been rendered to Azure Blob, the API can return HTTP 200
+    with status 'ready', avoiding duplicate
     expensive pipeline computations. Output is written atomically.
 
 Integration:
@@ -140,6 +140,47 @@ def http_get_json(url: str, timeout: float = 30.0) -> dict:
             raise RuntimeError(f"HTTP {e.code}: {body}") from e
 
 
+class ManifestError(RuntimeError):
+    """A malformed or mismatched ready response, handled as a failed view."""
+
+
+def validated_manifest_query(manifest: object, requested: dict) -> dict:
+    """Store returned coordinates, accepting only the backend's actual cache bucket.
+
+    The backend formats RA/Dec to .4f when addressing a query. A cached render may
+    retain a slightly different original centre in that bucket. FOV/band and any
+    reported source/mode must still agree. Mode/source are request metadata when
+    absent from the manifest's four-field scientific query.
+    """
+    if not isinstance(manifest, dict) or not isinstance(manifest.get("epochs"), list):
+        raise ManifestError("Malformed ready manifest")
+    actual = manifest.get("query")
+    if not isinstance(actual, dict):
+        raise ManifestError("Ready manifest has no query")
+    for name, low, high in (("ra", 0, 360), ("dec", -90, 90)):
+        value = actual.get(name)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+        ):
+            raise ManifestError("Ready manifest has invalid coordinates")
+        if value < low or value > high or (name == "ra" and value == 360):
+            raise ManifestError("Ready manifest has invalid coordinates")
+        if f"{value:.4f}" != f"{requested[name]:.4f}":
+            raise ManifestError("Ready manifest belongs to another sky field")
+    if (
+        isinstance(actual.get("fov_arcmin"), bool)
+        or actual.get("fov_arcmin") != requested["fov_arcmin"]
+        or actual.get("band") != requested["band"]
+    ):
+        raise ManifestError("Ready manifest FOV/band does not match the request")
+    for name in ("mode", "source"):
+        if name in actual and actual[name] != requested[name]:
+            raise ManifestError("Ready manifest mode/source does not match the request")
+    return {**actual, "mode": requested["mode"], "source": requested["source"]}
+
+
 def process_object(
     obj: dict,
     api_url: str,
@@ -193,6 +234,7 @@ def process_object(
     if status == "ready" and manifest_url:
         try:
             manifest = http_get_json(manifest_url, timeout=30.0)
+            actual_query = validated_manifest_query(manifest, query)
             passes = len(manifest.get("epochs", []))
             built_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             elapsed = round(time.time() - start_time, 2)
@@ -203,7 +245,7 @@ def process_object(
                 "passes": passes,
                 "view": {
                     "manifest_url": manifest_url,
-                    "query": query,
+                    "query": actual_query,
                     "built_at": built_at,
                     "passes": passes,
                 },
@@ -298,6 +340,7 @@ def process_object(
                 }
             try:
                 manifest = http_get_json(manifest_url, timeout=30.0)
+                actual_query = validated_manifest_query(manifest, query)
                 passes = len(manifest.get("epochs", []))
                 built_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
                 elapsed = round(time.time() - start_time, 2)
@@ -308,7 +351,7 @@ def process_object(
                     "passes": passes,
                     "view": {
                         "manifest_url": manifest_url,
-                        "query": query,
+                        "query": actual_query,
                         "built_at": built_at,
                         "passes": passes,
                     },

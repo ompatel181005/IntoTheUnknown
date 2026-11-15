@@ -13,52 +13,52 @@ Append-only log, newest at bottom. Format: `## YYYY-MM-DD HH:MM - <title>` then 
 ## 2026-11-14 00:00 - Stack choice
 Decision: Backend Python 3.11 + FastAPI in `backend/`. Frontend React + Vite + TypeScript in `frontend/`. Data watcher on Azure Functions (Python) in `functions/`. Infra scripts in `infra/`.
 Why: Backend: the pipeline needs scientific Python (astropy, astroquery, reproject), per `infra/README.md`. Frontend and folder layout: TODO(team)
-Owner: TODO(team)
+Owner: unconfirmed by the team. Recorder: Eduardo Galvan (git blame 2100f6d2); recording is not a formal ownership assignment.
 
 ## 2026-11-14 00:00 - Azure architecture
 Decision: Azure Static Web Apps (frontend), Azure Container Apps (backend), Azure Blob Storage cache behind a CDN layer, Azure Functions timer trigger. Add-ons: Cosmos DB, Application Insights.
 Why: Each resource solves a named problem; the table is in `infra/README.md`. The "CDN layer" part is superseded by the 12:45 entry below.
-Owner: TODO(team)
+Owner: unconfirmed by the team. Recorder: Eduardo Galvan (git blame 2100f6d2); recording is not a formal ownership assignment.
 
 ## 2026-11-14 00:00 - MVP, tier, and cut scope
 Decision: Scope split into MVP, Tier 2, Tier 3, and Cut as listed in `docs/IDEA.md`.
 Why: 30 hours of build time. The MVP is what must work at the H12 gate (`docs/PLAN.md` §7); tiers set the order after it.
-Owner: TODO(team)
+Owner: unconfirmed by the team. Recorder: Eduardo Galvan (git blame 2100f6d2); recording is not a formal ownership assignment.
 
 ## 2026-11-14 00:00 - Git workflow
 Decision: Short-lived branches and PRs, any teammate other than the author reviews and merges, squash merge and delete branch, `main` must always run. Work split by feature slice, one owner per issue. GitHub Issues are the source of truth, STATUS.md is a snapshot. Parallel agents via worktrees.
 Why: TODO(team)
-Owner: TODO(team)
+Owner: unconfirmed by the team. Recorder: Eduardo Galvan (git blame 2100f6d2); recording is not a formal ownership assignment.
 
 ## 2026-11-14 12:45 - No CDN layer; frames served from Blob directly
 Decision: Serve frames straight from a public-read Blob container. Front Door Standard is optional, Sunday only, deleted after local judging. Supersedes "Blob Storage cache behind a CDN layer" above.
 Why: Classic Azure CDN has accepted no new profiles since Aug 15 2025, and Front Door Standard costs $35/month (`docs/PLAN.md` §1).
-Owner: TODO(team)
+Owner: unconfirmed by the team. Recorder: Diego (git blame aae44798); recording is not a formal ownership assignment.
 
 ## 2026-11-14 12:45 - Cut Durable Functions and Azure OpenAI
 Decision: No Durable Functions. No Azure OpenAI; captions are deterministic templates filled with measured numbers.
 Why: A ThreadPool already gives the 10× fetch speedup, so Durable Functions would be decorative. `AGENTS.md` §9 requires every number shown to users to come from our code.
-Owner: TODO(team)
+Owner: unconfirmed by the team. Recorder: Diego (git blame aae44798); recording is not a formal ownership assignment.
 
 ## 2026-11-14 12:45 - Target astrometry from Gaia DR3, not SIMBAD
 Decision: Preset positions, proper motions and parallaxes come from Gaia DR3 and are propagated to the observation epoch. Never centre a view on J2000 or designation coordinates. SIMBAD is link-out only.
 Why: SIMBAD/CDS was down on 2026-11-14, and J2000 coordinates are arcminutes off for the movers (Barnard's Star: about 4.6′). Values are in `docs/TARGETS.md`.
-Owner: TODO(team)
+Owner: unconfirmed by the team. Recorder: Diego (git blame aae44798); recording is not a formal ownership assignment.
 
 ## 2026-11-14 12:45 - SIA on the user path, TAP for the watcher and as fallback
 Decision: User-facing frame queries use IRSA SIA. TAP is used by the watcher and when SIA fails.
 Why: TAP queries took 20–37 s in the tutorials. The SIA index lags about a day, which the watcher's TAP check covers.
-Owner: TODO(team)
+Owner: unconfirmed by the team. Recorder: Diego (git blame aae44798); recording is not a formal ownership assignment.
 
 ## 2026-11-14 12:45 - Golden snapshots of the 5 targets ship with the frontend
 Decision: Pre-computed manifests and arrays for the 5 targets are baked into `frontend/public/golden/`, and presets load from there first.
 Why: IRSA's SIA and TAP returned 502 during planning. Judging must work with the API, IRSA or Blob down.
-Owner: TODO(team)
+Owner: unconfirmed by the team. Recorder: Diego (git blame aae44798); recording is not a formal ownership assignment.
 
 ## 2026-11-14 12:45 - Plan brought in line with the repo (docs PR)
 Decision: `docs/PLAN.md` now follows `AGENTS.md`: folders `backend/ frontend/ functions/ infra/`, Python 3.11, `CUTOUT_MAX_WORKERS`, no full-frame downloads. Sleep moves to H13–19 and Tier 2 to H19–24. The pitch no longer promises auto-flagging (Tier 3); it promises the Gaia overlay (Tier 2). Auto-flag candidates need S/N > 10 in every epoch. The public API gets job and frame caps. Target data, citations, the resource table, the runbook and the code skeletons moved out of the plan into `TARGETS.md`, `DATA.md`, `infra/README.md` and `docs/skeletons/`.
 Why: The plan contradicted the scaffolding, CI and its own cut list, and duplicated four template files that were still empty. The schedule change puts the lead differentiator after sleep, not at 01:00–06:00.
-Owner: TODO(team)
+Owner: unconfirmed by the team. Recorder: Diego (git blame aae44798); recording is not a formal ownership assignment.
 
 ## 2026-11-14 13:06 - Authors merge their own PRs
 Decision: The author squash-merges their own PR once CI is green. No second reviewer is required. Supersedes "any teammate other than the author reviews and merges" in the Git workflow entry above. PRs, short-lived branches and "never commit to main" stay.
@@ -194,3 +194,69 @@ Owner: dflow11
 Decision: Himanshu's two-level Blob cache (`backend/app/cache/blob.py`) is the render cache whenever `STORAGE_ACCOUNT_URL` is set: renders go to `frames/r/<rk>/`, pointers to `frames/q/<qk>.json`, and `manifest_url` is the public Blob URL, so the browser loads arrays from Blob. Unset, it is the local folder served at `/frames`, as before. Added while bringing the branch up to date: `gaia.json` is stored with the render and `/api/views/{id}/gaia` reads the render back through the cache (`read`); the Blob client retries once with 5 s connect and 20 s read timeouts; a failed Blob write keeps that view on local disk instead of failing it; every build renders, and only the upload is skipped when the render already exists.
 Why: The container's disk is wiped on every deploy, so each custom position was rebuilt from the archive after every merge to main. Main gained the alignment check and the Gaia overlay after the branch was cut, and both wrote to or read from the local folder. Not tested against the real storage account before merging (no Azure CLI on the merging machine): the tests use a fake container, and the first real check is the deployed app.
 Owner: Himanshu-1804 (cache), dflow11 (merge onto main)
+
+
+## 2026-11-15: watcher activation uses MI storage and Flex OneDeploy (#7)
+
+The activation template reuses project storage/Insights, adds a dedicated watcher
+user identity and private host/package containers, and limits Flex to Python3.11,
+2048MB/max2/no always-ready. Host Blob Data Owner is scoped to precreated host
+containers; state/frames/package receive Blob Data Contributor. Container-scoped
+host startup remains a live verification gate. A dedicated main-only code workflow
+receives Website Contributor only on the Function app through the existing OIDC
+identity, plus Reader on the watcher plan because Azure CLI
+[reads its SKU before deploying](https://github.com/Azure/azure-cli/blob/azure-cli-2.92.0/src/azure-cli/azure/cli/command_modules/appservice/custom.py#L733-L760).
+No subscription/RG role or storage shared key is added.
+
+Current official migration guidance allows maximumInstanceCount 1-1000, although
+an older ARM quickstart still has minimum40. The provider accepted 1, but protected
+calls returned platform503; at 2 the handler executed and reported IRSA_DOWN.
+Keep max2 with zero always-ready instances. This is an operational observation,
+not a load test. Official Flex guidance explicitly supports config-zip remote builds
+through OneDeploy without local Core Tools. References, exact commands and live
+gates are in [WATCHER-ACTIVATION.md](../infra/WATCHER-ACTIVATION.md).
+
+The shared refresh secret is generated/recovered only in memory and passed as a
+secure ARM parameter/CAsecretRef/Function setting. Full manual API deployment
+preserves it; unwired bootstrap initializes safely, while withheld/dangling keys
+or cross-app disagreement fail closed. A refresh202 is accepted work, not proof
+of completed frames; the existing watcher targets metadata plus five pinned Live
+views, not all 47 catalog renders. The host is provisioned and both functions are
+indexed. Authentication rejection checks pass; a successful metadata refresh is
+still pending upstream IRSA availability.
+Owner: ompatel181005 (Codex)
+
+## 2026-11-15: readable files in the Functions deployment ZIP (#7)
+
+The first package built and uploaded but logged "Zip permission validation failed"
+and could not index its functions. CPython's string-name `ZipFile.writestr`
+[defaults to 0600](https://github.com/python/cpython/blob/3.11/Lib/zipfile.py#L1716-L1735).
+Package runtime files explicitly as Unix regular files with mode0644. After this
+fix OneDeploy succeeded and both functions indexed. No storage role was widened.
+The regression test inspects the actual ZIP entries. Remote Linux build remains
+enabled; only committed runtime files are packaged.
+Owner: ompatel181005 (Codex)
+
+## 2026-11-15: confirmed identity and submission evidence (#3/#28)
+
+The user confirmed project name Into The Unknown and registered team name LOGICA.
+Issue28 lists Diego, Eddie, Himanshu, Om, Ammar and Angelo; that list does not
+confirm formal roles or each member's Local Event registration. dflow11 remains
+the reported video coordinator. No video, physical-phone check, form checkbox or
+final submission is claimed on the human team's behalf.
+
+Current science is pipeline 3: Barnard and epsilon Indi B pass the specified
+astrometry gates. WISE detection and RW Aur/R Dra variability are not validated.
+The Gaia overlay, Learn EN/ES/HI and 47 prepared catalog fields are delivered;
+these feature/delivery checks do not extend scientific validation to every field.
+Dated receipts and human-only submission gates are in SUBMISSION.md.
+
+SIMBAD's official Harvard mirror is accessible and the supplied point catalog
+uses SIMBAD metadata. DATA.md now credits it and Wenger et al. (2000). The general
+IRSA acknowledgement was also located at https://irsa.ipac.caltech.edu/ack.html;
+that supersedes the earlier unsuccessful search, while historical observations
+remain dated records. Gaia runtime fallback is ARI Heidelberg, not MAST.
+
+Owner: user-confirmed naming; recorded by Codex for the documentation update.
+Formal track roles, decision owners, chat channel and feature-freeze time remain
+explicitly pending human confirmation.

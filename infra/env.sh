@@ -46,6 +46,7 @@ WEB_INDEX="index.html"            # Blob static website ($web container) index a
 API="ca-planetx-api"              # Container App: created in #23, not here
 APP_IDENTITY="id-planetx-api"     # Dedicated user-assigned identity for runtime and registry pulls
 FUNC="func-planetx-${SUF}"        # Function app (Flex): created in #24, not here
+WATCHER_IDENTITY="id-planetx-watcher" # Dedicated timer/HTTP runtime and deployment identity
 COSMOS="cosmos-planetx-${SUF}"    # Cosmos DB (free tier): T3 only, not here
 BUDGET_NAME="budget-planetx"
 

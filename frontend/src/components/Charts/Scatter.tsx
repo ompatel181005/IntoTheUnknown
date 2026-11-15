@@ -8,6 +8,8 @@ export interface ScatterPoint {
   xerr?: number;
   yerr?: number | null;
   hollow?: boolean;
+  /** CSS colour of the point (default: text colour). */
+  color?: string;
   /** Highlight (current epoch). */
   active?: boolean;
   title?: string;
@@ -21,6 +23,8 @@ interface ScatterProps {
   formatY?: (v: number) => string;
   /** Accessible summary of what the chart shows. */
   summary: string;
+  /** Shaded horizontal range [lo, hi] in y units, drawn behind the points. */
+  band?: [number, number];
 }
 
 const W = 300;
@@ -38,10 +42,10 @@ function ticks(lo: number, hi: number, n = 4) {
 }
 
 /** Small SVG scatter with error bars. Hollow points mark flagged data. */
-export function Scatter({ points, xLabel, yLabel, formatX = String, formatY = String, summary }: ScatterProps) {
+export function Scatter({ points, xLabel, yLabel, formatX = String, formatY = String, summary, band }: ScatterProps) {
   const id = useId();
   const xs = points.flatMap((p) => [p.x - (p.xerr ?? 0), p.x + (p.xerr ?? 0)]);
-  const ys = points.flatMap((p) => [p.y - (p.yerr ?? 0), p.y + (p.yerr ?? 0)]);
+  const ys = points.flatMap((p) => [p.y - (p.yerr ?? 0), p.y + (p.yerr ?? 0)]).concat(band ?? []);
   let [x0, x1] = [Math.min(...xs), Math.max(...xs)];
   let [y0, y1] = [Math.min(...ys), Math.max(...ys)];
   if (x0 === x1) [x0, x1] = [x0 - 1, x1 + 1];
@@ -56,6 +60,7 @@ export function Scatter({ points, xLabel, yLabel, formatX = String, formatY = St
     <figure className={s.figure}>
       <svg viewBox={`0 0 ${W} ${H}`} className={s.svg} role="img" aria-labelledby={`${id}-d`}>
         <desc id={`${id}-d`}>{summary}</desc>
+        {band && <rect x={PAD.l} width={W - PAD.l - PAD.r} y={sy(band[1])} height={sy(band[0]) - sy(band[1])} className={s.band} />}
         {ticks(y0, y1).map((t) => (
           <g key={`y${t}`}>
             <line x1={PAD.l} x2={W - PAD.r} y1={sy(t)} y2={sy(t)} className={s.gridline} />
@@ -74,7 +79,7 @@ export function Scatter({ points, xLabel, yLabel, formatX = String, formatY = St
           <g key={i} className={p.active ? s.active : undefined}>
             {p.xerr ? <line x1={sx(p.x - p.xerr)} x2={sx(p.x + p.xerr)} y1={sy(p.y)} y2={sy(p.y)} className={s.err} /> : null}
             {p.yerr ? <line x1={sx(p.x)} x2={sx(p.x)} y1={sy(p.y - p.yerr)} y2={sy(p.y + p.yerr)} className={s.err} /> : null}
-            <circle cx={sx(p.x)} cy={sy(p.y)} r={p.active ? 4 : 3} className={p.hollow ? s.hollow : s.dot}>
+            <circle cx={sx(p.x)} cy={sy(p.y)} r={p.active ? 4 : 3} className={p.hollow ? s.hollow : s.dot} style={p.color ? { color: p.color } : undefined}>
               {p.title && <title>{p.title}</title>}
             </circle>
           </g>

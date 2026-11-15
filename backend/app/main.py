@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import config
+from . import config, refresh
 from .models import GaiaResult, Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus
 from .processing import views
 from .targets import TARGETS
@@ -112,6 +112,8 @@ def view_gaia(
     """Gaia overlay (#29): per-star pixel tracks and matches; with x and y, the match label of that source."""
     return views.gaia_overlay(_job(view_id), x, y, epoch)
 
+
+app.include_router(refresh.router)
 
 # Production: the built React app (frontend/dist) is served from the same origin. Mounted last so /api and /frames win.
 _DIST = config.ROOT / "frontend" / "dist"

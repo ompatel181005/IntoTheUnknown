@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getLightCurve, getSpectrum } from "./api";
+import { getGaiaMatch, getLightCurve, getSpectrum } from "./api";
 import { AppShell } from "./components/AppShell/AppShell";
 import { CustomizePanel, type CustomizeValues } from "./components/Customize/CustomizePanel";
 import { Drawer } from "./components/Drawer/Drawer";
@@ -30,6 +30,7 @@ import { markFlight, prepareReturnFlight, requestCoordinateFlight, requestTarget
 import { readFlag, writeFlag } from "./lib/storage";
 import { findPreset, PRESETS, type Preset } from "./lib/targets";
 import { DEFAULTS, parseUrl, toSearch, type Panel, type ViewMode, type ViewState } from "./lib/url";
+import { centeredPreset, sourcePresentation } from "./lib/viewPresentation";
 
 const GUIDE_KEY = "spherex-blink.guide-dismissed";
 const HOME_PANEL_KEY = "spherex-blink.home-panel-hidden";
@@ -65,10 +66,14 @@ export default function App({ source }: { source: ViewSource }) {
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const mobile = useMediaQuery("(max-width: 768px)");
 
-  const catalog = useCatalog();
+  const catalog = useCatalog("points", storedUrl.point !== null || storedUrl.ra === null);
   const objects = catalog.catalog?.objects ?? NO_OBJECTS;
   const point = objects.find((object) => object.id === storedUrl.point) ?? null;
-  const pointDefaults = useMemo(() => point ? pointPosition(point) : null, [point]);
+  const pointDefaults = useMemo(() => {
+    if (!point) return null;
+    const challenge = findPreset(point.preset_id);
+    return challenge ? { ra: challenge.ra, dec: challenge.dec, fov: challenge.fov, band: challenge.band } : pointPosition(point);
+  }, [point]);
   const pointLinkDefaults = useMemo(() => pointDefaults ? {
     ...pointDefaults,
     fov: initialParams.has("fov") ? storedUrl.fov : pointDefaults.fov,
@@ -96,10 +101,10 @@ export default function App({ source }: { source: ViewSource }) {
   const query = useMemo<ViewQuery | null>(() => {
     if (url.ra === null || url.dec === null || (url.point && !point && catalog.status === "loading")) return null;
     const rendered = point?.view;
-    const useRendered = rendered && url.source !== "live" && Math.abs(url.ra - rendered.query.ra) < 0.0000051 && Math.abs(url.dec - rendered.query.dec) < 0.0000051
+    const useRendered = rendered && url.source === "auto" && Math.abs(url.ra - rendered.query.ra) < 0.0000051 && Math.abs(url.dec - rendered.query.dec) < 0.0000051
       && url.fov === rendered.query.fov_arcmin && url.band === rendered.query.band;
     return { ra: url.ra, dec: url.dec, fov_arcmin: url.fov, band: url.band, mode: "stack", source: url.source,
-      presetId: url.target, ...(useRendered ? { manifestUrl: rendered.manifest_url } : {}) };
+      presetId: url.target ?? point?.preset_id ?? null, ...(useRendered ? { manifestUrl: rendered.manifest_url } : {}) };
   }, [url.ra, url.dec, url.fov, url.band, url.source, url.target, url.point, point, catalog.status]);
   const load = useView(source, query, attempt);
   const view = load.kind === "ready" ? load.view : null;
@@ -136,8 +141,12 @@ export default function App({ source }: { source: ViewSource }) {
     view && url.panel === "brightness" ? `${view.viewId}|${at[0]}|${at[1]}` : null,
     (signal) => getLightCurve(view!.viewId, at[0], at[1], signal),
   );
+  const gaiaMatch = useAsync(
+    view?.gaia && (url.panel === "colours" || url.panel === "brightness") ? `${view.viewId}|${at[0]}|${at[1]}|${pb.index}` : null,
+    (signal) => getGaiaMatch(view!.viewId, at[0], at[1], pb.index, signal),
+  );
 
-  const preset = findPreset(url.target);
+  const preset = centeredPreset(url.target, url.ra, url.dec);
   const drawerOpen = url.panel !== null;
   const customizeOpen = mobile ? sheetOpen : !customizeHidden;
   const idle = useIdle(pb.playing && !drawerOpen && !guideOpen && !tourOn && !reducedMotion && !(mobile && sheetOpen));
@@ -268,10 +277,12 @@ export default function App({ source }: { source: ViewSource }) {
   const available = {
     flags: !!view && view.masks.some((m) => m !== null),
     grid: !!view,
+    gaia: !!view?.gaia,
   };
   const overlays = {
     flags: url.overlays.flags && available.flags,
     grid: url.overlays.grid && available.grid,
+    gaia: url.overlays.gaia && available.gaia,
   };
 
   // Keyboard shortcuts. Ignored while typing.
@@ -454,6 +465,7 @@ export default function App({ source }: { source: ViewSource }) {
                 onReset={resetCustomize}
                 epochs={epochs}
                 origin={view?.manifest.origin ?? null}
+                provenance={view ? sourcePresentation(view) : null}
                 collections={view?.manifest.catalog.collections ?? []}
                 loading={load.kind === "loading"}
                 sheet={mobile}
@@ -468,6 +480,7 @@ export default function App({ source }: { source: ViewSource }) {
                   [
                     { id: "grid", label: "Coordinate grid", icon: "grid", pressed: overlays.grid, disabled: !available.grid, onClick: () => toggleOverlay("grid") },
                     ...(!view || available.flags ? [{ id: "flags", label: "Flagged pixels", icon: "flag" as const, pressed: overlays.flags, disabled: !available.flags, onClick: () => toggleOverlay("flags") }] : []),
+                    ...(available.gaia ? [{ id: "gaia", label: "Gaia stars", icon: "gaia" as const, pressed: overlays.gaia, onClick: () => toggleOverlay("gaia") }] : []),
                     { id: "invert", label: "Invert", icon: "invert", pressed: url.invert, disabled: !view, onClick: () => update({ invert: !url.invert }) },
                   ],
                   [
@@ -490,6 +503,7 @@ export default function App({ source }: { source: ViewSource }) {
                 sel={url.sel}
                 spectrum={spectrum}
                 lightcurve={lightcurve}
+                gaiaMatch={gaiaMatch}
                 onSelectEpoch={pb.seek}
               />
             )}

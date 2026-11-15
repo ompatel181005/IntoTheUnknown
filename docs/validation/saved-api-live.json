@@ -1,0 +1,54 @@
+{
+  "checked_at_utc": "2026-11-15T11:30:38.670900+00:00",
+  "base": "https://ca-planetx-api.politesand-6f83d8b5.westus.azurecontainerapps.io",
+  "results": [
+    {
+      "target": "barnard",
+      "http_status": 200,
+      "status": "ready",
+      "initial_seconds": 0.294,
+      "ready_seconds": 0.294,
+      "source": "saved",
+      "error": null
+    },
+    {
+      "target": "eps-ind-b",
+      "http_status": 200,
+      "status": "ready",
+      "initial_seconds": 0.251,
+      "ready_seconds": 0.251,
+      "source": "saved",
+      "error": null
+    },
+    {
+      "target": "wise-0855",
+      "http_status": 200,
+      "status": "ready",
+      "initial_seconds": 0.287,
+      "ready_seconds": 1.514,
+      "source": "saved",
+      "error": null
+    },
+    {
+      "target": "rw-aur",
+      "http_status": 200,
+      "status": "ready",
+      "initial_seconds": 0.257,
+      "ready_seconds": 3.964,
+      "source": "saved",
+      "error": null
+    },
+    {
+      "target": "r-dra",
+      "http_status": 200,
+      "status": "ready",
+      "initial_seconds": 0.291,
+      "ready_seconds": 1.528,
+      "source": "saved",
+      "error": null
+    }
+  ],
+  "archive_fallback": "prohibited by source=saved",
+  "app_source_commit": "4c181ad",
+  "workflow_run": "https://github.com/ompatel181005/IntoTheUnknown/actions/runs/43708260291"
+}

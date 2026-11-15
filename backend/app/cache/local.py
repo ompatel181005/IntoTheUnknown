@@ -37,6 +37,12 @@ class LocalCache:
     def manifest_url(self, rk: str) -> str:
         return f"/frames/r/{rk}/manifest.json"
 
+    def catalog(self) -> dict | None:
+        try:
+            return json.loads((self.root / "meta" / "catalog.json").read_text())
+        except (OSError, ValueError):
+            return None
+
 
 def _write(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
