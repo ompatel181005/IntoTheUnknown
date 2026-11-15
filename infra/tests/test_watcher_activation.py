@@ -253,11 +253,18 @@ class ActivationTests(unittest.TestCase):
             for item in resources
             if item["type"] == "Microsoft.Authorization/roleAssignments"
         ]
-        self.assertEqual(len(roles), 6)
+        self.assertEqual(len(roles), 7)
         ci_role = next(item for item in roles if "Microsoft.Web/sites" in item["scope"])
         self.assertIn("de139f84", ci_role["properties"]["roleDefinitionId"])
         self.assertIn("ciIdentityName", ci_role["properties"]["principalId"])
-        roles = [item for item in roles if item is not ci_role]
+        plan_reader = next(
+            item for item in roles if "Microsoft.Web/serverfarms" in item["scope"]
+        )
+        self.assertIn("acdd72a7", plan_reader["properties"]["roleDefinitionId"])
+        self.assertIn("ciIdentityName", plan_reader["properties"]["principalId"])
+        roles = [
+            item for item in roles if item is not ci_role and item is not plan_reader
+        ]
         self.assertTrue(
             all("blobServices/containers" in item["scope"] for item in roles)
         )

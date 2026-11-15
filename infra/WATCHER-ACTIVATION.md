@@ -23,7 +23,7 @@ workspace or Insights account. `watcher.json` creates:
 | Private `azure-webjobs-hosts`, `azure-webjobs-secrets` containers | Timer leases/locks and Function access-key storage; Blob Data Owner scoped to these two containers |
 | Private `watcher-packages` | Flex deployment content; Blob Data Contributor scoped to this container |
 | Existing `state` and `frames` | Blob Data Contributor for private checkpoints and public metadata; no account-wide data grant |
-| Existing `id-planetx-github` | Website Contributor scoped only to this Function app for code deployment; no role-assignment or storage grant |
+| Existing `id-planetx-github` | Website Contributor on this Function app and Reader on its plan; no role-assignment or storage grant. Azure CLI reads the plan SKU before OneDeploy. |
 
 Blob Data Owner is a **data role**, not ARM Owner. The host containers are
 precreated to permit narrow container scopes. Host startup and timer execution

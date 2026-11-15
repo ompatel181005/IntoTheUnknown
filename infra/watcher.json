@@ -236,6 +236,18 @@
     {
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id, parameters('planName'), parameters('ciIdentityName'), 'watcher-plan-reader')]",
+      "scope": "[resourceId('Microsoft.Web/serverfarms', parameters('planName'))]",
+      "dependsOn": ["[resourceId('Microsoft.Web/serverfarms', parameters('planName'))]"],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'acdd72a7-3385-48ef-bd42-f606fba81ae7')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', parameters('ciIdentityName')), '2023-01-31').principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
       "name": "[guid(resourceGroup().id, parameters('functionName'), parameters('ciIdentityName'), 'watcher-deployer')]",
       "scope": "[resourceId('Microsoft.Web/sites', parameters('functionName'))]",
       "dependsOn": [
