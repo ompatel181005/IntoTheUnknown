@@ -339,17 +339,20 @@ export default function App({ source }: { source: ViewSource }) {
       }
       top={
         <>
-          {url.ra === null ? <HomeGuideButton onGuide={() => setGuideOpen(true)} /> : <TopBar
-            crumb={url.ra === null ? null : (preset?.name ?? point?.name ?? "Custom position")}
-            onHome={goHome}
-            homeDisabled={flightActive}
-            onPreset={pickFromBar}
-            onCoords={pickCoords}
-            onShare={share}
-            shareDisabled={!query}
-            onGuide={() => setGuideOpen(true)}
-            onTour={startTour}
-          />}
+          {url.ra === null && <HomeGuideButton onGuide={() => setGuideOpen(true)} />}
+          <div style={{ display: url.ra === null ? "none" : "contents" }}>
+            <TopBar
+              crumb={url.ra === null ? null : (preset?.name ?? point?.name ?? "Custom position")}
+              onHome={goHome}
+              homeDisabled={flightActive}
+              onPreset={pickFromBar}
+              onCoords={pickCoords}
+              onShare={share}
+              shareDisabled={!query}
+              onGuide={() => setGuideOpen(true)}
+              onTour={startTour}
+            />
+          </div>
           {showGuide && (
             <StepGuide
               done={guideDone}
@@ -421,7 +424,7 @@ export default function App({ source }: { source: ViewSource }) {
       }
       overlays={
         <>
-          {url.ra === null && <div aria-hidden={flightActive} inert={flightActive}>
+          <div hidden={url.ra !== null} aria-hidden={url.ra !== null || flightActive} inert={url.ra !== null || flightActive}>
             <HomePanel
               items={objects.map((object) => ({ id: object.id, name: object.name, kind: object.kind, clickable: true }))}
               checked={selection.checked}
@@ -438,7 +441,7 @@ export default function App({ source }: { source: ViewSource }) {
               onGuide={() => setGuideOpen(true)}
             />
             {catalog.status !== "ready" && <span className="home-catalog-status" role="status">{catalog.error ?? "Loading target list…"}</span>}
-          </div>}
+          </div>
           <div data-flight-chrome="panels" aria-hidden={chromeHidden} inert={chromeHidden}>
             {chromeReady && (!mobile || sheetOpen) && (
               <CustomizePanel

@@ -45,7 +45,7 @@ export function AppShell({ idle, flying, stageLeft, stageRight, hideBottom, bott
     if (topRef.current) ro.observe(topRef.current);
     if (bottomRef.current) ro.observe(bottomRef.current);
     return () => ro.disconnect();
-  }, [hideBottom, bottomReserve, hasBottom]);
+  }, [hideBottom, bottomReserve, hasBottom, flying]);
 
   return (
     <div

@@ -44,6 +44,7 @@ let active: { start: number; direction: 1 | -1; reduced: boolean; resolve: () =>
 let sample: FlightSample | null = null;
 let frame = 0;
 const listeners = new Set<(sample: FlightSample) => void>();
+let measureDome: (() => void) | null = null;
 const smooth = (t: number) => t * t * (3 - 2 * t);
 const mix = (a: number, b: number, u: number) => a + (b - a) * u;
 export const mixLog = (a: number, b: number, u: number) => Math.exp(mix(Math.log(a), Math.log(b), u));
@@ -55,15 +56,22 @@ export function saveHomeCamera(camera: OrreryCameraState) {
 export function getFlightSample() { return sample; }
 export function getFlightStartPose() { return route ? { ...(active?.direction === -1 ? route.dome : route.marker) } : null; }
 export function flightIsActive() { return active !== null; }
+export function getFlightDirection() { return active?.direction; }
 export function subscribeFlight(listener: (sample: FlightSample) => void) {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
+}
+
+export function registerDomeLayout(measure: () => void) {
+  measureDome = measure;
+  return () => { if (measureDome === measure) measureDome = null; };
 }
 
 function tick(now: number) {
   frame = 0;
   if (!active || !route) return;
   if (active.start < 0) {
+    measureDome?.();
     active.start = now;
     markFlight(active.direction === 1 ? "forward-start" : "return-start");
   }

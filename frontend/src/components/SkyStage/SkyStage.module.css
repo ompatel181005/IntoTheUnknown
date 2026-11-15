@@ -6,6 +6,11 @@
   container-type: size;
 }
 
+.stage[data-preparing="true"] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* Local overlay follows the exact image transform, including the overscanned sky grid. */
 .sky {
   position: absolute;

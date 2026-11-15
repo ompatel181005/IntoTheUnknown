@@ -48,6 +48,10 @@
   letter-spacing: 0.14em;
   color: var(--text-2);
   pointer-events: none;
+  /* The fixed-width UTC readout must not relayout the catalog on every simulation tick. */
+  contain: strict;
+  width: calc(27ch + 3.78em);
+  height: 1.45em;
 }
 
 @media (max-width: 768px) {
