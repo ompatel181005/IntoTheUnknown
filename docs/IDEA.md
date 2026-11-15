@@ -4,9 +4,13 @@
 NASA Space Apps 2026: "Planet X and SPHEREx". Also competing for the local "Best Use of Azure" award.
 
 ## Pitch
-Type any spot on the sky and watch it move in 102 infrared colours. Wanderer blinks NASA's newest all-sky survey and predicts where every Gaia star should be, so a mover Gaia can't explain stands out.
+Into The Unknown turns selected NASA SPHEREx observations into a shared-stretch
+flipbook with Gaia context, helping people inspect possible motion and brightness
+changes. Its Learn page guides observation in English, Spanish and Hindi.
 
-Working name: Wanderer (`docs/PLAN.md` §3). TODO(team): confirm the name.
+**Confirmed project name:** Into The Unknown. **Registered team name:** LOGICA.
+Both names were confirmed by the user on 2026-11-15. Registration of every member,
+formal roles and the final submission remain human confirmations.
 
 ## Target user
 Citizen scientists first. No login, no install, open a link and look at a patch of sky.
@@ -26,13 +30,13 @@ Enter RA/Dec, see the SPHEREx time series of that patch as a flipbook to spot mo
 - Difference mode
 - Golden snapshots of the 5 targets, so all 5 load with the API stopped
 
-### Tier 2
-- Gaia DR3 "should be here" overlay (lead differentiator, built first after the MVP gate), with a "Gaia match / no Gaia match" label on the selected source
+### Delivered extensions
+- Gaia DR3 "should be here" overlay, with a "Gaia match / no Gaia match" label on the selected source
 - Light curve panel
 - Flag overlay
 - Click-pixel spectrum
 
-### Tier 3
+### Unshipped ideas (not submission claims)
 - Brown dwarf color mode
 - Auto-flag movers (field-wide candidate detection; the Tier 2 overlay only labels the selected source)
 - "Report a candidate"
@@ -44,5 +48,7 @@ Enter RA/Dec, see the SPHEREx time series of that patch as a flipbook to spot mo
 - Durable Functions, Azure OpenAI captions
 
 ### Azure track (parallel, not an MVP gate item)
-- Watcher Function: daily catalog check, re-render on new data
+- Watcher Function: deployed daily metadata check and five pinned Live refresh requests; first successful metadata refresh is pending upstream IRSA recovery
+- Forty-seven prepared catalog fields on public Blob; delivered images are distinct from validated science
+- English/Spanish/Hindi Learn activities using fixed saved data, share links and PNG postcards
 - Application Insights: latency, IRSA failures, cache hits

@@ -1,9 +1,9 @@
 # Into The Unknown
 
 **Every patch of sky, as a little movie.** Into The Unknown is our entry for the NASA Space Apps 2026
-**Planet X and SPHEREx** challenge. Give it a position on the sky. It finds every image NASA's SPHEREx
-telescope has taken of that spot, lines them up and plays them as a short flip-book. Anything that moves or
-changes brightness between frames stands out against the fixed background stars.
+**Planet X and SPHEREx** challenge, by team **LOGICA**. Give it a position on the sky. It aligns selected
+SPHEREx observations and plays them as a short flipbook, helping people inspect possible motion and
+brightness changes. Interpretation still depends on coverage, wavelength, noise and the science gates below.
 
 **Live app (no login):** https://ca-planetx-api.politesand-6f83d8b5.westus.azurecontainerapps.io
 
@@ -24,24 +24,30 @@ and astronomers who want a quick look before downloading anything.
 
 ## 2. How to use
 
-1. **Pick a target.** Click one of the five challenge targets in the home sky, or use the search box for a
-   name or an RA, Dec.
+1. **Pick a target.** The home list contains 47 prepared fields, including the five challenge presets. Use
+   the list or search for a name or RA, Dec. The five default presets prefer bundled saved snapshots;
+   other prepared fields can load immutable cached images from public Blob.
 2. **Press play.** *Play all* steps through the survey passes; *Blink* flips between two; *Difference* subtracts a
    reference pass, so a moving star becomes a dark/bright pair; *Investigate* opens per-pixel measurements.
 3. **Click to measure.** The drawer shows the spectrum and light curve at the clicked pixel.
 4. **Customize.** Data source, field of view, speed and image stretch.
 
-The *Tour* button walks through all of this inside the app.
+The *Tour* button walks through the viewer. **[Learn & explore](https://ca-planetx-api.politesand-6f83d8b5.westus.azurecontainerapps.io/learn.html)**
+offers three saved-data activities in English, Spanish and Hindi: Barnard motion, RW Aur wavelength
+comparability, and WISE uncertainty. Learners observe, check curated explanations and share a URL or an
+image-based PNG postcard. These are guided observations, not scored detections or calibrated pixel measurements.
+Spanish and Hindi translations are initial drafts.
 
 **The URL is the state.** *Share* copies a link that reopens the same view, and the link can be written by hand:
 
 | Parameter | Values | Meaning |
 |---|---|---|
 | `ra`, `dec` | degrees | Centre of the view |
+| `point` | catalog object ID | Prepared field selected from the home catalog |
 | `target` | `barnard`, `eps-ind-b`, `wise-0855`, `rw-aur`, `r-dra` | Preset the view came from |
 | `fov` | `2`, `4`, `6`, `10`, `15` | Field of view in arcminutes |
 | `band` | `auto`, `B1`…`B6`, `B1-B2`, `B1-B3`, `all` | Which detectors are stacked |
-| `src` | `auto`, `saved`, `live` | Saved demo pack, live IRSA, or whichever is available |
+| `src` | `auto`, `saved`, `live` | Auto uses saved/cache where applicable; Saved requires saved data; Live requests archive observations |
 | `mode` | `all`, `blink`, `diff`, `inspect` | Play all, Blink, Difference, Investigate |
 | `epoch`, `ref` | 1-based pass number | Pass shown, and the reference pass for Blink and Difference |
 | `sel` | `x,y` | Pixel selected for measurements |
@@ -83,7 +89,8 @@ aberration. Catalogue values and pass criteria for all five targets are in [`doc
 
 ## 4. Method
 
-The browser never talks to IRSA. The React app (`frontend/`) asks the FastAPI backend (`backend/`) for a *view*:
+The browser never talks to IRSA. Bundled/prepared views load saved assets directly. For an uncached request,
+the React app (`frontend/`) asks the FastAPI backend (`backend/`) for a *view*:
 
 1. **Frames.** The five targets build from the real cutouts in `demo/`, so they work with IRSA down. Any other
    position queries IRSA's SIA service, with TAP as the fallback, and dedupes releases (newest wins).
@@ -101,7 +108,9 @@ The browser never talks to IRSA. The React app (`frontend/`) asks the FastAPI ba
    `manifest.json` plus one float32 array and mask per pass under `/frames/`; the browser does the stretch,
    blink and difference on a canvas, so the controls are instant.
 7. **Gaia + parallax.** Gaia DR3 positions are propagated to each pass with proper motion and parallax
-   (`backend/app/processing/gaia.py`). The API serves the predictions at `/api/views/{id}/gaia`.
+   (`backend/app/processing/gaia.py`), using ESA TAP with ARI Heidelberg fallback. Visible Gaia markers and
+   motion arrows provide context; the selected-source match label is a cross-match, not proof of discovery.
+   The API serves predictions at `/api/views/{id}/gaia`. Bundled field catalogues came through CDS VizieR.
 
 API contract: `docs/PLAN.md` §4.3, mirrored in `backend/app/models.py` and `frontend/src/types.ts`.
 
@@ -132,10 +141,20 @@ five targets ship inside the frontend, so the presets render even when the API i
 | Container Apps + Container Registry | Hosts the public app; GitHub Actions builds and deploys `main` | Live |
 | User-assigned managed identity | Registry pulls and Blob access with no stored secrets | Live |
 | Blob Storage | Render cache: finished views survive deploys, and the browser loads images straight from Blob | Live |
-| Functions | Daily watcher that detects new SPHEREx data | Code in `functions/`; deployment pending |
-| Log Analytics + Application Insights | Platform logs; API latency, cache hits and archive failures | Logs live; app telemetry merged, not yet verified live |
+| Functions | Daily metadata check and five pinned Live refresh requests | Deployed/indexed; authentication and OIDC deployment verified; successful metadata refresh pending IRSA recovery |
+| Log Analytics + Application Insights | Platform logs; API latency, cache hits and archive failures | Configured; SDK/KQL verification details in infra docs |
 
-Details, scripts and costs: [`infra/README.md`](infra/README.md).
+Details, scripts and costs: [`infra/README.md`](infra/README.md). The watcher has 2048 MB, a maximum of two
+instances and zero always-ready instances. [Live host/authentication receipt](infra/watcher-live-checks.json)
+and [main-only OIDC deployment run](https://github.com/ompatel181005/IntoTheUnknown/actions/runs/43708187059)
+record deployment, not a successful upstream metadata refresh. A refresh 202 means accepted work, not
+completed frames; the watcher does not rebuild all 47 prepared fields or change bundled snapshots.
+
+[Catalog receipt](infra/catalog-live-checks.json): all 47 fields / 152 passes were checked for public asset
+availability and rendered in Chrome without API builds. [Preset/Learn receipt](infra/preset-live-checks.json):
+all five defaults painted with API requests denied, and nine language/activity combinations passed at a
+320-pixel emulated viewport, with share round-trip and English/Hindi PNG downloads. These dated receipts
+identify the tested source commit; they are delivery checks, not scientific validation or physical-phone tests.
 
 ## 6. Limitations
 
@@ -143,17 +162,16 @@ Details, scripts and costs: [`infra/README.md`](infra/README.md).
   shift by a pixel or more.
 - **Science gates have a limited scope.** The two astrometry passes are described in section 3. WISE 0855's
   detection and RW Aur/R Dra variability are not established by this assessment. No discovery is claimed.
-- **Gaia overlay.** The backend serves Gaia predictions, but the overlay toggle in the app is not switched on
-  yet.
+- **Gaia context.** The overlay is active where Gaia data is available. Missing catalog matches alone do not establish an astrophysical detection or a new object.
 - **Saturation.** Barnard's Star and R Dra saturate SPHEREx; the pipeline blanks part of their cores, and
   their aperture sums are not calibrated photometry.
-- **Blends.** Neighbours can add light inside a 6.15″ pixel. In 2025 data, WISE 0855 passes ~6″ from a
-  background star that is bright at 1–2 µm; only its 4–5 µm points are WISE 0855 itself.
+- **Blends and faint sources.** Neighbours can add light inside a 6.15-arcsecond pixel. WISE 0855 has no
+  validated detection in the bundled assessment; a forced-aperture signal or a visible patch is insufficient.
 - **RW Aurigae.** One pass has a field-star scale of about 0.925. That is a calibration concern, not a
   variability detection.
-- **Live positions depend on IRSA.** Positions outside the five saved fields need the archive to answer with
-  the list of exposures. A new position took about 33 s to build in our test; after that it is served from the
-  cache.
+- **Uncached positions depend on IRSA.** Prepared catalog fields can use cached images. A new field still
+  needs IRSA exposure metadata, even when S3 supplies its pixels. IRSA TAP returned HTTP 502 during the latest
+  watcher verification; the saved/prepared images remain separate from that unsuccessful refresh.
 
 ## 7. Run locally and deploy
 
@@ -176,7 +194,7 @@ Tests:
 
 ```bash
 cd backend && ruff check . && ruff format --check . && pytest -q
-cd frontend && npm run lint && npm run build
+cd frontend && npm run lint && npm run build && node --experimental-vm-modules --test tests/*.test.mjs
 ```
 
 CI runs both on every pull request, plus `pytest` in `functions/` and `scripts/`. Merges to `main` deploy to
@@ -184,35 +202,31 @@ Azure automatically (`infra/README.md`).
 
 ## 8. Data citations and acknowledgements
 
-Full details: [`docs/DATA.md`](docs/DATA.md).
+Full credits and the verbatim supplied mission/database statements are in **[docs/DATA.md](docs/DATA.md)**.
+Use that file when preparing the final submission; it links the complete official IRSA archive statement.
 
-**SPHEREx (NASA, via the NASA/IPAC Infrared Science Archive).** Level 2 spectral-image cutouts from DR1 and QR3.
-DOIs: DR1 Spectral Images [10.26131/IRSA678](https://doi.org/10.26131/IRSA678), QR3
-[10.26131/IRSA662](https://doi.org/10.26131/IRSA662).
-
-> This publication makes use of data products from the Spectro-Photometer for the History of the Universe, Epoch of Reionization and Ices Explorer (SPHEREx), which is a joint project of the Jet Propulsion Laboratory and the California Institute of Technology, and is funded by the National Aeronautics and Space Administration.
-
-**Gaia DR3 (ESA).** Positions, proper motions and parallaxes for the target presets, the predictions and the
-alignment check. Credit: ESA/Gaia/DPAC. Cite Gaia Collaboration et al. (2016b) and Gaia Collaboration et al.
-(2023j).
-
-> This work has made use of data from the European Space Agency (ESA) mission Gaia (https://www.cosmos.esa.int/gaia), processed by the Gaia Data Processing and Analysis Consortium (DPAC, https://www.cosmos.esa.int/web/gaia/dpac/consortium). Funding for the DPAC has been provided by national institutions, in particular the institutions participating in the Gaia Multilateral Agreement.
-
-**Other.** The WISE 0855 position comes from CatWISE2020 (via IRSA). The demo pack's Gaia field catalogues were
-downloaded through CDS VizieR.
-
-**Software.** Astropy, astroquery, reproject, NumPy, SciPy, s3fs, FastAPI, React and Vite.
+- **NASA SPHEREx:** DR1 and QR3 Level 2 spectral-image cutouts via NASA/IPAC IRSA metadata and its public S3
+  mirror, with IRSA cutout fallback. DR1 images DOI [10.26131/IRSA678](https://doi.org/10.26131/IRSA678);
+  QR3 DOI [10.26131/IRSA662](https://doi.org/10.26131/IRSA662). No All-Sky Cube is used.
+- **ESA Gaia DR3 / DPAC:** validation references, propagated overlay and field-star alignment. Runtime
+  access is ESA TAP, then ARI Heidelberg; bundled field catalogues used CDS VizieR.
+- **SIMBAD / CDS and per-object literature:** supplied home-catalog metadata, with each original reference
+  preserved. Cite Wenger et al. (2000), DOI [10.1051/aas:2000332](https://doi.org/10.1051/aas:2000332).
+- **CatWISE2020 via IRSA:** the pinned WISE 0855 reference position. Its motion/parallax and this dataset's
+  detection significance remain unvalidated in the current assessment.
+- **Software:** Astropy, astroquery, reproject, NumPy, SciPy, s3fs, FastAPI, React and Vite.
 
 ## 9. AI-tools disclosure
 
 AI coding assistants (Claude Code, Cursor and OpenAI Codex) wrote and reviewed much of the code, tests,
 infrastructure scripts and documentation in this repository, directed and checked by the team. The project idea
-is the team's own. Every number the app shows is computed by our code from SPHEREx and Gaia data, never
-generated by a language model. The app contains no AI-generated images, video or data.
+is the team's own. Pixel measurements and validation results are computed from real observations. Supplied catalog metadata
+retains its source attribution and is distinct from validated science. The app does not use AI to infer
+astronomical detections. The app contains no AI-generated images, video or data.
 
 ## 10. Team
 
-Diego, Eddie, Himanshu, Om, Ammar and Angelo.
+Team LOGICA: Diego, Eddie, Himanshu, Om, Ammar and Angelo.
 
 How we work: one owner per GitHub issue, short-lived branches, squash merges once CI is green. The rules are in
 [AGENTS.md](AGENTS.md) and the playbooks in `.claude/skills/`.

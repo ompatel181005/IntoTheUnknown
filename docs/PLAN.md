@@ -1,4 +1,11 @@
-# Wanderer: SPHEREx blink comparator (hackathon plan)
+# Into The Unknown: SPHEREx blink comparator
+
+Current implementation context, 2026-11-15: registered team **LOGICA** and project
+name **Into The Unknown** are user-confirmed. README and validation.md describe
+the delivered app; the timed schedule and unshipped tiers below are planning
+history, not evidence of completion or formal member assignments. Current receipts:
+[presets/Learn](../infra/preset-live-checks.json), [47 prepared fields](../infra/catalog-live-checks.json),
+and [watcher](../infra/watcher-live-checks.json). Feature-freeze time remains unconfirmed.
 
 NASA Space Apps 2026 · "Planet X and SPHEREx" · local "Best Use of Azure"
 Written Sat 2026-11-14. **This is the plan only. Nothing is built on `main` yet** (the `initialammar` branch is a side prototype, not this app). Open for team review.
@@ -19,13 +26,13 @@ Markers: **✓** = checked today against a live source. **(lit.)** = from litera
 | Query | query_sia + TAP join | ✓ Exact code confirmed (§11). TAP queries took **20–37 s** in the tutorials. The SIA index lags about a day. | Use SIA on the user path. Use TAP for the watcher and as a fallback. |
 | Cutouts | URL pattern, 10 workers | ✓ URL `…?center=<ra>,<dec>d&size=<deg>`. Timing confirmed (0.22 vs 2.26 min), **but the parallel run lost 16 of 84 cutouts and the tutorial has no retry logic**. Each cutout also carries the full EPSF table unmodified (about **3.8 MB per cutout**, by our arithmetic). | Add retries and a fallback (§11). Use band presets to keep fetch counts down. |
 | **IRSA right now** | — | **SIA and TAP returned HTTP 502 for this whole session.** IRSA's static pages are up. | **Build the golden cache as soon as IRSA responds (§2 "Start here")** |
-| CORS | assume none | IRSA could not be tested because of the 502s. The **AWS mirror `nasa-irsa-spherex` (us-east-1) is up**: anonymous access, `Access-Control-Allow-Origin: *`, and **the same path layout as IRSA's `ibe/data/spherex/…`** ✓ (e.g. `dr1/level2/2025W17_4B/l2b-v27-2026-196/1/level2_…_spx_l2b-v27-2026-196.fits`, 65 MB). | The backend still proxies everything. S3 becomes the fallback source for pixels. |
+| CORS | assume none | IRSA could not be tested because of the 502s. The **AWS mirror `nasa-irsa-spherex` (us-east-1) is up**: anonymous access, `Access-Control-Allow-Origin: *`, and **the same path layout as IRSA's `ibe/data/spherex/…`** ✓ (e.g. `dr1/level2/2025W17_4B/l2b-v27-2026-196/1/level2_…_spx_l2b-v27-2026-196.fits`, 65 MB). | The backend still proxies everything. The current backend uses S3 range-read pixels first and IRSA cutouts as fallback. |
 | Target coordinates | from SIMBAD | SIMBAD/CDS returns 404 today, so astrometry came from the **Gaia DR3 TAP, which works** ✓. **J2000 coordinates are arcminutes off for the movers.** Barnard's Star has moved about 4.6′ north since J2000 (1.7′ since Gaia's 2016 epoch). WISE 0855 is about 2′ west of its designation coordinates. | Propagate to the observation epoch. Never centre a view on J2000 coordinates. |
 | Expected shift | "a couple of px" | With the ~1-year baseline available today: Barnard's 1.7 px, WISE 0855 1.3 px, ε Ind B 0.76 px. On top of that, a parallax wobble of up to ~2ϖ (0.18 px or less) between 6-month epochs (§5.8). | Use blink, a difference image, and measured centroids. |
 | CDN | Front Door vs classic | ✓ Classic Azure CDN (Microsoft) accepts **no new profiles since Aug 15 2025** and retires Sep 30 2027. Front Door classic also accepts no new profiles. **Front Door Standard costs $35/month, billed hourly.** | Serve from Blob directly first. Add Front Door Standard on Sunday only if there's time (§4). |
 | Azure for Students | — | ✓ $100 credit for 12 months. Always free: Container Apps 180k vCPU-s + 360k GiB-s + 2M requests per month; Functions 1M requests; Cosmos 1000 RU/s + 25 GB; SWA free; **ACR Standard free for 12 months**. ✓ Flex Consumption is the recommended Functions plan; students get **15 cores per region**; `WEBSITE_TIME_ZONE` is **not supported** (use UTC cron). Region policy: not stated in the docs we read, so check it with the CLI. Azure OpenAI is mentioned, but no free amount is listed and availability is unverified. | §8 runbook |
 | Local tools | — | python 3.13, node, gh and uv are installed. **az, func, swa and docker are missing.** | Install them or use Azure Cloud Shell. Build images in GitHub Actions. |
-| Not verified | — | ✓ The challenge page, resources tab and Project Submission Guide were read in a browser on 2026-11-14 (`LINKS.md`, §10, `DECISIONS.md` 13:20). ✓ The SPHEREx and Gaia acknowledgements are verbatim in `DATA.md`; no separate IRSA wording was found. Still open: the live submission form (§10 lists the fields as the guide describes them), the SIMBAD wording (CDS down), and whether cutout `size` is in degrees (the tutorial implies it). | Someone opens My Team → Project once; issue #4 confirms the cutout units. |
+| Not verified | — | ✓ The challenge page, resources tab and Project Submission Guide were read in a browser on 2026-11-14 (`LINKS.md`, §10, `DECISIONS.md` 13:20). ✓ The SPHEREx and Gaia acknowledgements are verbatim in `DATA.md`; no separate IRSA wording was found. Still open: the live submission form (§10 lists the fields as the guide describes them), the live form. SIMBAD is now credited from its Harvard mirror; cutout units were subsequently checked in the recorded spike. | A human opens My Team / Project and rechecks current rules and fields. |
 
 ---
 
@@ -49,7 +56,7 @@ There's a second axis, wavelength. Each pass contains frames at up to 102 infrar
 
 **What we can realistically ship in 30 h.**
 - **MVP:** flipbook, per-epoch stacking, difference mode, shareable URL. All 5 targets are served from a pre-computed cache. Arbitrary positions work live whenever IRSA is up.
-- **Hook:** the Gaia "should be here" overlay. A mover Gaia can't explain is a candidate.
+- **Hook:** the Gaia "should be here" overlay. An absent Gaia match is context, not a validated detection or discovery.
 - **Stretch:** light curves, then brown-dwarf colour mode.
 
 **Planet X geometry (a good science point for the pitch, from our own analysis).** SPHEREx always observes about 90° from the Sun. That means consecutive 6-month visits see the sky from opposite sides of Earth's orbit, so parallax is maximal.
@@ -67,34 +74,30 @@ There's a second axis, wavelength. Each pass contains frames at up to 102 infrar
 
 ## 3. Product
 
-**Name ideas:**
-- **Wanderer** (recommended; "planet" comes from the Greek for "wanderer")
-- BlinkX
-- Driftwatch
-- SpectraFlip
+**Confirmed identity:** Into The Unknown, by registered team LOGICA.
 
-**One-line pitch:** "Type any spot on the sky and watch it move in 102 infrared colours. Wanderer blinks NASA's newest all-sky survey and predicts where every Gaia star should be, so a mover Gaia can't explain stands out."
+**One-line pitch:** "Explore selected SPHEREx observations as a flipbook with
+Gaia context, then learn, observe and share what the evidence supports."
 
-**How it beats WiseView.** WiseView itself was unreachable today, so this comparison uses only facts on our side.
+**Against IRSA's SPHEREx Data Explorer:** Into The Unknown emphasizes prepared
+pass-by-pass comparison, parallax-aware Gaia context and guided English/Spanish/Hindi
+Learn activities, complementing IRSA's archive search and data-access tools
+([official Explorer](https://irsa.ipac.caltech.edu/applications/spherex/)). This is
+our product focus, not a claim that IRSA lacks every comparison feature.
 
-| | WiseView (unWISE/NEOWISE) | Wanderer (SPHEREx) | Ships in |
-|---|---|---|---|
-| Data freshness | Frozen; NEOWISE ended in 2024 (lit.) | Live mission with weekly ingest; **updates itself** | Azure track (watcher) |
-| Colours | 2 bands (W1/W2) | 102 channels behind band presets; per-pixel spectrum; methane colour mode | MVP; T2; T3 |
-| Explaining motion | — | Gaia DR3 prediction per epoch, **including parallax**, with a "Gaia match / no Gaia match" label | T2, first after the gate |
-| Variability | — | Light-curve panel | T2 |
-| Sharing | URL | URL; "report candidate" board | MVP; T3 |
-
-**On the MVP alone** Wanderer is a blink comparator with coarser pixels and a shorter baseline than WiseView. Its edge at that point is live SPHEREx data and the band presets. Every motion-explaining row needs Tier 2, which is why the Gaia overlay is the first thing built after the gate.
-
-**Against IRSA's own SPHEREx Data Explorer** (https://irsa.ipac.caltech.edu/applications/spherex): TODO(team). Open it at H0 and write one sentence on what Wanderer does that it doesn't. Judges will ask, and this plan has not checked.
+**Current scope:** flipbook/blink/difference, per-pixel spectrum/light-curve
+exploration, active Gaia context, 47 cached catalog fields, fixed snapshots of the
+five challenge presets, and three saved-data Learn activities with PNG/URL sharing.
+Barnard and epsilon Indi B pass only their stated astrometry gates; WISE detection
+and RW Aur/R Dra variability remain unvalidated. See validation.md rather than
+planning estimates for all pitch measurements.
 
 **Where we're weaker:**
 - Pixels are 6.15″ vs 2.75″ for unWISE.
 - The baseline is ~1 yr, against 14 for WISE.
 - SPHEREx is shallower at 4.6 µm.
 
-So we position Wanderer as a complement: every view gets an **"Open in WiseView" link-out**.
+WiseView remains an external complementary tool; no WISE image overlay, candidate board or Planet X discovery is claimed as delivered.
 
 ---
 
@@ -106,9 +109,9 @@ So we position Wanderer as a complement: every view gets an **"Open in WiseView"
  Browser ──────► │ Static Web Apps (Free): React app + /golden/* baked snapshots  │
    │             │                                                                │
    │ POST/GET    │ Container Apps (Consumption): FastAPI "api"                    │
-   └──/api/*───► │   query (SIA→TAP) · fetch cutouts (IRSA→S3 fallback)           │──► IRSA SIA/TAP/cutouts
+   └──/api/*───► │   query (SIA→TAP) · fetch cutouts (IRSA→S3-first pixels / IRSA fallback)           │──► IRSA SIA/TAP/cutouts
    │             │   stack · diff · render · Gaia · photometry · jobs             │──► AWS S3 nasa-irsa-spherex
-   │             │        │ writes (managed identity)                             │──► Gaia DR3 TAP (ESA; MAST fallback)
+   │             │        │ writes (managed identity)                             │──► Gaia DR3 TAP (ESA; ARI Heidelberg fallback)
    │             │        ▼                                                       │
    └─frames────► │ Blob Storage  frames/ (public read): q/ pointers, r/ renders,  │
      (optional   │               meta/catalog.json   state/ (private): jobs       │
@@ -252,7 +255,7 @@ POST /internal/refresh  (X-Refresh-Key) ← {"reason":"catalog_change","catalog_
 - A UI hint explains how to read dipoles and warns about asteroids near the ecliptic.
 
 ### 5.8 Gaia proper-motion propagation
-- **Query** the Gaia DR3 TAP (ESA, verified working; MAST as fallback):
+- **Query** the Gaia DR3 TAP (ESA first; ARI Heidelberg fallback):
   `SELECT source_id, ra, dec, pmra, pmdec, parallax, radial_velocity, phot_g_mean_mag FROM gaiadr3.gaia_source WHERE 1=CONTAINS(POINT(ra,dec), CIRCLE(ra0,dec0,r)) AND phot_g_mean_mag < 20.5`
   with r = FOV·√2/2 + 2′, so fast movers that wander in are caught. Cache the result per view.
 - **For each epoch time t** (the mean MJD of that epoch's frames), with Δt = t − J2016.0 (TCB):
@@ -318,7 +321,7 @@ The example clock assumes H0 = Sat 12:00, so H30 = Sun 18:00, leaving about 6 h 
 | H0–1 | Golden-capture retry loop | **Contracts:** Pydantic models + TS types + mock manifest (with C) | Vite + React + TS scaffold against the mock | Install az; region policy; RG, storage, ACR; OIDC test | Open the challenge page, resources tab and submission form in a browser; `targets.json` |
 | H1–3 | Notebook spike: Barnard's star from an S3 range-read window → clean → 2 epochs (real data once IRSA answers); benchmark IRSA cutouts against S3 range reads | FastAPI skeleton, `/targets`, job model with a fake renderer, Blob cache class, Dockerfile | Flipbook canvas (nearest-neighbour scaling, play/pause/speed/blink), URL state | Container Apps environment + app, SWA connected to GitHub, App Insights, deploy workflow | Gaia query + propagation module with unit tests (Barnard's) |
 | **H3 check** | IRSA still down? Keep developing on S3 range reads; capture loop keeps retrying | | | Policy blocker? Switch region or fall back (§9) | |
-| H3–6 | Epoch grouping, channel-matched stack, shared stretch | Wire the real pipeline into jobs; manifest writer; S3 fallback | Metadata panel, FOV selector, target picker, progress UI | First real API deploy via CI; SWA live on the mock | Expected-position table; README skeleton; citations |
+| H3–6 | Epoch grouping, channel-matched stack, shared stretch | Wire the real pipeline into jobs; manifest writer; S3-first pixels / IRSA fallback | Metadata panel, FOV selector, target picker, progress UI | First real API deploy via CI; SWA live on the mock | Expected-position table; README skeleton; citations |
 | **H6 check** | No clean stack → ship the unmatched mean (§5.5) | | | | |
 | H6–9 | Flag mask from `MSKN*`, difference mode, alignment check | Golden export + precache of the 5 targets → Blob and `frontend/public/golden`; `/gaia` | Difference UI, blink A/B, share URL, golden loader | Watcher Function (timer + run-now) deployed; OpenTelemetry in the API | Run validation on targets as they land |
 | H9–12 | Integration fixes on Azure | Integration | Error states; the 1-epoch case | min-replicas, CORS, cache headers | QA of all 5 targets on the live URL |
@@ -356,7 +359,7 @@ Moved to [`infra/README.md`](../infra/README.md), with the environment-variable 
 
 | # | Risk | L / I | Mitigation | Owner |
 |---|---|---|---|---|
-| 1 | **IRSA outage or latency.** It's 502 today; TAP takes 20–37 s. | High / High | Golden capture loop from H0. Three layers: golden (SWA) → Blob cache → live. Retries with backoff. Fall back from SIA to TAP. Pixels fall back to S3 (`fsspec` + `.section` range reads). A circuit breaker sets `irsa:"down"` and the UI says "IRSA is down — showing cached data". Serve stale data while revalidating. | A, B |
+| 1 | **IRSA outage or latency.** It's 502 today; TAP takes 20–37 s. | High / High | Golden capture loop from H0. Three layers: golden (SWA) → Blob cache → live. Retries with backoff. Fall back from SIA to TAP. Pixels use S3 first (`fsspec` + `.section` range reads), then IRSA cutouts. A circuit breaker sets `irsa:"down"` and the UI says "IRSA is down — showing cached data". Serve stale data while revalidating. | A, B |
 | 2 | No way to find frames while IRSA is down. S3 has no positional index. | Med / High | Only new positions are affected. The 5 targets come from golden data. Explain in the UI. Check S3 `index.html` for an inventory. | A |
 | 3 | CORS | Low / Med | The backend proxies all IRSA traffic. Blob CORS is set. FastAPI `ALLOWED_ORIGINS`. | B, D |
 | 4 | Too few epochs (1 epoch, or QR3 not ingested yet) | Med / Med | Detect it and offer the wavelength flipbook instead. Explain "motion needs ≥ 2 epochs". | C |
@@ -369,7 +372,7 @@ Moved to [`infra/README.md`](../infra/README.md), with the environment-variable 
 | 11 | Azure region policy or quota | Med / High | Check the policy at H0. Flex not available → Container Apps Job. ACR Tasks blocked → build in GitHub Actions. App registration blocked → GHCR plan B. | D |
 | 12 | Cold starts (image ~700 MB; astropy import) | High / Med | Golden presets need no API. min-replicas = 1 on judging days. A slim image. Lazy imports. | B, D |
 | 13 | SIMBAD/CDS down (seen today); Aladin Lite is served from CDS | Med / Low | No runtime SIMBAD dependency (Gaia-derived presets). The resolver is optional. Bundle Aladin Lite from npm if used. | C, E |
-| 14 | Gaia TAP down | Low / Med | Cache Gaia results per view (golden includes `gaia.json`). MAST as fallback. Hide the overlay gracefully. | B |
+| 14 | Gaia TAP down | Low / Med | Cache Gaia results per view (golden includes `gaia.json`). ARI Heidelberg as fallback. Hide the overlay gracefully. | B |
 | 15 | Budget overrun | Low / Med | Front Door only for the weekend; min-replicas back to 0; cost alert. | D |
 | 16 | 5-person merge chaos | Med / Med | Contracts frozen at H1. Mock manifest. Each track owns a folder. Short-lived PRs. | All |
 | 17 | Abuse of the open API: render floods that hammer IRSA, spam on the candidate board | Med / Med | Limits in §4.3: job and frame caps, 429s, plain-text fields, per-IP rate limit. | B |
@@ -378,28 +381,35 @@ Moved to [`infra/README.md`](../infra/README.md), with the environment-variable 
 
 ## 10. Demo and submission
 
-**30-second video script.** The hard limit is 30 s (or use a deck of 7 slides or fewer instead). Any AI-generated image or video needs a visible watermark.
-- **0–3 s:** Team name, the challenge ("Planet X and SPHEREx"), and the title card: "Wanderer — watch the infrared sky move." The submission guide's template opens with the team name and challenge.
-- **3–10 s:** Pick **Barnard's Star** and blink the 2025 and 2026 epochs. The star hops north and the Gaia arrow lands on it. Caption with the measured vs predicted numbers from `validation.md`.
-- **10–16 s:** **WISE 0855**, B6 stack. A faint dot moves and is labelled **"no Gaia match"**. Caption: "this is how the coldest known brown dwarf would be found." If WISE 0855 is not detected by the H24 check, use ε Ind B here (0.76 px shift, in Gaia) and drop that caption. Never show a label the data doesn't support.
-- **16–22 s:** **R Dra** light-curve panel. The Mira brightens and fades between visits.
-- **22–27 s:** Paste any RA/Dec. Frames stream in with a progress bar. Copy the share link.
-- **27–30 s:** "Updates itself when SPHEREx releases data · built on Azure", then the URL and a QR code.
+**Media owner and status:** dflow11 is coordinating issue #28's video. No finished
+video/deck or public media URL was supplied to this documentation pass. The
+following is an optional updated brief, not a duplicate recording task. Recheck
+the live submission guide: its recorded rule is at most 30 seconds of video or at
+most7 slides including title/intro, with English slides/subtitles and external
+public hosting.
 
-**2-minute pitch:**
-- **0:00 Hook:** brown dwarfs were found by blinking WISE; WISE is over. SPHEREx maps the whole sky every 6 months in 102 colours, but nobody can just look at it.
-- **0:15 Live demo:** Barnard's Star plus the Gaia overlay.
-- **0:45 Discovery logic:** WISE 0855 as the mover with no Gaia match (ε Ind B if WISE 0855 isn't detected); R Dra.
-- **1:05 Azure slide.**
-- **1:30 Science rigour:** channel-matched stacks, parallax-aware Gaia predictions, measured-vs-predicted table, honest limits.
-- **1:50 Close:** "Type any coordinates. Watch the sky move."
+- **0-3s:** LOGICA / Into The Unknown / Planet X and SPHEREx.
+- **3-11s:** Barnard blink plus Gaia arrow. Caption measurements from validation.md:
+  shift 1.6425 px versus predicted 1.6687 px; motion-vector error 0.0410 px.
+- **11-16s:** Epsilon Indi B: four passes; astrometry vector error 0.0308 px. This is
+  an unresolved-pair astrometry check, not validated photometry.
+- **16-23s:** Learn activity, language choice and observation postcard/share URL.
+- **23-27s:** The prepared-field catalog and one viewer link. Describe cached data
+  as prepared observations; do not imply all fields are scientifically validated.
+- **27-30s:** Public URL and "Real SPHEREx observations / built on Azure".
 
-**Azure slide** ("every service solves a problem"; numbers come from App Insights, never invented):
-- **Speed:** Blob render cache (+ Front Door edge). First view N s → cached N ms; hit ratio N%.
-- **Freshness:** Functions timer diffs the SPHEREx catalogue and re-renders automatically; "data as of" badge; live "run-now" demo.
-- **Resilience:** golden snapshots on SWA, S3 fallback for pixels, managed identity (no storage secrets).
-- **Discovery:** Cosmos DB candidate board (only if Tier 3 ships; otherwise drop this line).
-- **Observability:** App Insights workbook with p95 latency, IRSA failures and cache hits. KQL: `requests | summarize percentile(duration,95) by name` and `requests | where name has "/api/views" | summarize hit=countif(tostring(customDimensions["cache.hit"])=="true"), n=count()`.
+Do not show WISE as a detected moving dot or claim validated variable-star
+brightness changes. Do not caption the watcher as having completed a metadata
+refresh: its authenticated request returned upstream IRSA HTTP 502.
+
+**Optional Azure talking points:** Blob serves 47 prepared fields / 152 passes;
+Functions is deployed/indexed, with 2048 MB, max 2 and zero always-ready instances and main-only OIDC
+code deployment verified; successful metadata refresh remains pending. The
+watcher requests five pinned Live refreshes, not every catalog field. A 202 is
+acceptance, not proof of completed frames. Golden snapshots are bundled in the
+combined app, and live pixels use S3 first with IRSA cutout fallback. No Front
+Door, Cosmos candidate board, unmeasured latency percentage or fabricated
+AppInsights chart is a delivered-feature claim.
 
 **README outline:**
 1. What and why, plus the live URL
@@ -414,7 +424,7 @@ Moved to [`infra/README.md`](../infra/README.md), with the environment-variable 
 10. Team
 11. License
 
-**Citations:** in [`DATA.md`](DATA.md). The SPHEREx and Gaia DR3 acknowledgements there are verbatim. IRSA's DR1 page asks for the DOIs plus the SPHEREx text; no separate IRSA wording was found. SIMBAD's wording is still TODO (CDS was down).
+**Citations:** in [`DATA.md`](DATA.md). The supplied SPHEREx/Gaia statements and short SIMBAD acknowledgement are reproduced there. DATA.md links IRSA's complete general acknowledgement; the human must copy/recheck that full statement when completing submission text.
 
 **Submission checklist.** These are the form fields as the Project Submission Guide describes them (read 2026-11-14); check them against the live form once. The form is on the team page under My Team → Project → Edit. Use "Save Progress" often, and turn on the edit Lock so two people don't overwrite each other.
 - [ ] Every team member is a confirmed participant at the **same Local Event**; otherwise the project isn't eligible for awards
@@ -469,7 +479,7 @@ Copy one to its destination when you start that slice and delete the skeleton in
 | Skeleton | Destination | What it is |
 |---|---|---|
 | `docs/skeletons/query.py` | `backend/app/irsa/query.py` | SIA/TAP frame query, release dedupe |
-| `docs/skeletons/fetch.py` | `backend/app/irsa/fetch.py` | Parallel cutout fetcher with retries and S3 range-read fallback |
+| `docs/skeletons/fetch.py` | `backend/app/irsa/fetch.py` | Parallel cutout fetcher with retries and S3 range reads first with IRSA cutout fallback |
 | `docs/skeletons/stack.py` | `backend/app/processing/stack.py` | Epoch grouping, common grid, channel-matched stack, shared stretch |
 | `docs/skeletons/cache.py` | `backend/app/cache/blob.py` | Two-level Blob cache (query key → render key) |
 | `docs/skeletons/function_app.py` | `functions/function_app.py` | Timer + run-now watcher (Python v2 model) |
