@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { formatFovMoonFraction } from "../../lib/format";
 import { GAINS, SPEEDS, type StretchKind } from "../../lib/url";
 import { BAND_OPTIONS, FOV_OPTIONS, type Band, type DataSource, type Epoch, type FovArcmin, type Manifest } from "../../types";
-import { GlassButton, GlassPanel, Icon, Segmented, Switch } from "../glass";
+import { GlassButton, GlassPanel, Icon, Segmented, Switch, Term } from "../glass";
 import s from "./CustomizePanel.module.css";
 
 export interface CustomizeValues {
@@ -114,7 +115,11 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
           <h3 id="cz-view" className={s.groupTitle}>
             View
           </h3>
-          <Field label="Field of view" note="Wider views load slower.">
+          <Field
+            label={<Term term="Field of view">Field of view</Term>}
+            secondary={formatFovMoonFraction(v.fov)}
+            note="Wider views load slower."
+          >
             <Segmented
               label="Field of view in arcminutes"
               value={String(v.fov)}
@@ -154,12 +159,18 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
             />
           </Field>
           <Switch
-            label="Smooth pixels"
+            id="sw-smooth"
+            label={<Term term="Smooth pixels">Smooth pixels</Term>}
             pressed={v.smooth}
             hint="6.15″ pixels when off"
             onToggle={() => onChange({ smooth: !v.smooth })}
           />
-          <Switch label="Invert" pressed={v.invert} onToggle={() => onChange({ invert: !v.invert })} />
+          <Switch
+            id="sw-invert"
+            label={<Term term="Invert">Invert</Term>}
+            pressed={v.invert}
+            onToggle={() => onChange({ invert: !v.invert })}
+          />
         </section>
 
         <button type="button" className={s.more} aria-expanded={more} aria-controls="cz-more" onClick={() => setMore((m) => !m)}>
@@ -168,14 +179,14 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
         </button>
         {more && (
           <section id="cz-more" className={s.group} aria-label="More options">
-            <Field label="Stretch">
+            <Field label={<Term term="Asinh/Linear">Stretch</Term>}>
               <Segmented
                 label="Brightness stretch"
                 value={v.stretch}
                 onChange={(x) => onChange({ stretch: x })}
                 options={[
-                  { value: "asinh", label: "Asinh", title: "Balance faint and bright stars" },
-                  { value: "linear", label: "Linear" },
+                  { value: "asinh", label: <Term term="Asinh">Asinh</Term>, title: "Balance faint and bright stars" },
+                  { value: "linear", label: <Term term="Linear">Linear</Term> },
                 ]}
               />
             </Field>
@@ -208,7 +219,19 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
   );
 }
 
-function Field({ label, hint, note, children }: { label: string; hint?: string; note?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  secondary,
+  note,
+  children,
+}: {
+  label: React.ReactNode;
+  hint?: string;
+  secondary?: React.ReactNode;
+  note?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className={s.field}>
       <span className={s.label}>
@@ -216,6 +239,7 @@ function Field({ label, hint, note, children }: { label: string; hint?: string; 
         {hint && <span className={s.labelHint}> · {hint}</span>}
       </span>
       {children}
+      {secondary && <span className={`${s.secondary} mono`}>{secondary}</span>}
       {note && <span className={s.note}>{note}</span>}
     </div>
   );

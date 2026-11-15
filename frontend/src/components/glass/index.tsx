@@ -136,9 +136,26 @@ export function Tabs<T extends string>({ label, value, tabs, onChange }: TabsPro
 }
 
 export { Icon };
+export { Term } from "./Term";
+export type { TermProps } from "./Term";
 
-export function Switch({ label, pressed, disabled, hint, onToggle }: { label: string; pressed: boolean; disabled?: boolean; hint?: string; onToggle: () => void }) {
-  const id = `sw-${label.replace(/\W+/g, "-").toLowerCase()}`;
+export function Switch({
+  label,
+  id: idProp,
+  pressed,
+  disabled,
+  hint,
+  onToggle,
+}: {
+  label: ReactNode;
+  id?: string;
+  pressed: boolean;
+  disabled?: boolean;
+  hint?: string;
+  onToggle: () => void;
+}) {
+  const generatedId = typeof label === "string" ? `sw-${label.replace(/\W+/g, "-").toLowerCase()}` : "sw-toggle";
+  const id = idProp ?? generatedId;
   return (
     <div className={s.switchRow}>
       <span id={id}>{label}</span>

@@ -8,7 +8,7 @@ import { type Preset } from "../../lib/targets";
 import type { Overlays, StretchKind, ViewMode } from "../../lib/url";
 import type { CatalogObject, FovArcmin } from "../../types";
 import { Orrery } from "../Orrery/Orrery";
-import { GlassButton, GlassPanel, Icon } from "../glass";
+import { GlassButton, GlassPanel, Icon, Term } from "../glass";
 import { buildGrid } from "./grid";
 import s from "./SkyStage.module.css";
 
@@ -321,14 +321,17 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
           <ScaleBar side={box?.side ?? 0} fovArcmin={fovArcmin} />
           {diff ? (
             <span className={s.legend} aria-label="Difference: silver was, amber is now">
-              <span>
-                <span className={s.swatchNeg} />
-                Was −
-              </span>
-              <span>
-                <span className={s.swatchPos} />
-                Now +
-              </span>
+              <Term term="Difference pair" className={s.legendTerm}>
+                <span>
+                  <span className={s.swatchNeg} />
+                  Was −
+                </span>
+                {" "}
+                <span>
+                  <span className={s.swatchPos} />
+                  Now +
+                </span>
+              </Term>
             </span>
           ) : m && m.epochs.length === 1 ? (
             <span>One pass; nothing to compare</span>

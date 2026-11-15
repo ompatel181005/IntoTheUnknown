@@ -175,6 +175,13 @@
   gap: 12px;
 }
 
+.legendTerm {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  cursor: help;
+}
+
 .swatchNeg,
 .swatchPos {
   display: inline-block;

@@ -13,6 +13,12 @@ interface TourProps {
 type Rect = { left: number; top: number; width: number; height: number };
 
 function find(step: TourStep): HTMLElement | null {
+  if (step.target === "target-star" || step.spotlightCenter) {
+    const star = document.querySelector<HTMLElement>('[data-tour="target-star"]');
+    if (star && star.getBoundingClientRect().width > 0) return star;
+    const dome = document.querySelector<HTMLElement>('[data-tour="dome"]');
+    if (dome && dome.getBoundingClientRect().width > 0) return dome;
+  }
   for (const key of [step.target, step.fallback]) {
     if (!key) continue;
     for (const el of document.querySelectorAll<HTMLElement>(`[data-tour="${key}"]`)) {
@@ -96,10 +102,25 @@ export function Tour({ prepare, onClose }: TourProps) {
       if (el) {
         if (el !== element) { resize.disconnect(); resize.observe(el); element = el; }
         seen = true;
-        const r = el.getBoundingClientRect();
+        const raw = el.getBoundingClientRect();
+        let targetRect: Rect;
+        if (step.spotlightCenter || step.target === "target-star") {
+          const size = Math.min(84, Math.max(52, Math.round(raw.width * 0.16)));
+          const cx = raw.left + raw.width / 2;
+          const cy = raw.top + raw.height / 2;
+          targetRect = { left: cx - size / 2, top: cy - size / 2, width: size, height: size };
+        } else {
+          targetRect = { left: raw.left, top: raw.top, width: raw.width, height: raw.height };
+        }
         const prev = measured.current;
-        if (!prev || prev.left !== r.left || prev.top !== r.top || prev.width !== r.width || prev.height !== r.height) {
-          measured.current = { left: r.left, top: r.top, width: r.width, height: r.height };
+        if (
+          !prev ||
+          prev.left !== targetRect.left ||
+          prev.top !== targetRect.top ||
+          prev.width !== targetRect.width ||
+          prev.height !== targetRect.height
+        ) {
+          measured.current = targetRect;
           if (holeRef.current && cardRef.current) place(measured.current, holeRef.current, cardRef.current, step.round);
         }
         for (let node: HTMLElement | null = el; node; node = node.parentElement) {

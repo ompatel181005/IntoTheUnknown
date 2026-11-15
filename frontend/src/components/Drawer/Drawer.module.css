@@ -136,14 +136,60 @@
   word-break: break-word;
 }
 
+.tileSecondary {
+  font-size: 11px;
+  color: var(--text-2);
+  line-height: 1.3;
+}
+
+.perFrame {
+  font-size: 11px;
+  color: var(--text-2);
+  font-weight: 400;
+}
+
 .flagCount {
   color: var(--flag);
 }
 
-.flagList {
-  display: block;
+.maskedTile {
+  grid-column: 1 / -1;
+  background: var(--glass-bg);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.maskedHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.flagChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.flagChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: var(--radius-chip);
+  background: var(--hover-wash);
+  border: 1px solid var(--glass-border);
+  font-size: 11px;
+  line-height: 1.4;
   color: var(--text-2);
-  font-size: 10px;
+}
+
+.chipCount {
+  color: var(--text-1);
 }
 
 .slot {
