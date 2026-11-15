@@ -3,8 +3,8 @@
 `/learn.html` is a separate production entry. It uses only the bundled Barnard,
 RW Aur and WISE 0855 manifests, float arrays and masks via `api.fetchAsset`.
 It never submits a view build or falls back to an astronomy archive. In
-particular, WISE uses its actual saved manifest coordinates, not the viewer's
-preset coordinates. The advanced-viewer link uses that manifest query.
+particular, WISE uses its actual saved manifest coordinates. The advanced-viewer
+link uses that manifest query.
 
 The lesson selector and language do not reload the page. Language, activity,
 visit and optional scientific-grid pixel are encoded in the URL. Selection is
