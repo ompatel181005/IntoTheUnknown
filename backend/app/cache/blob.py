@@ -51,6 +51,8 @@ class FrameCache(Protocol):
     def read(self, rk: str, name: str) -> bytes: ...  # one file of a render, manifest.json included
     def manifest_url(self, rk: str) -> str: ...
     def catalog(self) -> dict | None: ...  # meta/catalog.json from the new-data watcher; None until it has run
+    def get_rows(self, key: str) -> dict | None: ...  # rows/{key}.json: IRSA's frame list for one position
+    def put_rows(self, key: str, body: dict) -> None: ...
     def read_analysis(self, rk: str) -> bytes | None: ...
     def put_analysis(self, rk: str, data: bytes) -> None: ...
 
@@ -139,6 +141,18 @@ class BlobCache:
             return json.loads(self.c.download_blob("meta/catalog.json").readall())
         except (AzureError, ValueError):  # missing, unreadable or not JSON: the badge just has no data
             return None
+
+    def get_rows(self, key: str) -> dict | None:
+        from azure.core.exceptions import AzureError
+
+        try:
+            return json.loads(self.c.download_blob(f"rows/{key}.json").readall())
+        except (AzureError, ValueError):  # missing or unreadable: the caller asks IRSA instead
+            return None
+
+    def put_rows(self, key: str, body: dict) -> None:
+        # Frame lists hold public IRSA URLs only. Rewritten whenever IRSA answers, so a short cache life.
+        self._put(f"rows/{key}.json", json.dumps(body).encode(), "application/json", SHORT)
 
 
 _cache: FrameCache | None = None

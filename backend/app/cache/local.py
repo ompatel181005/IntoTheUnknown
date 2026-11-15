@@ -55,6 +55,15 @@ class LocalCache:
         except (OSError, ValueError):
             return None
 
+    def get_rows(self, key: str) -> dict | None:
+        try:
+            return json.loads((self.root / "rows" / f"{safe_name(key)}.json").read_text())
+        except (OSError, ValueError):
+            return None
+
+    def put_rows(self, key: str, body: dict) -> None:
+        _write(self.root / "rows" / f"{safe_name(key)}.json", json.dumps(body).encode())
+
 
 def _write(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
