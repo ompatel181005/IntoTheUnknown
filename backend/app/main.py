@@ -42,8 +42,9 @@ def irsa_state() -> str:
 @app.exception_handler(views.ViewError)
 def view_error(_, e: views.ViewError):
     """Every route failure uses the {"error": {code, message}} body the frontend reads."""
-    status = 404 if e.code == "UNKNOWN_VIEW" else 503
-    return JSONResponse(status_code=status, content={"error": {"code": e.code, "message": e.message}})
+    status = 429 if e.code == "QUEUE_FULL" else 404 if e.code == "UNKNOWN_VIEW" else 503
+    headers = {"Retry-After": "2"} if e.code == "QUEUE_FULL" else None
+    return JSONResponse(status_code=status, headers=headers, content={"error": {"code": e.code, "message": e.message}})
 
 
 @app.get("/api/health", response_model=Health)

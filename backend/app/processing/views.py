@@ -65,6 +65,7 @@ class Job:
 JOBS: dict[str, Job] = {}
 LOCK = threading.Lock()
 POOL = cf.ThreadPoolExecutor(max_workers=config.MAX_RENDER_JOBS)
+ADMISSION = threading.BoundedSemaphore(config.MAX_RENDER_JOBS + config.MAX_QUEUED_JOBS)
 OCTET = "application/octet-stream"
 
 
@@ -366,26 +367,63 @@ def _run(job: Job) -> None:
         job.status, job.error = "error", ("PIPELINE_ERROR", f"Building this view failed: {e}")
 
 
+def _execute(job: Job, admission: threading.BoundedSemaphore) -> None:
+    """Release exactly this admission even if the renderer fails or exits early."""
+    try:
+        _run(job)
+    finally:
+        with LOCK:
+            if job.status not in ("ready", "error"):
+                job.status, job.error = "error", ("PIPELINE_ERROR", "The renderer ended without a completed view.")
+        admission.release()
+
+
+def _existing(qk: str) -> Job | None:
+    """Called only under LOCK; terminal failures may be retried."""
+    job = JOBS.get(qk)
+    if job and job.status != "error":
+        record_cache_hit(job.status == "ready", "memory" if job.status == "ready" else "pending")
+        return job
+    return None
+
+
 def create(req: ViewRequest) -> Job:
     qk = query_key(req)
     with LOCK:
-        job = JOBS.get(qk)
-        if job and job.status != "error":
-            record_cache_hit(job.status == "ready", "memory" if job.status == "ready" else "pending")
+        if job := _existing(qk):
+            return job
+
+    # Blob reads and SDK initialization can be slow. They must never hold the
+    # global jobs lock or consume render capacity. Recheck dedupe after this I/O.
+    cache = get_cache()
+    ptr = cache.lookup(qk)
+    rk = ptr.get("render_key") if isinstance(ptr, dict) else None
+    manifest_url = cache.manifest_url(rk) if rk else None
+    with LOCK:
+        if job := _existing(qk):
             return job
         job = Job(qk=qk, req=req)
-        cache = get_cache()
-        ptr = cache.lookup(qk)  # the pointer is written after the manifest, so a pointer means a whole render
-        if ptr and ptr.get("render_key"):
+        admission = None
+        if rk:
             job.status, job.from_cache = "ready", True
-            job.rk, job.cache = ptr["render_key"], cache
-            job.manifest_url = cache.manifest_url(ptr["render_key"])
+            job.rk, job.cache = rk, cache
+            job.manifest_url = manifest_url
+        else:
+            admission = ADMISSION  # capture it so tests/reconfiguration cannot release a different limiter
+            if not admission.acquire(blocking=False):
+                raise ViewError("QUEUE_FULL", "The render queue is full. Please try again shortly.")
         JOBS[qk] = job
         record_cache_hit(
             job.from_cache, ("blob" if config.STORAGE_ACCOUNT_URL else "local") if job.from_cache else "miss"
         )
-    if job.status != "ready":
-        POOL.submit(contextvars.copy_context().run, _run, job)
+    if admission is not None:
+        try:
+            POOL.submit(contextvars.copy_context().run, _execute, job, admission)
+        except Exception as error:
+            with LOCK:
+                job.status, job.error = "error", ("PIPELINE_ERROR", "The render could not be queued. Try again.")
+            admission.release()
+            raise ViewError(*job.error) from error
     return job
 
 

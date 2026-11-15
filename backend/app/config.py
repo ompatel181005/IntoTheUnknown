@@ -13,6 +13,7 @@ FRAMES_PUBLIC_BASE = os.environ.get("FRAMES_PUBLIC_BASE", "").rstrip("/")  # def
 IRSA_TIMEOUT_S = int(os.environ.get("IRSA_TIMEOUT_S", "120"))
 CUTOUT_MAX_WORKERS = int(os.environ.get("CUTOUT_MAX_WORKERS", "10"))
 MAX_RENDER_JOBS = int(os.environ.get("MAX_RENDER_JOBS", "2"))
+MAX_QUEUED_JOBS = 10  # additional waiting renders; ready hits and duplicate requests do not consume a slot
 # ponytail: live views are thinned evenly in time to this many frames; raise it (or cap per epoch
 # and detector instead) if stacks look noisy or passes fall under MIN_EPOCH_FRAMES.
 MAX_FRAMES_PER_VIEW = int(os.environ.get("MAX_FRAMES_PER_VIEW", "120"))
