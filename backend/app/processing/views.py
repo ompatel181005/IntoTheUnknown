@@ -18,6 +18,7 @@ from ..cache import local
 from ..irsa import fetch
 from ..models import ViewRequest
 from . import align, photometry, stack
+from . import gaia as gaia_dr3
 
 log = logging.getLogger("views")
 
@@ -197,10 +198,12 @@ def build(job: Job) -> None:
         )
     if saved is not None:
         frames, origin, gaia = saved
+        gaia_cat = gaia_dr3.catalog_from_rows(gaia)
         source, min_frames = "golden", config.MIN_EPOCH_FRAMES_DEMO
     else:
         frames = live_frames(req, job)
         gaia = []  # live Gaia query lands with #8; until then live views report astrom_resid_px: null
+        gaia_cat = gaia_dr3.live_catalog(req.ra, req.dec, req.fov_arcmin)  # None when Gaia is down
         source, min_frames = "irsa", config.MIN_EPOCH_FRAMES_LIVE
         origin = {
             "kind": "live",
@@ -272,6 +275,16 @@ def build(job: Job) -> None:
             }
         )
 
+    # Gaia overlay (#29): where each Gaia star should be in every epoch. Absent, never fatal, when Gaia is.
+    overlay = None
+    if gaia_cat is not None and len(gaia_cat) and stacks:
+        try:
+            overlay = gaia_dr3.overlay(gaia_cat, [r["t_mean_mjd"] for r in epoch_rows], stacks, w)
+        except Exception:
+            log.exception("Gaia overlay failed for view %s", job.qk)
+    if overlay is not None:
+        (out / "gaia.json").write_text(json.dumps(overlay))
+
     hdr = w.to_header()
     manifest = {
         "schema": 1,
@@ -305,7 +318,7 @@ def build(job: Job) -> None:
             for i, ep in enumerate(epochs)
             for f in ep
         ],
-        "extras": {"gaia": None, "lightcurve": None, "cube": None},
+        "extras": {"gaia": "gaia.json" if overlay else None, "lightcurve": None, "cube": None},
     }
     (out / "manifest.json").write_text(json.dumps(manifest))
     local.write_pointer(job.qk, rk, catalog_version)
@@ -392,3 +405,30 @@ def comparison(job: Job, x: float, y: float, r_px: float = 2.0) -> dict | None:
     ensure_frames(job)
     w, _ = stack.common_grid(job.req.ra, job.req.dec, job.req.fov_arcmin)
     return photometry.comparison([f for ep in job.epochs for f in ep], (x, y), r_px, w)
+
+
+# ---------------------------------------------------------------- Gaia overlay (#29)
+
+
+def _render_folder(job: Job) -> Path:
+    if job.status != "ready" or not job.manifest_url:
+        raise ViewError("NOT_READY", "This view is still being built. Try again when it is ready.")
+    return config.CACHE_DIR / job.manifest_url.removeprefix("/frames/").rsplit("/", 1)[0]
+
+
+def gaia_overlay(job: Job, x: float | None = None, y: float | None = None, epoch: int = 0) -> dict:
+    """gaia.json of the view; with x and y, also the Gaia match label of the source there in one epoch."""
+    folder = _render_folder(job)
+    m = json.loads((folder / "manifest.json").read_text())
+    name = (m.get("extras") or {}).get("gaia")
+    if not name:
+        raise ViewError("NO_GAIA", "No Gaia overlay for this view: the Gaia archive did not answer when it was built.")
+    result = json.loads((folder / name).read_text())
+    result["selection"] = None
+    if x is not None and y is not None:
+        n = m["grid"]["ny"], m["grid"]["nx"]
+        if not 0 <= epoch < len(m["epochs"]):
+            raise ViewError("BAD_EPOCH", f"Epoch {epoch} is not in this view (0 to {len(m['epochs']) - 1}).")
+        stacks = [np.fromfile(folder / e["image"], "<f4").reshape(n) for e in m["epochs"]]
+        result["selection"] = gaia_dr3.match_label(result, stacks, x, y, epoch)
+    return result

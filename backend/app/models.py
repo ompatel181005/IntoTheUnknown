@@ -90,3 +90,30 @@ class LightCurvePoint(BaseModel):
 class LightCurve(BaseModel):
     points: list[LightCurvePoint]
     comparison: dict | None = None
+
+
+class GaiaStar(BaseModel):
+    """One Gaia DR3 star: predicted grid pixel (x, y) per epoch, FITS orientation, 0-based (PLAN 5.8)."""
+
+    source_id: int | None  # None for demo-pack catalogues, which carry no Gaia source_id
+    g: float | None
+    pmra: float | None
+    pmdec: float | None
+    plx: float | None
+    track_px: list[tuple[float, float]]
+    matched: list[bool]  # per epoch: a source was measured within 1.0 px of the track
+
+
+class GaiaSelection(BaseModel):
+    epoch: int
+    centroid_px: tuple[float, float] | None
+    label: Literal["match", "no_match", "unmeasured"]
+    source_id: int | None
+    sep_px: float | None
+
+
+class GaiaResult(BaseModel):
+    epochs_mjd: list[float]
+    stars: list[GaiaStar]
+    unexplained: list[dict] = []  # Tier 3 auto-flag; always empty for now
+    selection: GaiaSelection | None = None  # with ?x=&y=&epoch=: the "Gaia match" label there

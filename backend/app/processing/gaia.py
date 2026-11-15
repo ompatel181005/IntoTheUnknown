@@ -367,3 +367,148 @@ def preset_centre(target_id: str, t: Time) -> tuple[float, float]:
         raise KeyError(f"unknown target {target_id!r}; known: {sorted(PRESETS)}")
     p = PRESETS[target_id]
     return predict_radec(p.ra, p.dec, p.pmra, p.pmdec, p.parallax, p.radial_velocity, t, p.ref_epoch)
+
+
+# --- Overlay (issue #29, PLAN §5.8) --------------------------------------------------
+# For a rendered view: where every Gaia star should be in each epoch (grid pixels, FITS
+# orientation, 0-based), and whether a source was measured there. A mover Gaia can't
+# explain is a source with no track nearby.
+
+MATCH_PX = 1.0  # PLAN §5.8: a centroid within 1.0 px of a track is a "Gaia match"
+MATCH_MIN_SNR = 5.0  # a peak fainter than this is "not measured", never "no match"
+MAX_OVERLAY_STARS = 600  # brightest first; a 15' field near the plane can hold thousands
+UNKNOWN_SOURCE_ID = -1  # demo-pack catalogues (VizieR) carry no source_id
+
+
+def catalog_from_rows(rows: list[dict]) -> np.ndarray:
+    """Demo-pack catalogue rows (align.load_gaia_csv: VizieR I/355 at J2016.0) as GAIA_DTYPE.
+
+    VizieR's export has no source_id or radial velocity: source_id is UNKNOWN_SOURCE_ID and
+    rv is NaN (proper motion and parallax still apply). Rows without a position are dropped.
+    """
+    cat = np.empty(len(rows), GAIA_DTYPE)
+    for i, r in enumerate(rows):
+        cat[i] = (UNKNOWN_SOURCE_ID, r["ra"], r["dec"], r["pmra"], r["pmdec"], r["plx"], np.nan, r["gmag"])
+    return cat[np.isfinite(cat["ra"]) & np.isfinite(cat["dec"])]
+
+
+def live_catalog(ra: float, dec: float, fov_arcmin: float) -> np.ndarray | None:
+    """Gaia DR3 around a live view, or None when every endpoint fails (the overlay is then left out)."""
+    try:
+        return query_gaia_cone(ra, dec, cone_radius_deg(fov_arcmin))
+    except (GaiaUnavailable, ValueError) as e:
+        log.warning("Gaia overlay skipped: %s", e)
+        return None
+
+
+def _robust_sigma(img: np.ndarray) -> float:
+    v = img[np.isfinite(img)]
+    if v.size < 50:
+        return float("nan")
+    return float(1.4826 * np.median(np.abs(v - np.median(v))))
+
+
+def centroid_near(img: np.ndarray, x: float, y: float, sigma: float, search_px: float = 1.5) -> tuple | None:
+    """Centroid of the brightest peak within search_px of (x, y), or None if nothing measurable.
+
+    Flux-weighted over the 3x3 box around the peak, after subtracting the median of a 7x7
+    border. None when the box touches a masked pixel or the peak is under MATCH_MIN_SNR.
+    """
+    ny, nx = img.shape
+    r = int(np.ceil(search_px))
+    cx, cy = int(np.rint(x)), int(np.rint(y))
+    if not (r + 3 <= cx < nx - r - 3 and r + 3 <= cy < ny - r - 3) or not sigma > 0:
+        return None
+    yy, xx = np.mgrid[cy - r : cy + r + 1, cx - r : cx + r + 1]
+    sub = img[cy - r : cy + r + 1, cx - r : cx + r + 1]
+    inside = (np.hypot(xx - x, yy - y) <= search_px) & np.isfinite(sub)
+    if not inside.any():
+        return None
+    k = np.argmax(np.where(inside, sub, -np.inf))
+    py, px = int(yy.flat[k]), int(xx.flat[k])
+    win = img[py - 3 : py + 4, px - 3 : px + 4]
+    border = np.concatenate([win[0], win[-1], win[1:-1, 0], win[1:-1, -1]])
+    border = border[np.isfinite(border)]
+    box = img[py - 1 : py + 2, px - 1 : px + 2]
+    if border.size < 8 or not np.isfinite(box).all():
+        return None
+    w = box - float(np.median(border))
+    if not w[1, 1] > MATCH_MIN_SNR * sigma:
+        return None
+    w = np.clip(w, 0, None)
+    oy, ox = np.mgrid[-1:2, -1:2]
+    return float(px + (w * ox).sum() / w.sum()), float(py + (w * oy).sum() / w.sum())
+
+
+def tracks(cat: np.ndarray, epochs_mjd: list[float], grid_wcs, shape: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
+    """Predicted (n_stars, n_epochs, 2) pixel tracks for the stars that land on the grid, and their indices."""
+    if len(cat) == 0 or not epochs_mjd:
+        return np.empty((0, len(epochs_mjd), 2)), np.empty(0, int)
+    xy = np.empty((len(cat), len(epochs_mjd), 2))
+    for e, mjd in enumerate(epochs_mjd):
+        ra, dec = propagate_catalog(cat, Time(mjd, format="mjd", scale="tdb"))
+        xy[:, e, 0], xy[:, e, 1] = grid_wcs.world_to_pixel(SkyCoord(ra, dec, unit="deg"))
+    ny, nx = shape
+    on = ((xy[..., 0] >= -0.5) & (xy[..., 0] < nx - 0.5) & (xy[..., 1] >= -0.5) & (xy[..., 1] < ny - 0.5)).any(1)
+    idx = np.flatnonzero(on)
+    g = np.where(np.isfinite(cat["phot_g_mean_mag"][idx]), cat["phot_g_mean_mag"][idx], 99.0)
+    idx = idx[np.argsort(g, kind="stable")][:MAX_OVERLAY_STARS]
+    return xy[idx], idx
+
+
+def overlay(cat: np.ndarray, epochs_mjd: list[float], stacks: list[np.ndarray], grid_wcs) -> dict:
+    """The /api/views/{id}/gaia body (PLAN §4.3): per-star pixel tracks and per-epoch matches."""
+    shape = stacks[0].shape if stacks else (0, 0)
+    xy, idx = tracks(cat, epochs_mjd, grid_wcs, shape)
+    sigmas = [_robust_sigma(s) for s in stacks]
+
+    def val(v):
+        return None if not np.isfinite(v) else round(float(v), 3)
+
+    stars = []
+    for k, i in enumerate(idx):
+        matched = []
+        for e, img in enumerate(stacks):
+            c = centroid_near(img, *xy[k, e], sigmas[e])
+            matched.append(c is not None and math.hypot(c[0] - xy[k, e, 0], c[1] - xy[k, e, 1]) <= MATCH_PX)
+        sid = int(cat["source_id"][i])
+        stars.append(
+            {
+                "source_id": None if sid == UNKNOWN_SOURCE_ID else sid,
+                "g": val(cat["phot_g_mean_mag"][i]),
+                "pmra": val(cat["pmra"][i]),
+                "pmdec": val(cat["pmdec"][i]),
+                "plx": val(cat["parallax"][i]),
+                "track_px": [[round(float(px), 3), round(float(py), 3)] for px, py in xy[k]],
+                "matched": matched,
+            }
+        )
+    return {"epochs_mjd": [float(m) for m in epochs_mjd], "stars": stars, "unexplained": []}
+
+
+def match_label(result: dict, stacks: list[np.ndarray], x: float, y: float, epoch: int) -> dict:
+    """ "Gaia match" label for the source at grid pixel (x, y) in one epoch (PLAN §5.8).
+
+    match: its centroid is within MATCH_PX of a Gaia track in that epoch.
+    no_match: a source was measured there but no track is within MATCH_PX.
+    unmeasured: no peak above MATCH_MIN_SNR, or masked pixels (saturated cores).
+    """
+    if not (0 <= epoch < len(stacks)):
+        raise ValueError(f"epoch {epoch} out of range 0..{len(stacks) - 1}")
+    img = stacks[epoch]
+    c = centroid_near(img, x, y, _robust_sigma(img), search_px=2.0)
+    out = {"epoch": epoch, "centroid_px": None, "label": "unmeasured", "source_id": None, "sep_px": None}
+    if c is None:
+        return out
+    out["centroid_px"] = [round(c[0], 3), round(c[1], 3)]
+    best, best_d = None, math.inf
+    for s in result["stars"]:
+        tx, ty = s["track_px"][epoch]
+        d = math.hypot(c[0] - tx, c[1] - ty)
+        if d < best_d:
+            best, best_d = s, d
+    if best is not None and best_d <= MATCH_PX:
+        out.update(label="match", source_id=best["source_id"], sep_px=round(best_d, 3))
+    else:
+        out.update(label="no_match", sep_px=None if best is None else round(best_d, 3))
+    return out

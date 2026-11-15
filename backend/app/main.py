@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config
-from .models import Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus
+from .models import GaiaResult, Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus
 from .processing import views
 from .targets import TARGETS
 
@@ -97,6 +97,17 @@ def view_lightcurve(
 ):
     job = _job(view_id)
     return {"points": views.lightcurve(job, x, y, r_px), "comparison": views.comparison(job, x, y, r_px)}
+
+
+@app.get("/api/views/{view_id}/gaia", response_model=GaiaResult)
+def view_gaia(
+    view_id: str,
+    x: float | None = Query(None, ge=0),
+    y: float | None = Query(None, ge=0),
+    epoch: int = Query(0, ge=0),
+):
+    """Gaia overlay (#29): per-star pixel tracks and matches; with x and y, the match label of that source."""
+    return views.gaia_overlay(_job(view_id), x, y, epoch)
 
 
 # Production: the built React app (frontend/dist) is served from the same origin. Mounted last so /api and /frames win.

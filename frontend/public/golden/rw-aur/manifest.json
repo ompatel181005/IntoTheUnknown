@@ -588,7 +588,7 @@
     }
   ],
   "extras": {
-    "gaia": null,
+    "gaia": "gaia.json",
     "lightcurve": null,
     "cube": null
   }
