@@ -1,0 +1,856 @@
+{
+ "version": "2026-11-15.r1",
+ "generated_at": "2026-11-15T00:20:00Z",
+ "source": {
+  "kind": "local",
+  "uri": "frontend/public/catalog/points.json"
+ },
+ "objects": [
+  {
+   "id": "barnard",
+   "name": "Barnard's Star",
+   "kind": "star",
+   "ra_deg": 269.45208,
+   "dec_deg": 4.69336,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 546.9759,
+   "parallax_err_mas": null,
+   "distance_pc": null,
+   "pmra_mas_yr": -801.551,
+   "pmdec_mas_yr": 10362.394,
+   "preset_id": "barnard",
+   "provenance": {
+    "catalog": "Gaia DR3",
+    "ref": "https://measuredcosmos.com/stars/barnards-star"
+   }
+  },
+  {
+   "id": "eps-ind-b",
+   "name": "Epsilon Indi Ba/Bb",
+   "kind": "brown_dwarf",
+   "ra_deg": 331.044,
+   "dec_deg": -56.783,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 274.99,
+   "parallax_err_mas": 0.43,
+   "distance_pc": null,
+   "pmra_mas_yr": 3987.41,
+   "pmdec_mas_yr": -2505.35,
+   "preset_id": "eps-ind-b",
+   "provenance": {
+    "catalog": "Chen et al. 2022 astrometric solution",
+    "ref": "https://www.pure.ed.ac.uk/ws/portalfiles/portal/372528683/2205.08077v1.pdf"
+   }
+  },
+  {
+   "id": "wise-0855",
+   "name": "WISE 0855-0714",
+   "kind": "brown_dwarf",
+   "ra_deg": 133.79513,
+   "dec_deg": -7.24515,
+   "ref_epoch": 2010.33,
+   "parallax_mas": 439.0,
+   "parallax_err_mas": 2.4,
+   "distance_pc": null,
+   "pmra_mas_yr": -8123.7,
+   "pmdec_mas_yr": 673.2,
+   "preset_id": "wise-0855",
+   "provenance": {
+    "catalog": "WISE and Spitzer astrometry literature",
+    "ref": "https://en.wikipedia.org/wiki/WISE_0855%E2%88%920714"
+   }
+  },
+  {
+   "id": "rw-aur",
+   "name": "RW Aur A",
+   "kind": "variable",
+   "ra_deg": 76.95667,
+   "dec_deg": 30.40139,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 5.4541,
+   "parallax_err_mas": 0.3324,
+   "distance_pc": null,
+   "pmra_mas_yr": 4.906,
+   "pmdec_mas_yr": -24.578,
+   "preset_id": "rw-aur",
+   "provenance": {
+    "catalog": "Gaia DR3",
+    "ref": "https://onlinelibrary.wiley.com/doi/full/10.1002/asna.20230118"
+   }
+  },
+  {
+   "id": "r-dra",
+   "name": "R Dra",
+   "kind": "variable",
+   "ra_deg": 248.16761,
+   "dec_deg": 66.75498,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 1.2509,
+   "parallax_err_mas": 0.0648,
+   "distance_pc": null,
+   "pmra_mas_yr": -20.643,
+   "pmdec_mas_yr": 6.149,
+   "preset_id": "r-dra",
+   "provenance": {
+    "catalog": "Gaia DR3 via SIMBAD",
+    "ref": "https://simbad.u-strasbg.fr/simbad/sim-id?Ident=R+Dra"
+   }
+  },
+  {
+   "id": "proxima-cen",
+   "name": "Proxima Centauri",
+   "kind": "star",
+   "ra_deg": 217.428942,
+   "dec_deg": -62.67949,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 768.0665,
+   "parallax_err_mas": 0.0499,
+   "distance_pc": null,
+   "pmra_mas_yr": -3781.741,
+   "pmdec_mas_yr": 769.465,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Proxima+Cen"
+   }
+  },
+  {
+   "id": "kapteyn",
+   "name": "Kapteyn's Star",
+   "kind": "star",
+   "ra_deg": 77.91901,
+   "dec_deg": -45.018388,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 254.2259,
+   "parallax_err_mas": 0.0278,
+   "distance_pc": null,
+   "pmra_mas_yr": 6505.08,
+   "pmdec_mas_yr": -5682.47,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+33793"
+   }
+  },
+  {
+   "id": "groombridge-1830",
+   "name": "Groombridge 1830",
+   "kind": "star",
+   "ra_deg": 178.245582,
+   "dec_deg": 37.718635,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 108.9734,
+   "parallax_err_mas": 0.0425,
+   "distance_pc": null,
+   "pmra_mas_yr": 4004.298,
+   "pmdec_mas_yr": -5813.568,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+103095"
+   }
+  },
+  {
+   "id": "lacaille-9352",
+   "name": "Lacaille 9352",
+   "kind": "star",
+   "ra_deg": 346.466827,
+   "dec_deg": -35.853066,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 304.1485,
+   "parallax_err_mas": 0.0267,
+   "distance_pc": null,
+   "pmra_mas_yr": 6767.262,
+   "pmdec_mas_yr": 1326.657,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+217987"
+   }
+  },
+  {
+   "id": "van-maanen",
+   "name": "Van Maanen's Star",
+   "kind": "star",
+   "ra_deg": 12.296556,
+   "dec_deg": 5.387295,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 231.836,
+   "parallax_err_mas": 0.0426,
+   "distance_pc": null,
+   "pmra_mas_yr": 1234.331,
+   "pmdec_mas_yr": -2710.985,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Wolf+28"
+   }
+  },
+  {
+   "id": "wolf-359",
+   "name": "Wolf 359",
+   "kind": "star",
+   "ra_deg": 164.120274,
+   "dec_deg": 7.014655,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 415.1614,
+   "parallax_err_mas": 0.0984,
+   "distance_pc": null,
+   "pmra_mas_yr": -3841.67,
+   "pmdec_mas_yr": -2724.89,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Wolf+359"
+   }
+  },
+  {
+   "id": "ross-128",
+   "name": "Ross 128",
+   "kind": "star",
+   "ra_deg": 176.935081,
+   "dec_deg": 0.804543,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 296.3079,
+   "parallax_err_mas": 0.0426,
+   "distance_pc": null,
+   "pmra_mas_yr": 608.204,
+   "pmdec_mas_yr": -1222.955,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Ross+128"
+   }
+  },
+  {
+   "id": "luyten-star",
+   "name": "Luyten's Star",
+   "kind": "star",
+   "ra_deg": 111.852083,
+   "dec_deg": 5.224993,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 264.128,
+   "parallax_err_mas": 0.0253,
+   "distance_pc": null,
+   "pmra_mas_yr": 574.653,
+   "pmdec_mas_yr": -3691.076,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=GJ+273"
+   }
+  },
+  {
+   "id": "teegarden",
+   "name": "Teegarden's Star",
+   "kind": "star",
+   "ra_deg": 43.253716,
+   "dec_deg": 16.881287,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 261.011,
+   "parallax_err_mas": 0.081,
+   "distance_pc": null,
+   "pmra_mas_yr": 3429.083,
+   "pmdec_mas_yr": -3805.541,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=NAME+Teegarden%27s+Star"
+   }
+  },
+  {
+   "id": "lalande-21185",
+   "name": "Lalande 21185",
+   "kind": "star",
+   "ra_deg": 165.834125,
+   "dec_deg": 35.969878,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 392.7529,
+   "parallax_err_mas": 0.0264,
+   "distance_pc": null,
+   "pmra_mas_yr": -580.089,
+   "pmdec_mas_yr": -4776.666,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+95735"
+   }
+  },
+  {
+   "id": "gliese-1",
+   "name": "Gliese 1",
+   "kind": "star",
+   "ra_deg": 1.309995,
+   "dec_deg": -37.352467,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 230.1293,
+   "parallax_err_mas": 0.0243,
+   "distance_pc": null,
+   "pmra_mas_yr": 5634.024,
+   "pmdec_mas_yr": -2337.525,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=GJ+1"
+   }
+  },
+  {
+   "id": "struve-2398-a",
+   "name": "Struve 2398 A",
+   "kind": "star",
+   "ra_deg": 280.707767,
+   "dec_deg": 59.629393,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 283.7719,
+   "parallax_err_mas": 0.0152,
+   "distance_pc": null,
+   "pmra_mas_yr": -345.968,
+   "pmdec_mas_yr": 2193.896,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+173739"
+   }
+  },
+  {
+   "id": "struve-2398-b",
+   "name": "Struve 2398 B",
+   "kind": "star",
+   "ra_deg": 280.720816,
+   "dec_deg": 59.626297,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 283.8188,
+   "parallax_err_mas": 0.0163,
+   "distance_pc": null,
+   "pmra_mas_yr": -374.398,
+   "pmdec_mas_yr": 2299.982,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+173740"
+   }
+  },
+  {
+   "id": "ross-248",
+   "name": "Ross 248",
+   "kind": "star",
+   "ra_deg": 355.476483,
+   "dec_deg": 44.177265,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 316.484,
+   "parallax_err_mas": 0.0396,
+   "distance_pc": null,
+   "pmra_mas_yr": 110.871,
+   "pmdec_mas_yr": -1591.737,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Ross+248"
+   }
+  },
+  {
+   "id": "luhman-16",
+   "name": "Luhman 16",
+   "kind": "brown_dwarf",
+   "ra_deg": 162.328814,
+   "dec_deg": -53.319466,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 501.557,
+   "parallax_err_mas": 0.082,
+   "distance_pc": null,
+   "pmra_mas_yr": -2767.502,
+   "pmdec_mas_yr": 356.856,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (2MASS / Cutri et al. 2003)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Luhman+16"
+   }
+  },
+  {
+   "id": "ugps-0722",
+   "name": "UGPS J0722-0540",
+   "kind": "brown_dwarf",
+   "ra_deg": 110.616275,
+   "dec_deg": -5.674972,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 242.8,
+   "parallax_err_mas": 2.4,
+   "distance_pc": null,
+   "pmra_mas_yr": -903.6,
+   "pmdec_mas_yr": 351.808,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Dupuy & Liu 2012)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J072227.27-054029.9"
+   }
+  },
+  {
+   "id": "wise-1828",
+   "name": "WISE J1828+2650",
+   "kind": "brown_dwarf",
+   "ra_deg": 277.126287,
+   "dec_deg": 26.843793,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 100.3,
+   "parallax_err_mas": 2.0,
+   "distance_pc": null,
+   "pmra_mas_yr": 1016.5,
+   "pmdec_mas_yr": 169.3,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J182831.08%2B265037.7"
+   }
+  },
+  {
+   "id": "wise-0350",
+   "name": "WISE J0350-5658",
+   "kind": "brown_dwarf",
+   "ra_deg": 57.500913,
+   "dec_deg": -56.97495,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 176.4,
+   "parallax_err_mas": 4.3,
+   "distance_pc": null,
+   "pmra_mas_yr": 377.1,
+   "pmdec_mas_yr": 481.1,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J035000.32-565830.2"
+   }
+  },
+  {
+   "id": "wise-1541",
+   "name": "WISE J1541-2250",
+   "kind": "brown_dwarf",
+   "ra_deg": 235.467871,
+   "dec_deg": -22.84025,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 166.9,
+   "parallax_err_mas": 3.2,
+   "distance_pc": null,
+   "pmra_mas_yr": -902.8,
+   "pmdec_mas_yr": -91.4,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J154151.65-225024.9"
+   }
+  },
+  {
+   "id": "gliese-229-b",
+   "name": "Gliese 229 B",
+   "kind": "brown_dwarf",
+   "ra_deg": 92.659858,
+   "dec_deg": -21.758416,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 173.195,
+   "parallax_err_mas": 0.046,
+   "distance_pc": null,
+   "pmra_mas_yr": -135.5,
+   "pmdec_mas_yr": -714.4,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=GJ+229+B"
+   }
+  },
+  {
+   "id": "wise-1534",
+   "name": "WISE J1534-1043 (The Accident)",
+   "kind": "brown_dwarf",
+   "ra_deg": 233.628188,
+   "dec_deg": -10.718042,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 47.8,
+   "parallax_err_mas": 3.4,
+   "distance_pc": null,
+   "pmra_mas_yr": 1334.3,
+   "pmdec_mas_yr": -2435.9,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISEA+J153429.75-104303.3"
+   }
+  },
+  {
+   "id": "wise-0830",
+   "name": "WISEA J0830+2837",
+   "kind": "brown_dwarf",
+   "ra_deg": 127.549887,
+   "dec_deg": 28.621045,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 90.6,
+   "parallax_err_mas": 6.7,
+   "distance_pc": null,
+   "pmra_mas_yr": -196.2,
+   "pmdec_mas_yr": -2044.7,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISEA+J083011.95%2B283716.0"
+   }
+  },
+  {
+   "id": "cwise-1249",
+   "name": "CWISE J1249+3621",
+   "kind": "brown_dwarf",
+   "ra_deg": 192.287654,
+   "dec_deg": 36.356236,
+   "ref_epoch": 2000.0,
+   "parallax_mas": null,
+   "parallax_err_mas": null,
+   "distance_pc": null,
+   "pmra_mas_yr": -344.0,
+   "pmdec_mas_yr": -814.0,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Marocco et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J124908.94%2B362122.4"
+   }
+  },
+  {
+   "id": "gliese-570-d",
+   "name": "Gliese 570 D",
+   "kind": "brown_dwarf",
+   "ra_deg": 224.260833,
+   "dec_deg": -20.999444,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 169.293,
+   "parallax_err_mas": 0.088,
+   "distance_pc": null,
+   "pmra_mas_yr": 1032.5,
+   "pmdec_mas_yr": -1680.5,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=GJ+570+D"
+   }
+  },
+  {
+   "id": "scr-1845-b",
+   "name": "SCR J1845-6357 B",
+   "kind": "brown_dwarf",
+   "ra_deg": 281.272083,
+   "dec_deg": -63.963056,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 259.4,
+   "parallax_err_mas": 11.1,
+   "distance_pc": null,
+   "pmra_mas_yr": -2472.0,
+   "pmdec_mas_yr": 589.0,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kasper et al. 2006)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=SCR+J1845-6357B"
+   }
+  },
+  {
+   "id": "wise-0535",
+   "name": "WISE J0535-7500",
+   "kind": "brown_dwarf",
+   "ra_deg": 83.821278,
+   "dec_deg": -75.006886,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 68.7,
+   "parallax_err_mas": 4.0,
+   "distance_pc": null,
+   "pmra_mas_yr": 120.1,
+   "pmdec_mas_yr": 23.6,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J053516.80-750024.9"
+   }
+  },
+  {
+   "id": "wise-2056",
+   "name": "WISE J2056+1459",
+   "kind": "brown_dwarf",
+   "ra_deg": 314.117961,
+   "dec_deg": 14.998492,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 140.8,
+   "parallax_err_mas": 3.4,
+   "distance_pc": null,
+   "pmra_mas_yr": 825.1,
+   "pmdec_mas_yr": 528.8,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J205628.91%2B145953.2"
+   }
+  },
+  {
+   "id": "wolf-940-b",
+   "name": "Wolf 940 B",
+   "kind": "brown_dwarf",
+   "ra_deg": 324.896667,
+   "dec_deg": -0.219167,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 79.8,
+   "parallax_err_mas": 2.0,
+   "distance_pc": null,
+   "pmra_mas_yr": -904.0,
+   "pmdec_mas_yr": -165.0,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Burningham et al. 2009)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Wolf+940B"
+   }
+  },
+  {
+   "id": "t-tau",
+   "name": "T Tauri",
+   "kind": "variable",
+   "ra_deg": 65.497633,
+   "dec_deg": 19.53512,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 6.8901,
+   "parallax_err_mas": 0.0377,
+   "distance_pc": null,
+   "pmra_mas_yr": 11.682,
+   "pmdec_mas_yr": -14.341,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=T+Tau"
+   }
+  },
+  {
+   "id": "fu-ori",
+   "name": "FU Orionis",
+   "kind": "variable",
+   "ra_deg": 86.343187,
+   "dec_deg": 9.070081,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 2.4538,
+   "parallax_err_mas": 0.0179,
+   "distance_pc": null,
+   "pmra_mas_yr": 2.441,
+   "pmdec_mas_yr": -2.507,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=FU+Ori"
+   }
+  },
+  {
+   "id": "v1647-ori",
+   "name": "V1647 Ori",
+   "kind": "variable",
+   "ra_deg": 86.581517,
+   "dec_deg": -0.101186,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 2.3789,
+   "parallax_err_mas": 0.2825,
+   "distance_pc": null,
+   "pmra_mas_yr": 0.999,
+   "pmdec_mas_yr": -1.026,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V%2A+V1647+Ori"
+   }
+  },
+  {
+   "id": "chi-cyg",
+   "name": "Chi Cygni",
+   "kind": "variable",
+   "ra_deg": 296.904838,
+   "dec_deg": 32.914275,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 6.2891,
+   "parallax_err_mas": 0.3541,
+   "distance_pc": null,
+   "pmra_mas_yr": 6.273,
+   "pmdec_mas_yr": -47.387,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=chi+Cyg"
+   }
+  },
+  {
+   "id": "r-leo",
+   "name": "R Leonis",
+   "kind": "variable",
+   "ra_deg": 146.777088,
+   "dec_deg": 11.428519,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 14.1166,
+   "parallax_err_mas": 0.7073,
+   "distance_pc": null,
+   "pmra_mas_yr": -49.623,
+   "pmdec_mas_yr": 19.682,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=R+Leo"
+   }
+  },
+  {
+   "id": "cw-leo",
+   "name": "IRC +10216 (CW Leo)",
+   "kind": "variable",
+   "ra_deg": 146.989193,
+   "dec_deg": 13.278768,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 10.79,
+   "parallax_err_mas": 4.6,
+   "distance_pc": null,
+   "pmra_mas_yr": 33.84,
+   "pmdec_mas_yr": 10.0,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (2MASS / Cutri et al. 2003)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=IRC+%2B10216"
+   }
+  },
+  {
+   "id": "v1057-cyg",
+   "name": "V1057 Cyg",
+   "kind": "variable",
+   "ra_deg": 314.654271,
+   "dec_deg": 44.249492,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 1.1091,
+   "parallax_err_mas": 0.0211,
+   "distance_pc": null,
+   "pmra_mas_yr": -2.628,
+   "pmdec_mas_yr": -4.137,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V1057+Cyg"
+   }
+  },
+  {
+   "id": "v1515-cyg",
+   "name": "V1515 Cyg",
+   "kind": "variable",
+   "ra_deg": 305.938883,
+   "dec_deg": 51.841381,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 1.0504,
+   "parallax_err_mas": 0.0163,
+   "distance_pc": null,
+   "pmra_mas_yr": -3.856,
+   "pmdec_mas_yr": -4.897,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V1515+Cyg"
+   }
+  },
+  {
+   "id": "ex-lup",
+   "name": "EX Lupi",
+   "kind": "variable",
+   "ra_deg": 242.067333,
+   "dec_deg": -40.312953,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 6.4673,
+   "parallax_err_mas": 0.0266,
+   "distance_pc": null,
+   "pmra_mas_yr": -11.968,
+   "pmdec_mas_yr": -21.613,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=EX+Lup"
+   }
+  },
+  {
+   "id": "v346-nor",
+   "name": "V346 Nor",
+   "kind": "variable",
+   "ra_deg": 248.064583,
+   "dec_deg": -44.757778,
+   "ref_epoch": 2000.0,
+   "parallax_mas": null,
+   "parallax_err_mas": null,
+   "distance_pc": null,
+   "pmra_mas_yr": 0.0,
+   "pmdec_mas_yr": 0.0,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (2MASS / Cutri et al. 2003)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V346+Nor"
+   }
+  },
+  {
+   "id": "z-cma",
+   "name": "Z CMa",
+   "kind": "variable",
+   "ra_deg": 105.908333,
+   "dec_deg": -11.554444,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 2.01,
+   "parallax_err_mas": 0.5,
+   "distance_pc": null,
+   "pmra_mas_yr": -4.6,
+   "pmdec_mas_yr": 4.2,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Hipparcos)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Z+CMa"
+   }
+  },
+  {
+   "id": "v883-ori",
+   "name": "V883 Ori",
+   "kind": "variable",
+   "ra_deg": 84.588746,
+   "dec_deg": -7.039644,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 1.5126,
+   "parallax_err_mas": 0.0384,
+   "distance_pc": null,
+   "pmra_mas_yr": 0.449,
+   "pmdec_mas_yr": -1.716,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V883+Ori"
+   }
+  },
+  {
+   "id": "pv-cep",
+   "name": "PV Cephei",
+   "kind": "variable",
+   "ra_deg": 313.238217,
+   "dec_deg": 67.962294,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 2.8252,
+   "parallax_err_mas": 0.0463,
+   "distance_pc": null,
+   "pmra_mas_yr": 4.091,
+   "pmdec_mas_yr": 7.377,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=PV+Cep"
+   }
+  },
+  {
+   "id": "dg-tau",
+   "name": "DG Tauri",
+   "kind": "variable",
+   "ra_deg": 66.772583,
+   "dec_deg": 26.027583,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 8.04,
+   "parallax_err_mas": 0.7,
+   "distance_pc": null,
+   "pmra_mas_yr": 7.3,
+   "pmdec_mas_yr": -19.9,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Hipparcos)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=DG+Tau"
+   }
+  }
+ ]
+}
