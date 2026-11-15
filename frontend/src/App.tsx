@@ -59,7 +59,7 @@ export default function App({ source }: { source: ViewSource }) {
   const [initialParams] = useState(() => new URLSearchParams(window.location.search));
   const [attempt, setAttempt] = useState(0);
   const [guideHidden, setGuideHidden] = useState(() => readFlag(GUIDE_KEY));
-  const [customizeHidden, setCustomizeHidden] = useState(() => readFlag(CUSTOMIZE_KEY));
+  const [customizeHidden, setCustomizeHidden] = useState(() => readFlag(CUSTOMIZE_KEY) || window.innerWidth <= 1100); // tablets start with it closed: open, it leaves the dome no room
   const [sheetOpen, setSheetOpen] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
   const [tourOn, setTourOn] = useState(false);

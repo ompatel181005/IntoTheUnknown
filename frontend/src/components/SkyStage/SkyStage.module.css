@@ -36,6 +36,13 @@
   letter-spacing: 0.04em;
 }
 
+/* Narrow desktops: the open Customize handle covers the Dec axis, so the labels wait until it is closed. */
+@media (max-width: 1100px) {
+  :global([data-app-shell]:has([data-tour="customize-rail"][data-open="true"])) .decLabel {
+    display: none;
+  }
+}
+
 .gridOnImage {
   fill: none;
   stroke: var(--grid-line-strong);

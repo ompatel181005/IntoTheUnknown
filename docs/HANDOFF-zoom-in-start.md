@@ -14,9 +14,10 @@ Layout and performance items from `docs/UI-FOLLOWUPS.md`: source chip/hint/axis 
 
 Known leftovers found during that work: legend glyphs are identical because the orrery draws every kind with the same marker; at 1280 wide the dome "N" overlaps "Click to measure"; at 1024 and below the Dec labels sit under the Customize handle; the landing hint wraps to three lines on phones.
 
-## Queued
+## QA pass (quick, cut short for the merge)
 
-3. **Page-wide QA** after 1 and 2 land: in chromium and firefox at 1600x900, 1280x720 and 390x844, click through everything (home intro, drag, zoom buttons, target list search/sort/show/hide, every target, flights there and back, Play, Blink, Difference, Investigate, Customize controls, Details tabs, Guide tabs and scrolling, Tour start to finish, Share, keyboard shortcuts, reduced motion). Report console errors, visual artifacts, overlaps, broken controls; fix clear small bugs.
+Fixed: legend shows one glyph (kinds in a tooltip), dome hint hidden on narrow domes (N overlap), Dec labels hidden under the open Customize handle at 1100 px and below, landing hint on one line, NaN scale guard when the dome is 0 px, Customize starts closed at 1100 px and below (overrides the saved preference on those widths).
+Still open: at 390 px the PlaybackBar date and "PASS 01 / 03" wrap next to the info and customize buttons (needs a PlaybackBar layout change); tablet width (about 800 px) with a target open was not re-checked; not re-tested after the fixes: Firefox, playback modes, Customize controls, pixel measure, Share, shortcuts, back/forward, reduced motion, tour to the end.
 
 ## Not planned
 

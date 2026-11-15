@@ -242,7 +242,7 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     col.dataset.flight = reduced ? "reduced" : getFlightDirection() === 1 ? "forward" : "return";
     const start = getFlightStartPose();
-    if (start && !reduced) col.style.transform = `translate3d(${start.x - base.x}px, ${start.y - base.y}px, 0) scale(${start.side / base.side})`;
+    if (start && !reduced && base.side > 0) col.style.transform = `translate3d(${start.x - base.x}px, ${start.y - base.y}px, 0) scale(${start.side / base.side})`;
     if (reduced) col.style.opacity = getFlightDirection() === 1 ? "0" : "1";
   }, [frameRef, props.flying, props.ra, props.dec]);
 
@@ -283,7 +283,7 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
     const reversing = oldLabel && oldLabel.hidden !== !props.showLabel && absorption.current;
     const duration = reversing ? Math.max(1, props.showLabel ? time : fullDuration - time) : fullDuration;
     const easing = theme.getPropertyValue("--ease").trim();
-    const changed = visible && Math.abs(visible.x - next.x) + Math.abs(visible.y - next.y) + Math.abs(visible.side - next.side) >= 0.1;
+    const changed = visible && visible.side > 0 && next.side > 0 && Math.abs(visible.x - next.x) + Math.abs(visible.y - next.y) + Math.abs(visible.side - next.side) >= 0.1;
     if (changed && !reduced) {
       flip.current = col.animate([
         { transform: `translate3d(${visible.x - next.x}px, ${visible.y - next.y}px, 0) scale(${visible.side / next.side})` },
@@ -411,7 +411,7 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
             </svg>
           </g>
           {outer.decLabels.map((l) => (
-            <text key={l.text} x={box.left - 46} y={l.y * unit} className={`${s.gridLabel} mono`} textAnchor="end" dominantBaseline="middle">
+            <text key={l.text} x={box.left - 46} y={l.y * unit} className={`${s.gridLabel} ${s.decLabel} mono`} textAnchor="end" dominantBaseline="middle">
               {l.text}
             </text>
           ))}
@@ -449,7 +449,8 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
           ) : m && m.epochs.length === 1 ? (
             <span>One pass</span>
           ) : (
-            <span className={s.hintText}>Click to measure</span>
+            // The dome's "N" sits at the row centre, so a narrow dome has no room for the hint beside it.
+            (box?.side ?? 0) >= 300 && <span className={s.hintText}>Click to measure</span>
           )}
         </div>
         <div
