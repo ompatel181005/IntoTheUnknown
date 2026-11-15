@@ -35,7 +35,8 @@ Repo: https://github.com/ompatel181005/IntoTheUnknown
 | `docs/DATA.md` acknowledgements filled | FAIL | SPHEREx and Gaia are verbatim. Three `TODO(team)` remain: IRSA wording (none published), MAST (not used; the fallback is ARI Heidelberg), SIMBAD (CDS still returns 404). None of the three is used by the app, so the README omits them. |
 | Repo is public | PASS | |
 | License | PASS | MIT, added with this change. |
-| Each Azure resource has a named problem | PASS | Table in `infra/README.md`. Blob cache and Functions watcher are provisioned but not integrated yet (#12, #25). App telemetry merged in #62 and still needs live verification. |
+| Each Azure resource has a named problem | PASS | Table in `infra/README.md`. The Blob render cache is live (#12, checked 2026-11-14 23:40: a view was written to Blob, loads anonymously with CORS, and a repeat request is instant). The Functions watcher is not integrated yet (#25). App telemetry merged in #62 and still needs live verification. |
+| Live view of a new position | PASS | RA 150.0, Dec +2.2, 6′, B1-B2 built in 33 s on the deployed app (70 frames, 3 passes, Gaia overlay). It fails with `IRSA_DOWN` whenever IRSA is not answering, which happened twice during testing. |
 | No secrets in git history | PASS | Only `.env.example` files were ever committed; no key, SAS or private-key patterns in any added line. |
 | `validation.md` matches the deployed pipeline | FAIL | It records pipeline version 2; the deployed app is version 3 and the ε Indi B demo pack was rebuilt afterwards (160 files). Re-run `scripts/validate_integrated.py` (#27). The Barnard numbers still hold: the version 3 arrays are byte-identical (`docs/DECISIONS.md`, 17:45). |
 | Every link tested in incognito and on a phone | TODO | |

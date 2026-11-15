@@ -97,8 +97,8 @@ def fetch_irsa(frame, ra, dec, size_deg, retries=3):
 @operation("S3", "cutout", none_is_failure=True)
 def fetch_s3(frame, ra, dec, size_deg):
     """Same file on the AWS mirror (identical path layout, verified); range-reads only the window."""
-    key = frame["url"].split("/ibe/data/spherex/", 1)[1]
     try:
+        key = frame["url"].split("/ibe/data/spherex/", 1)[1]  # inside the try: an odd URL must fall back to IRSA
         with fits.open(
             f"s3://nasa-irsa-spherex/{key}",
             use_fsspec=True,
@@ -114,7 +114,9 @@ def fetch_s3(frame, ra, dec, size_deg):
 
 def fetch_all(frames, ra, dec, size_deg, workers=10, on_progress=None) -> list[dict]:
     def one(f):
-        return fetch_irsa(f, ra, dec, size_deg) or fetch_s3(f, ra, dec, size_deg)
+        # S3 first: a range read of the window is several times faster than IRSA's cutout service,
+        # which ships a ~4 MB PSF table with every cutout (DECISIONS 2026-11-14).
+        return fetch_s3(f, ra, dec, size_deg) or fetch_irsa(f, ra, dec, size_deg)
 
     out, done = [], 0
     with cf.ThreadPoolExecutor(max_workers=workers) as ex:

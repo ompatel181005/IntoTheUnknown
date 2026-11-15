@@ -4,8 +4,10 @@ import concurrent.futures as cf
 import os
 import subprocess
 import sys
+import threading
 import urllib.error
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
@@ -36,7 +38,12 @@ def test_cache_decisions_distinguish_pending_ready_and_disk(monkeypatch, tmp_pat
     app = FastAPI(telemetry=telemetry.FASTAPI_TELEMETRY)
     app.add_middleware(telemetry.RequestTelemetry)
     monkeypatch.setattr(views, "JOBS", {})
-    monkeypatch.setattr(views.local, "read_pointer", lambda _: None)
+    # This test deliberately stubs submission without running workers; keep its
+    # synthetic pending jobs from consuming the process-wide real admission pool.
+    monkeypatch.setattr(
+        views, "ADMISSION", threading.BoundedSemaphore(views.config.MAX_RENDER_JOBS + views.config.MAX_QUEUED_JOBS)
+    )
+    monkeypatch.setattr(views, "get_cache", lambda: SimpleNamespace(lookup=lambda _: None, manifest_url=str))
     monkeypatch.setattr(views.POOL, "submit", lambda *a: None)
 
     @app.post("/api/views")
@@ -56,7 +63,9 @@ def test_cache_decisions_distinguish_pending_ready_and_disk(monkeypatch, tmp_pat
     folder = tmp_path / "r" / "existing"
     folder.mkdir(parents=True)
     (folder / "manifest.json").write_text("{}")
-    monkeypatch.setattr(views.local, "read_pointer", lambda _: {"render_key": "existing"})
+    monkeypatch.setattr(
+        views, "get_cache", lambda: SimpleNamespace(lookup=lambda _: {"render_key": "existing"}, manifest_url=str)
+    )
     client.post("/api/views", json={**req, "ra": 11})
     recorded = spans.get_finished_spans()
     assert [s.attributes["cache.hit"] for s in recorded] == [False, False, True, False, True]
@@ -139,7 +148,7 @@ def test_cutout_workers_preserve_parent_trace_context(monkeypatch, spans):
 
 def test_background_build_preserves_request_context(monkeypatch, spans):
     monkeypatch.setattr(views, "JOBS", {})
-    monkeypatch.setattr(views.local, "read_pointer", lambda _: None)
+    monkeypatch.setattr(views, "get_cache", lambda: SimpleNamespace(lookup=lambda _: None, manifest_url=str))
 
     @telemetry.operation("pipeline", "build", internal=True)
     def build(job):

@@ -29,33 +29,56 @@ export interface ViewSource {
   load(q: ViewQuery, onProgress: (p: LoadProgress) => void, signal: AbortSignal): Promise<LoadedView>;
 }
 
+const FIRST_POLL_MS = 350;
 const POLL_MS = 1500;
 
+function throwIfAborted(signal: AbortSignal) {
+  if (signal.aborted) throw new DOMException("aborted", "AbortError");
+}
+
 function wait(ms: number, signal: AbortSignal) {
+  throwIfAborted(signal);
   return new Promise<void>((resolve, reject) => {
-    const t = setTimeout(resolve, ms);
-    signal.addEventListener("abort", () => {
+    const onAbort = () => {
       clearTimeout(t);
+      signal.removeEventListener("abort", onAbort);
       reject(new DOMException("aborted", "AbortError"));
-    });
+    };
+    const t = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+    // Close the race where abort happens between the initial check and listener registration.
+    if (signal.aborted) onAbort();
   });
 }
 
 async function loadArrays(m: Manifest, base: string, signal: AbortSignal) {
   const assetUrl = (path: string) => /^(https?:|\/)/.test(path) ? path : base + path;
-  const images = await Promise.all(
-    m.epochs.map(async (e) => new Float32Array(await (await fetchAsset(assetUrl(e.image), signal)).arrayBuffer())),
-  );
-  const masks = await Promise.all(
-    m.epochs.map(async (e) => {
-      if (!e.mask) return null;
-      try {
-        return new Uint8Array(await (await fetchAsset(assetUrl(e.mask), signal)).arrayBuffer());
-      } catch {
+  throwIfAborted(signal);
+  const arrays = await Promise.all(m.epochs.map(async (e) => {
+    const imagePromise = fetchAsset(assetUrl(e.image), signal).then(async (response) => {
+      const buffer = await response.arrayBuffer();
+      throwIfAborted(signal);
+      return new Float32Array(buffer);
+    });
+    const maskPromise = !e.mask ? Promise.resolve(null) : fetchAsset(assetUrl(e.mask), signal)
+      .then(async (response) => {
+        const buffer = await response.arrayBuffer();
+        throwIfAborted(signal);
+        return new Uint8Array(buffer);
+      })
+      .catch((error: unknown) => {
+        if (signal.aborted || (error as { name?: string } | null)?.name === "AbortError") throw error;
         return null; // A missing mask only disables the flag overlay.
-      }
-    }),
-  );
+      });
+    const [image, mask] = await Promise.all([imagePromise, maskPromise]);
+    return { image, mask };
+  }));
+  throwIfAborted(signal);
+  const images = arrays.map(({ image }) => image);
+  const masks = arrays.map(({ mask }) => mask);
   return { images, masks };
 }
 
@@ -67,6 +90,7 @@ function viewRequest(q: ViewQuery): ViewRequest {
 
 /** docs/PLAN.md 4.4: presets in their default view load from /golden first, which needs no backend. */
 async function tryGolden(q: ViewQuery, signal: AbortSignal): Promise<LoadedView | null> {
+  throwIfAborted(signal);
   const p = findPreset(q.presetId);
   if (!p || p.ra !== q.ra || p.dec !== q.dec || p.fov !== q.fov_arcmin || p.band !== q.band || q.source === "live") return null;
   const base = `/golden/${p.id}/`;
@@ -77,6 +101,7 @@ async function tryGolden(q: ViewQuery, signal: AbortSignal): Promise<LoadedView 
     if ((e as Error).name === "AbortError") throw e;
     return null;
   }
+  throwIfAborted(signal);
   if (!res.ok || !(res.headers.get("content-type") ?? "").includes("json")) return null;
   const manifest = (await res.json()) as Manifest;
   const arrays = await loadArrays(manifest, base, signal);
@@ -86,6 +111,7 @@ async function tryGolden(q: ViewQuery, signal: AbortSignal): Promise<LoadedView 
 
 export const apiSource: ViewSource = {
   async load(q, onProgress, signal) {
+    throwIfAborted(signal);
     if (q.manifestUrl) {
       onProgress({ stage: "fetch" });
       const manifest = (await (await fetchAsset(q.manifestUrl, signal)).json()) as Manifest;
@@ -100,10 +126,13 @@ export const apiSource: ViewSource = {
     const created = await createView(viewRequest(q), signal);
     let manifestUrl = created.manifest_url;
     const fromCache = created.status === "ready";
+    let pollDelay = FIRST_POLL_MS;
     while (!manifestUrl) {
       if (!created.status_url) throw new ApiRequestError("BAD_RESPONSE", "Could not track progress. Try again.");
-      await wait(POLL_MS, signal);
+      await wait(pollDelay, signal);
+      pollDelay = POLL_MS;
       const s = await getViewStatus(created.status_url, signal);
+      throwIfAborted(signal);
       if (s.status === "error") throw new ApiRequestError(s.error?.code ?? "ERROR", s.error?.message ?? "Could not build this view. Try again.");
       onProgress({ stage: s.status, done: s.progress?.done, total: s.progress?.total });
       if (s.status === "ready") manifestUrl = s.manifest_url;

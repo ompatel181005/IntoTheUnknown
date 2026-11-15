@@ -4,7 +4,7 @@ Single source for target astrometry and pass criteria (moved here from PLAN §6)
 
 - Astrometry is **Gaia DR3 at J2016.0**, queried 2026-11-14 (✓). It is not from SIMBAD: SIMBAD was down, and J2000 or designation coordinates are arcminutes off for the movers.
 - **(lit.)** = from literature or memory; confirm before quoting it in the pitch.
-- Barnard's default B1-B2 preset passes astrometry in the current React + FastAPI app: 115 cutouts in three channel-matched epochs, 0.041 px motion-vector error. See `validation.md` for evidence and limits. The other targets still await science validation.
+- All five saved products are assessed in `validation.md`. PASS applies only to the stated astrometric gates. FAIL includes missing validation prerequisites; it does not imply that an astronomical object or intrinsic variability is absent. The report and JSON evidence contain current counts and measurements.
 
 Shifts are computed at 6.15″/px.
 
@@ -20,11 +20,11 @@ Shifts are computed at 6.15″/px.
 
 | Target | Test type | RA | Dec | Status | Note |
 |---|---|---|---|---|---|
-| Barnard's Star | motion | 269.44627 | +4.76820 | astrometry pass | Current React/FastAPI default B1-B2 preset: 0.041 px vector error, max residual 0.170 px, three matched epochs. Saturated photometry and discovery sensitivity remain unvalidated; see `validation.md`. |
-| ε Ind B | motion | 331.09665 | −56.80066 | not tested |  |
-| WISE 0855 | motion | 133.75989 | −7.24240 | not tested | Position from CatWISE2020 (IRSA `catwise_2020`, J085507.96−071439.3, `ra_pm`/`dec_pm` at MJD 57170 = 2015.405, [column docs](https://irsa.ipac.caltech.edu/data/WISE/CatWISE/gator_docs/catwise_colDescriptions.html)). pm and ϖ are lit. (CatWISE's own pm misses AllWISE's 2010.59 position by 1.9″). Includes parallax. |
-| RW Aur | variability | 76.95608 | +30.40113 | not tested |  |
-| R Dra | variability | 248.16723 | +66.75502 | not tested |  |
+| Barnard's Star | motion | 269.44627 | +4.76820 | PASS | Current saved-product assessment; see validation.md. Current React/FastAPI default B1-B2 preset: 0.041 px vector error, max residual 0.170 px, three matched epochs. Saturated photometry and discovery sensitivity remain unvalidated; see `validation.md`. |
+| ε Ind B | motion | 331.09665 | −56.80066 | PASS | Current saved-product assessment; see validation.md. Current saved-product assessment; see validation.md. |
+| WISE 0855 | motion | 133.75989 | −7.24240 | FAIL | Current saved-product assessment; see validation.md. Position from CatWISE2020 (IRSA `catwise_2020`, J085507.96−071439.3, `ra_pm`/`dec_pm` at MJD 57170 = 2015.405, [column docs](https://irsa.ipac.caltech.edu/data/WISE/CatWISE/gator_docs/catwise_colDescriptions.html)). pm and ϖ are lit. (CatWISE's own pm misses AllWISE's 2010.59 position by 1.9″). Includes parallax. |
+| RW Aur | variability | 76.95608 | +30.40113 | FAIL | Current saved-product assessment; see validation.md. Current saved-product assessment; see validation.md. |
+| R Dra | variability | 248.16723 | +66.75502 | FAIL | Current saved-product assessment; see validation.md. Current saved-product assessment; see validation.md. |
 
 **What "working" looks like:**
 - **Barnard's Star:**
@@ -38,7 +38,7 @@ Shifts are computed at 6.15″/px.
   - The centroid is within ±0.2 px of prediction.
   - ε Ind A is very bright and about 6.7′ away (lit.), so keep FOV ≤ 6′ and watch for GHOST/HALO flags.
 - **WISE 0855:**
-  - A ≥5σ detection in **B6 epoch stacks** in at least 2 epochs, with the shift within ±0.4 px of prediction, plus an **"no Gaia match"** label (PLAN §5.8). That's exactly how it would be discovered.
+  - A ≥5σ detection in **B6 epoch stacks** in at least 2 epochs, with the shift within ±0.4 px of prediction, plus a **"no Gaia match"** label on a detected source (PLAN §5.8). This is a recovery test of a known target, not a discovery claim. A forced aperture or a noise-patch centroid alone is not a detection.
   - Rough estimate (lit.): about 17.2 AB at 4.5 µm, giving S/N of about 3 per channel and about 10 in a B6 stack.
   - **If it isn't detected, say so in the README.** It's still a valid result.
 - **RW Aur:**
@@ -54,6 +54,8 @@ Shifts are computed at 6.15″/px.
 **`scripts/validate.py`:**
 - Takes the actual epoch MJDs from each manifest.
 - Computes predicted pixel positions.
-- Measures centroids (`photutils` centroid_2dg) and aperture fluxes.
+- Measures observed centroids with a bounded Gaussian fit (`scipy.optimize.least_squares`) and records forced-aperture diagnostics in image units. WISE is not fitted below the diagnostic signal-to-noise gate. These are not calibrated photometry.
 - Writes `validation.md`, the table for the README and the pitch.
 - **Pitch numbers come only from this file.**
+- The current runner uses the real FastAPI pipeline and verifies saved golden arrays byte-for-byte. Its independent prediction code is separate from the production Gaia predictor; catalogue constants are pinned locally. `--write-report` explicitly publishes the report, target status, hashes and current browser evidence. Historical prototype validation is available only through `--legacy`.
+- Astropy API references checked 2026-11-15: [SkyCoord.apply_space_motion](https://docs.astropy.org/en/stable/api/astropy.coordinates.SkyCoord.html#astropy.coordinates.SkyCoord.apply_space_motion) and [get_body_barycentric](https://docs.astropy.org/en/stable/api/astropy.coordinates.get_body_barycentric.html). The current validator explicitly selects the built-in ephemeris and disables IERS auto-download. This software-reference check does not verify WISE's literature astrometry or the variable-star period assumptions.

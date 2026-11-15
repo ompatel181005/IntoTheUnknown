@@ -52,14 +52,14 @@ Example: `/?ra=269.44627&dec=4.76820&fov=6&target=barnard&band=B1-B2&mode=blink`
 
 ## 3. The five validation targets
 
-Measured results come from [`validation.md`](validation.md) and nothing else. Only Barnard's Star has validated
-science so far. The other four load and play, but their motion or variability has not been measured against a
-reference, so we make no claim for them.
+Measured results come from [`validation.md`](validation.md). Barnard's Star and epsilon Indi B pass the stated
+astrometry checks against independent predictions. All five saved products are assessed; WISE 0855, RW Aur and
+R Dra have unmet science prerequisites, recorded explicitly in the report.
 
 | Target | What it is | Loads with the API down | Science |
 |---|---|---|---|
 | Barnard's Star | Nearby red dwarf with the largest known proper motion | Pass | **Astrometry pass** |
-| ε Indi B | Pair of T-type brown dwarfs orbiting ε Indi A | Pass | Not validated |
+| ε Indi B | Pair of T-type brown dwarfs orbiting ε Indi A | Pass | **Astrometry pass** |
 | WISE 0855 | Coldest known brown dwarf; not in Gaia | Pass | Not validated |
 | RW Aurigae | Young T Tauri star with a dusty disc | Pass | Not validated |
 | R Draconis | Mira variable | Pass | Not validated |
@@ -73,6 +73,10 @@ reference, so we make no claim for them.
 | Motion-vector error | **0.0410 px, pass** | At most 0.2 px |
 | Largest per-pass positional residual | **0.1704 px, pass** | Less than 0.3 px |
 
+**Epsilon Indi B, default preset (4 passes from 148 cutouts):** measured shift 1.0587 px, predicted shift
+1.0552 px, motion-vector error **0.0308 px**, and largest positional residual **0.1606 px**. Both errors are
+within the stated 0.2 px gates. This assesses the unresolved pair's astrometry; it does not validate its photometry.
+
 The prediction uses Gaia DR3 J2016.0 astrometry, Astropy space motion and Earth's barycentric position, with no
 aberration. Catalogue values and pass criteria for all five targets are in [`docs/TARGETS.md`](docs/TARGETS.md).
 `validation.md` also explains how to reproduce the run.
@@ -83,7 +87,8 @@ The browser never talks to IRSA. The React app (`frontend/`) asks the FastAPI ba
 
 1. **Frames.** The five targets build from the real cutouts in `demo/`, so they work with IRSA down. Any other
    position queries IRSA's SIA service, with TAP as the fallback, and dedupes releases (newest wins).
-2. **Cutouts.** Fetched in parallel from IRSA's cutout service, sized from the field of view (never full frames).
+2. **Cutouts.** Fetched in parallel as range reads of the pixel window from IRSA's public AWS mirror, with
+   IRSA's cutout service as the fallback. Sized from the field of view (never full frames).
 3. **Cleaning.** `IMAGE − ZODI`, then masking by the bit names in each file's FLAGS header (`MSKNnnnn` cards).
    SOURCE, OVERFLOW, NONLINEAR, FULLSAMPLE, HALO and BLOOM are kept so bright stars' cores and wings survive;
    TRANSIENT and SUR_ERROR never mask a SOURCE pixel (`docs/DECISIONS.md`).
@@ -126,7 +131,7 @@ five targets ship inside the frontend, so the presets render even when the API i
 |---|---|---|
 | Container Apps + Container Registry | Hosts the public app; GitHub Actions builds and deploys `main` | Live |
 | User-assigned managed identity | Registry pulls and Blob access with no stored secrets | Live |
-| Blob Storage | Render cache and watcher state | Account live; backend cache integration in progress |
+| Blob Storage | Render cache: finished views survive deploys, and the browser loads images straight from Blob | Live |
 | Functions | Daily watcher that detects new SPHEREx data | Code in `functions/`; deployment pending |
 | Log Analytics + Application Insights | Platform logs; API latency, cache hits and archive failures | Logs live; app telemetry merged, not yet verified live |
 
@@ -136,8 +141,8 @@ Details, scripts and costs: [`infra/README.md`](infra/README.md).
 
 - **Pixels and baseline.** SPHEREx pixels are 6.15″ and the baseline is about one year, so only fast movers
   shift by a pixel or more.
-- **Only one target is validated.** See section 3. The tool shows candidates to look at; it never claims a
-  discovery.
+- **Science gates have a limited scope.** The two astrometry passes are described in section 3. WISE 0855's
+  detection and RW Aur/R Dra variability are not established by this assessment. No discovery is claimed.
 - **Gaia overlay.** The backend serves Gaia predictions, but the overlay toggle in the app is not switched on
   yet.
 - **Saturation.** Barnard's Star and R Dra saturate SPHEREx; the pipeline blanks part of their cores, and
@@ -146,7 +151,9 @@ Details, scripts and costs: [`infra/README.md`](infra/README.md).
   background star that is bright at 1–2 µm; only its 4–5 µm points are WISE 0855 itself.
 - **RW Aurigae.** One pass has a field-star scale of about 0.925. That is a calibration concern, not a
   variability detection.
-- **Live positions depend on IRSA.** Positions outside the five saved fields need the archive to answer.
+- **Live positions depend on IRSA.** Positions outside the five saved fields need the archive to answer with
+  the list of exposures. A new position took about 33 s to build in our test; after that it is served from the
+  cache.
 
 ## 7. Run locally and deploy
 
@@ -194,7 +201,7 @@ alignment check. Credit: ESA/Gaia/DPAC. Cite Gaia Collaboration et al. (2016b) a
 **Other.** The WISE 0855 position comes from CatWISE2020 (via IRSA). The demo pack's Gaia field catalogues were
 downloaded through CDS VizieR.
 
-**Software.** Astropy, astroquery, reproject, NumPy, SciPy, FastAPI, React and Vite.
+**Software.** Astropy, astroquery, reproject, NumPy, SciPy, s3fs, FastAPI, React and Vite.
 
 ## 9. AI-tools disclosure
 

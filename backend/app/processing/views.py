@@ -2,7 +2,6 @@
 
 import concurrent.futures as cf
 import contextvars
-import hashlib
 import json
 import logging
 import threading
@@ -15,7 +14,8 @@ from astropy.coordinates import SkyCoord
 from astropy.time import Time
 
 from .. import config
-from ..cache import local
+from ..cache import FrameCache, LocalCache, get_cache, render_key
+from ..cache import query_key as sky_query_key
 from ..irsa import fetch
 from ..models import ViewRequest
 from ..telemetry import operation, record_cache_hit
@@ -53,6 +53,8 @@ class Job:
     done: int = 0
     total: int = 0
     manifest_url: str | None = None
+    rk: str | None = None  # render key, and the cache that holds that render
+    cache: FrameCache | None = None
     error: tuple[str, str] | None = None
     from_cache: bool = False
     # Kept in memory for /spectrum and /lightcurve.
@@ -63,14 +65,13 @@ class Job:
 JOBS: dict[str, Job] = {}
 LOCK = threading.Lock()
 POOL = cf.ThreadPoolExecutor(max_workers=config.MAX_RENDER_JOBS)
+ADMISSION = threading.BoundedSemaphore(config.MAX_RENDER_JOBS + config.MAX_QUEUED_JOBS)
+OCTET = "application/octet-stream"
 
 
 def query_key(req: ViewRequest) -> str:
-    # q2 invalidates pointers made before dense saved captures used the ten-frame gate.
-    key = f"q2|{config.PIPELINE_VERSION}|{req.ra:.4f}|{req.dec:+.4f}|{req.fov_arcmin}|{req.band}"
-    if req.source != "auto":
-        key += f"|{req.source}"
-    return hashlib.sha256(key.encode()).hexdigest()[:20]
+    """The view id for a request (scripts/validate_integrated.py uses this too). Rules live in cache.blob."""
+    return sky_query_key(req.ra, req.dec, req.fov_arcmin, req.band, req.source)
 
 
 # ---------------------------------------------------------------- frame sources
@@ -122,11 +123,7 @@ def live_frames(req: ViewRequest, job: Job) -> list[dict]:
     job.status = "query"
     try:
         try:
-            colls = query.discover_collections()
-        except Exception:
-            colls = ["spherex_dr1", "spherex_qr3"]  # list_collections is TAP-backed (DECISIONS 2026-11-14)
-        try:
-            rows = query.query_frames_sia(req.ra, req.dec, colls)
+            rows = query.query_frames_sia(req.ra, req.dec, query.collections())
         except Exception:
             rows = query.query_frames_tap(req.ra, req.dec)
     except Exception as e:  # both SIA and TAP failed
@@ -204,9 +201,17 @@ def build(job: Job) -> None:
         gaia_cat = gaia_dr3.catalog_from_rows(gaia)
         source, min_frames = "golden", config.MIN_EPOCH_FRAMES_DEMO
     else:
-        frames = live_frames(req, job)
+        # Gaia can take 30 s or more to answer (or to time out), so it runs beside the cutout download.
+        side = cf.ThreadPoolExecutor(max_workers=1)
+        try:
+            gaia_job = side.submit(
+                contextvars.copy_context().run, gaia_dr3.live_catalog, req.ra, req.dec, req.fov_arcmin
+            )
+            frames = live_frames(req, job)
+            gaia_cat = gaia_job.result()  # None when Gaia is down
+        finally:
+            side.shutdown(wait=False)  # an IRSA error must not wait for Gaia
         gaia = []  # live Gaia query lands with #8; until then live views report astrom_resid_px: null
-        gaia_cat = gaia_dr3.live_catalog(req.ra, req.dec, req.fov_arcmin)  # None when Gaia is down
         source, min_frames = "irsa", config.MIN_EPOCH_FRAMES_LIVE
         origin = {
             "kind": "live",
@@ -230,11 +235,37 @@ def build(job: Job) -> None:
     job.status = "render"
     collections = sorted({f["collection"] for f in frames})
     catalog_version = "+".join(collections) or "none"
-    rk = hashlib.sha256(
-        f"{config.PIPELINE_VERSION}|{job.qk}|{','.join(sorted(f['obs'] for ep in epochs for f in ep))}".encode()
-    ).hexdigest()[:24]
-    out = local.render_dir(rk)
+    rk = render_key(config.PIPELINE_VERSION, job.qk, [f["obs"] for ep in epochs for f in ep])
+    # Always render: alignment can re-grid an epoch, and /spectrum and /lightcurve read those grids from job.epochs.
+    manifest, files = _render(job, rk, epochs, w, shape, source, origin, collections, catalog_version, gaia, gaia_cat)
+    cache = get_cache()
+    try:
+        _store(cache, job.qk, rk, manifest, files, catalog_version)
+    except Exception:
+        if isinstance(cache, LocalCache):
+            raise
+        # Blob trouble must not fail a finished view: keep it on local disk (served at /frames) until a restart.
+        log.exception("Blob cache write failed for view %s; keeping the render on local disk", job.qk)
+        cache = LocalCache(config.CACHE_DIR)
+        _store(cache, job.qk, rk, manifest, files, catalog_version)
+    job.epochs, job.shape = epochs, shape
+    job.rk, job.cache = rk, cache
+    job.manifest_url = cache.manifest_url(rk)
+    job.status = "ready"
 
+
+def _store(cache: FrameCache, qk: str, rk: str, manifest: dict, files: dict, catalog_version: str) -> None:
+    if not cache.has_render(rk):  # r/ is write-once
+        cache.put_render(rk, manifest, files)
+    cache.point(qk, rk, catalog_version)
+
+
+def _render(
+    job: Job, rk: str, epochs, w, shape, source, origin, collections, catalog_version, gaia, gaia_cat
+) -> tuple[dict, dict]:
+    """Stack each epoch and return (manifest, files) for the cache. Nothing touches storage here."""
+    req = job.req
+    files: dict[str, tuple[bytes, str]] = {}
     stacks: list[np.ndarray] = []
     info: dict = {"channels": [], "bandpass_matched": False}
     astrom: list[dict | None] = []
@@ -251,9 +282,9 @@ def build(job: Job) -> None:
 
     epoch_rows = []
     for i, (ep, img) in enumerate(zip(epochs, stacks)):
-        img.astype("<f4").tofile(out / f"e{i}.f32")
+        files[f"e{i}.f32"] = (img.astype("<f4").tobytes(), OCTET)
         nan_frac = np.mean([~np.isfinite(f["_grid"][0]) for f in ep], axis=0)
-        (nan_frac > 0.5).astype("u1").tofile(out / f"e{i}.mask.u8")
+        files[f"e{i}.mask.u8"] = ((nan_frac > 0.5).astype("u1").tobytes(), OCTET)
         mjds = [f["t_mjd"] for f in ep]
         lams = [f["lam_um"] for f in ep]
         epoch_rows.append(
@@ -286,7 +317,7 @@ def build(job: Job) -> None:
         except Exception:
             log.exception("Gaia overlay failed for view %s", job.qk)
     if overlay is not None:
-        (out / "gaia.json").write_text(json.dumps(overlay))
+        files["gaia.json"] = (json.dumps(overlay).encode(), "application/json")
 
     hdr = w.to_header()
     manifest = {
@@ -323,11 +354,7 @@ def build(job: Job) -> None:
         ],
         "extras": {"gaia": "gaia.json" if overlay else None, "lightcurve": None, "cube": None},
     }
-    (out / "manifest.json").write_text(json.dumps(manifest))
-    local.write_pointer(job.qk, rk, catalog_version)
-    job.epochs, job.shape = epochs, shape
-    job.manifest_url = f"/frames/r/{rk}/manifest.json"
-    job.status = "ready"
+    return manifest, files
 
 
 def _run(job: Job) -> None:
@@ -340,22 +367,63 @@ def _run(job: Job) -> None:
         job.status, job.error = "error", ("PIPELINE_ERROR", f"Building this view failed: {e}")
 
 
+def _execute(job: Job, admission: threading.BoundedSemaphore) -> None:
+    """Release exactly this admission even if the renderer fails or exits early."""
+    try:
+        _run(job)
+    finally:
+        with LOCK:
+            if job.status not in ("ready", "error"):
+                job.status, job.error = "error", ("PIPELINE_ERROR", "The renderer ended without a completed view.")
+        admission.release()
+
+
+def _existing(qk: str) -> Job | None:
+    """Called only under LOCK; terminal failures may be retried."""
+    job = JOBS.get(qk)
+    if job and job.status != "error":
+        record_cache_hit(job.status == "ready", "memory" if job.status == "ready" else "pending")
+        return job
+    return None
+
+
 def create(req: ViewRequest) -> Job:
     qk = query_key(req)
     with LOCK:
-        job = JOBS.get(qk)
-        if job and job.status != "error":
-            record_cache_hit(job.status == "ready", "memory" if job.status == "ready" else "pending")
+        if job := _existing(qk):
+            return job
+
+    # Blob reads and SDK initialization can be slow. They must never hold the
+    # global jobs lock or consume render capacity. Recheck dedupe after this I/O.
+    cache = get_cache()
+    ptr = cache.lookup(qk)
+    rk = ptr.get("render_key") if isinstance(ptr, dict) else None
+    manifest_url = cache.manifest_url(rk) if rk else None
+    with LOCK:
+        if job := _existing(qk):
             return job
         job = Job(qk=qk, req=req)
-        ptr = local.read_pointer(qk)
-        if ptr and (config.CACHE_DIR / "r" / ptr["render_key"] / "manifest.json").exists():
+        admission = None
+        if rk:
             job.status, job.from_cache = "ready", True
-            job.manifest_url = f"/frames/r/{ptr['render_key']}/manifest.json"
+            job.rk, job.cache = rk, cache
+            job.manifest_url = manifest_url
+        else:
+            admission = ADMISSION  # capture it so tests/reconfiguration cannot release a different limiter
+            if not admission.acquire(blocking=False):
+                raise ViewError("QUEUE_FULL", "The render queue is full. Please try again shortly.")
         JOBS[qk] = job
-        record_cache_hit(job.from_cache, "local" if job.from_cache else "miss")
-    if job.status != "ready":
-        POOL.submit(contextvars.copy_context().run, _run, job)
+        record_cache_hit(
+            job.from_cache, ("blob" if config.STORAGE_ACCOUNT_URL else "local") if job.from_cache else "miss"
+        )
+    if admission is not None:
+        try:
+            POOL.submit(contextvars.copy_context().run, _execute, job, admission)
+        except Exception as error:
+            with LOCK:
+                job.status, job.error = "error", ("PIPELINE_ERROR", "The render could not be queued. Try again.")
+            admission.release()
+            raise ViewError(*job.error) from error
     return job
 
 
@@ -415,25 +483,24 @@ def comparison(job: Job, x: float, y: float, r_px: float = 2.0) -> dict | None:
 # ---------------------------------------------------------------- Gaia overlay (#29)
 
 
-def _render_folder(job: Job) -> Path:
-    if job.status != "ready" or not job.manifest_url:
+def _render_file(job: Job, name: str) -> bytes:
+    if job.status != "ready" or not job.rk or job.cache is None:
         raise ViewError("NOT_READY", "This view is still being built. Try again when it is ready.")
-    return config.CACHE_DIR / job.manifest_url.removeprefix("/frames/").rsplit("/", 1)[0]
+    return job.cache.read(job.rk, name)
 
 
 def gaia_overlay(job: Job, x: float | None = None, y: float | None = None, epoch: int = 0) -> dict:
     """gaia.json of the view; with x and y, also the Gaia match label of the source there in one epoch."""
-    folder = _render_folder(job)
-    m = json.loads((folder / "manifest.json").read_text())
+    m = json.loads(_render_file(job, "manifest.json"))
     name = (m.get("extras") or {}).get("gaia")
     if not name:
         raise ViewError("NO_GAIA", "No Gaia overlay for this view: the Gaia archive did not answer when it was built.")
-    result = json.loads((folder / name).read_text())
+    result = json.loads(_render_file(job, name))
     result["selection"] = None
     if x is not None and y is not None:
         n = m["grid"]["ny"], m["grid"]["nx"]
         if not 0 <= epoch < len(m["epochs"]):
             raise ViewError("BAD_EPOCH", f"Epoch {epoch} is not in this view (0 to {len(m['epochs']) - 1}).")
-        stacks = [np.fromfile(folder / e["image"], "<f4").reshape(n) for e in m["epochs"]]
+        stacks = [np.frombuffer(_render_file(job, e["image"]), "<f4").reshape(n) for e in m["epochs"]]
         result["selection"] = gaia_dr3.match_label(result, stacks, x, y, epoch)
     return result

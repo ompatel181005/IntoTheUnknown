@@ -1,4 +1,4 @@
-"""Build offline snapshots through the real FastAPI pipeline and validate Barnard astrometry.
+"""Build offline snapshots and assess all five saved targets against explicit science gates.
 
 python scripts/validate_integrated.py --chrome '<Chrome executable>' --export-golden
 """
@@ -10,15 +10,15 @@ import os
 import shutil
 import socket
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import urlencode, urlsplit
 
-import numpy as np
-from astropy.wcs import WCS
-from validate import measure, predict
+from validate import measure
+from validation_science import assess_target
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,7 +27,7 @@ def _sidecar_names(manifest: dict) -> list[str]:
     """Return safe sidecar basenames referenced by manifest extras."""
     extras = manifest.get("extras") or {}
     if not isinstance(extras, dict):
-        raise ValueError("manifest extras must be an object")
+        raise ValueError("manifest extras must be an object")  # noqa: TRY004 - invalid JSON schema, existing API
     names = []
     for name in extras.values():
         if name is None:
@@ -45,7 +45,9 @@ def _sidecar_names(manifest: dict) -> list[str]:
     return names
 
 
-def _sidecar_pairs(manifest: dict, source_dir: Path, golden_dir: Path) -> list[tuple[Path, Path]]:
+def _sidecar_pairs(
+    manifest: dict, source_dir: Path, golden_dir: Path
+) -> list[tuple[Path, Path]]:
     """Resolve and preflight every referenced sidecar before copying or publishing a manifest."""
     pairs = []
     for name in _sidecar_names(manifest):
@@ -81,12 +83,26 @@ def main():
     parser.add_argument("--chrome", type=Path)
     parser.add_argument("--export-golden", action="store_true")
     parser.add_argument(
+        "--write-report",
+        action="store_true",
+        help="Publish current report, target status and browser evidence",
+    )
+    parser.add_argument(
         "--out", type=Path, default=ROOT / "scripts/spike_out/integrated"
     )
     args = parser.parse_args()
+    if args.write_report and not args.chrome:
+        parser.error("--write-report requires --chrome for current browser evidence")
     args.out.mkdir(parents=True, exist_ok=True)
     # Set the cache before app imports: both its static mount and cache module bind this path.
-    os.environ["CACHE_DIR"] = str((args.out / "cache").resolve())
+    # An empty per-run cache prevents a prior immutable render from masking a
+    # pipeline regression. TemporaryDirectory also removes validation-only data.
+    cache_directory = tempfile.TemporaryDirectory(
+        prefix="cache-", dir=args.out.resolve()
+    )
+    os.environ["CACHE_DIR"] = cache_directory.name
+    os.environ["STORAGE_ACCOUNT_URL"] = ""
+    os.environ["APPLICATIONINSIGHTS_CONNECTION_STRING"] = ""
     sys.path.insert(0, str(ROOT / "backend"))
     from app import config
     from app import main as api
@@ -96,9 +112,15 @@ def main():
 
     reports = {}
     manifests = {}
-    with patch(
-        "urllib.request.urlopen",
-        side_effect=AssertionError("archive traffic forbidden"),
+    with (
+        patch(
+            "urllib.request.urlopen",
+            side_effect=AssertionError("archive traffic forbidden"),
+        ),
+        patch(
+            "requests.sessions.Session.request",
+            side_effect=AssertionError("archive traffic forbidden"),
+        ),
     ):
         for target in TARGETS:
             req = ViewRequest(
@@ -112,47 +134,8 @@ def main():
             views.build(job)
             path = config.CACHE_DIR / job.manifest_url.removeprefix("/frames/")
             manifest = json.loads(path.read_text())
-            wcs = WCS(manifest["grid"]["wcs"])
-            epochs = []
-            for epoch in manifest["epochs"]:
-                image = np.fromfile(path.parent / epoch["image"], dtype="<f4").reshape(
-                    manifest["grid"]["ny"], manifest["grid"]["nx"]
-                )
-                entry = {
-                    "mjd": epoch["t_mean_mjd"],
-                    "n_frames": epoch["n_frames"],
-                    "finite_fraction": float(np.isfinite(image).mean()),
-                }
-                if target.id == "barnard":
-                    expected = wcs.all_world2pix([predict(entry["mjd"])], 0)[0]
-                    entry.update(measure(image, expected), predicted_px=list(expected))
-                epochs.append(entry)
-            report = {
-                "epochs": epochs,
-                "bandpass_matched": manifest["bandpass_matched"],
-                "frames": len(manifest["frames"]),
-                "science_status": "not validated",
-            }
-            if target.id == "barnard":
-                actual = np.subtract(
-                    epochs[-1]["centroid_px"], epochs[0]["centroid_px"]
-                )
-                expected = np.subtract(
-                    epochs[-1]["predicted_px"], epochs[0]["predicted_px"]
-                )
-                report.update(
-                    measured_shift_px=float(np.linalg.norm(actual)),
-                    predicted_shift_px=float(np.linalg.norm(expected)),
-                    vector_error_px=float(np.linalg.norm(actual - expected)),
-                )
-                report["science_status"] = (
-                    "PASS"
-                    if len(epochs) >= 2
-                    and report["vector_error_px"] <= 0.2
-                    and max(e["residual_px"] for e in epochs) < 0.3
-                    and manifest["bandpass_matched"]
-                    else "FAIL"
-                )
+            report = assess_target(target.id, manifest, path.parent, measure)
+            epochs = report["epochs"]
             if args.export_golden:
                 dest = ROOT / "frontend/public/golden" / target.id
                 dest.mkdir(parents=True, exist_ok=True)
@@ -173,7 +156,14 @@ def main():
                 )
             golden = ROOT / "frontend/public/golden" / target.id
             static = json.loads((golden / "manifest.json").read_text())
-            for key in ("render_key", "grid", "epochs", "stretch", "bandpass_matched", "extras"):
+            for key in (
+                "render_key",
+                "grid",
+                "epochs",
+                "stretch",
+                "bandpass_matched",
+                "extras",
+            ):
                 assert static[key] == manifest[key], f"Stale golden {target.id}: {key}"
             _validate_sidecars(manifest, path.parent, golden)
             hashes = {}
@@ -307,6 +297,18 @@ def main():
                         state="visible",
                         timeout=30000,
                     )
+                    # A mounted transparent canvas precedes its first paint and
+                    # the eyepiece fade. Require actual visible pixels before
+                    # recording a successful render or capturing evidence.
+                    page.wait_for_function("""() => {
+                        const c = document.querySelector('canvas[aria-label^="SPHEREx image, epoch"]');
+                        if (!c || c.dataset.ready !== 'true') return false;
+                        for (let e = c; e; e = e.parentElement) {
+                            if (Number(getComputedStyle(e).opacity) < 0.99) return false;
+                        }
+                        const bytes = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+                        return bytes.some((value, index) => index % 4 !== 3 && value > 0);
+                    }""")
                     page.screenshot(path=str(args.out / f"react-{target.id}.png"))
                     reports[target.id]["react_api_offline"] = True
                 browser.close()
@@ -317,6 +319,14 @@ def main():
     evidence = {
         "pipeline": "React + FastAPI channel-matched stacks",
         "pipeline_version": config.PIPELINE_VERSION,
+        "browser_verified": bool(args.chrome),
+        "catalogue_sha256": {
+            str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted((ROOT / "demo").glob("*/gaia.csv"))
+        },
+        "assessment_sha256": hashlib.sha256(
+            (ROOT / "scripts/validation_science.py").read_bytes()
+        ).hexdigest(),
         "stack_sha256": hashlib.sha256(
             (ROOT / "backend/app/processing/stack.py").read_bytes()
         ).hexdigest(),
@@ -331,6 +341,18 @@ def main():
         json.dumps(evidence, indent=2, allow_nan=False) + "\n", encoding="utf8"
     )
     print(json.dumps(reports["barnard"], indent=2), flush=True)
+    if args.write_report:
+        if (
+            errors
+            or attempted
+            or not all(report.get("react_api_offline") for report in reports.values())
+        ):
+            raise AssertionError(
+                "Browser verification must pass before publishing report"
+            )
+        from validation_report import write_report
+
+        write_report(ROOT, evidence, args.out / "react-barnard.png")
     return int(
         reports["barnard"]["science_status"] != "PASS"
         or bool(errors)
