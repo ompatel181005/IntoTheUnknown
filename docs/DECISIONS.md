@@ -1,5 +1,13 @@
 # Decisions
 
+## 2026-11-14 - Explicit API telemetry and background operation measurements (#26)
+Finding: The issue assumed an Application Insights startup hook, but the adopted app has none. The Azure connection string is also absent from the app template. Both the startup hook and the SDK dependency require human permission for shared files; the prepared changes wait for that permission.
+Decision: Use the tested Azure Monitor SDK 1.8.12 behind an environment guard. Explicit server spans record route templates, HTTP status/duration and the ready-cache decision. Inflight reuse is not a ready-cache hit. Explicit dependency spans measure logical IRSA/S3/Gaia operations and background pipeline builds; retries are included within a logical operation. Propagate context to render/cutout/Gaia workers, rather than installing a global threading patch.
+Surprises: The SDK defaults to rate-limited sampling and optional background collection/networking. Configure 100% tracing for this low-volume test deployment, exclude static assets/health, disable optional collection and offline disk buffering. FastAPI 0.163 also starts native spans when a global provider becomes active, even with the SDK's FastAPI instrumentation disabled. Its public telemetry configuration must disable native capture too; a real-SDK subprocess test verifies one request, one dependency, no secret marker and no network attempts.
+Wiring: ARM resolves the existing Application Insights connection string into a Container Apps secret. A live ARM validation passed without deploying or retrieving the connection string locally. Runtime ingestion and the workspace KQL remain live gates until the approved startup/dependency changes merge and deployment activates the secret reference. No presentation measurements are claimed from the offline tests.
+Sources checked: https://learn.microsoft.com/en-us/python/api/overview/azure/monitor-opentelemetry-readme and https://fastapi.tiangolo.com/advanced/opentelemetry/ . Workspace queries and scope/coverage limits are in infra/README.md and infra/telemetry/.
+Owner: ompatel181005 (Codex)
+
 Append-only log, newest at bottom. Format: `## YYYY-MM-DD HH:MM - <title>` then Decision / Why / Owner.
 
 ## 2026-11-14 00:00 - Stack choice

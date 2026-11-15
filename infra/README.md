@@ -9,7 +9,7 @@ The production Dockerfile builds React and runs FastAPI on port 8000. The defaul
 | ACR + Container Apps environment + app | Build and host the combined app | Live app verified; ACR Tasks denied, GitHub build succeeded |
 | User-assigned identity | Registry pulls and runtime Blob access | `id-planetx-api`; scoped AcrPull and Blob Data Contributor; runtime Blob test passed |
 | Log Analytics | Container platform logs | Workspace created and linked to the environment |
-| Application Insights | Future application telemetry | Resource created; Python instrumentation pending |
+| Application Insights | API latency, ready-cache hits and archive operation failures | Opt-in instrumentation and KQL in #26; live verification required after activation |
 | Blob Storage | Persistent render cache and watcher state | Live account and containers verified; backend integration belongs to #12 |
 | Functions | Future catalog watcher | Deployment and refresh API integration pending |
 | Blob website / Static Web Apps | Alternative frontend hosts | Off by default; SWA blocked by recorded region policy |
@@ -85,6 +85,25 @@ Image source: `130e42b9138545ec9a856136ad41e5d1aa19df50`. The [GitHub build](htt
 CLI PATCH updates failed with `ExpressSystemAssignedIdentityNotSupported` despite the app referencing the standard Consumption environment. A full ARM create/update with a dedicated user-assigned identity succeeded. Runtime identity access to private Blob state was tested inside the deployed container. `30-app.sh` now uses this reproducible ARM/UserAssigned path. Keep maximum replicas at one until shared job state is implemented.
 
 `check-scripts.sh` checks syntax, subscription/ARM URL scoping and workspace-key avoidance. `tests/run.sh` uses fake Azure/GitHub commands and fixture identities only, checking wrong-subscription/tenant refusal, policy, configuration, OIDC and budget behavior. Exit codes: 0 success, 1 error, 2 OIDC permission denial, 3 budget refusal, 4 unconfirmed policy.
+
+## Application telemetry (#26)
+
+`backend/app/telemetry.py` opts in only when `APPLICATIONINSIGHTS_CONNECTION_STRING` is set. The app startup hook and dependency must be installed before activation. `30-app.sh --deploy-only` resolves the existing Application Insights connection string inside ARM into a Container Apps secret and references it from the environment; no connection string is retrieved locally or passed in command arguments. Image-only automatic deployments preserve this configuration.
+
+The module records method, route template, HTTP status, duration and the actual cache decision for API requests. It excludes health checks and static snapshots. `cache.hit=true` means a ready in-memory or local render was reused; an already-running job is `false` / `pending`. Invalid requests can have no cache tag; the query reports tag coverage instead of silently counting them as misses. Static golden views bypass `/api/views`, so this is an API cache ratio, not a website-wide hit ratio.
+
+IRSA queries/cutouts, S3 cutouts and Gaia cone queries are logical dependency operations, including retries/fallback within an operation. A returned failed cutout is an error even when its caller recovers through S3. The `pipeline.build` dependency measures background build time; HTTP POST latency alone only measures submitting the job. Thread context links work to its originating request. These counts are not individual network-request counts. Saved builds do not make archive calls, so zero IRSA/S3/Gaia operations during saved-only testing is expected.
+
+Automatic request/dependency capture and FastAPI's native telemetry are disabled: spans omit URLs, query strings, coordinates, headers, bodies, client addresses and exception text/stacks. Exceptions record their class only. The tested Azure SDK is pinned to 1.8.12. Optional control-plane/Statsbeat/resource-discovery calls, metrics and log export default off. Live metrics, performance counters and offline disk buffering are disabled; an ingestion outage can drop telemetry rather than fill the app disk. The low-volume testing configuration requests 100% trace sampling, while KQL uses `ItemCount` weights and reports null percentages/latencies when there are no observations. Explicit sampler/environment overrides can still affect coverage.
+
+Run these files in the **log-planetx workspace** Logs view:
+
+- [requests.kql](telemetry/requests.kql): represented view requests, cache-tag coverage, ready-cache hits and weighted p50/p95 latency in milliseconds.
+- [dependencies.kql](telemetry/dependencies.kql): represented logical operations, failures and weighted p95 duration, including explicit zero-count services.
+
+For **appi-planetx resource** Logs (the PLAN section 10 examples), use `requests`/`dependencies`, `timestamp`, `cloud_RoleName`, `customDimensions`, `itemCount`, `name`, `duration / 1ms` and `tobool(success)` in place of the workspace names. Do not mix the two schemas. [Microsoft's schema mapping](https://learn.microsoft.com/en-us/azure/azure-monitor/app/data-model-complete), [AppRequests](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/apprequests), [SDK options](https://learn.microsoft.com/en-us/python/api/overview/azure/monitor-opentelemetry-readme).
+
+Verification procedure: run one supported Saved custom view and repeat it once ready; inspect the KQL results after ingestion. A first-build miss and ready repeat must be distinguishable. Use only returned measurements and record the observed UTC window. Dependency error/context behavior is tested with an in-memory exporter and mocked archives; do not generate synthetic production failures or download astronomy data to populate a presentation chart. All five saved snapshots must continue working with their API unavailable.
 
 ## View-loading observations
 

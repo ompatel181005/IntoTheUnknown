@@ -7,6 +7,7 @@ already absorbed; `transform_to(GCRS)` would add ~20" of aberration (about 3 px)
 
 from __future__ import annotations
 
+import contextvars
 import io
 import logging
 import math
@@ -29,6 +30,8 @@ from astropy.coordinates import (
 from astropy.io import votable
 from astropy.time import Time
 from erfa import ErfaWarning
+
+from ..telemetry import operation
 
 log = logging.getLogger(__name__)
 
@@ -244,7 +247,7 @@ def _fetch_within(url: str, adql: str, timeout_s: float) -> tuple[np.ndarray, bo
         except Exception as e:
             future.set_exception(e)
 
-    threading.Thread(target=run, name="gaia-tap", daemon=True).start()
+    threading.Thread(target=contextvars.copy_context().run, args=(run,), name="gaia-tap", daemon=True).start()
     try:
         return future.result(timeout=timeout_s)
     except TimeoutError:
@@ -252,6 +255,7 @@ def _fetch_within(url: str, adql: str, timeout_s: float) -> tuple[np.ndarray, bo
         raise _EndpointError(f"no complete response within {timeout_s:g}s") from None
 
 
+@operation("Gaia", "cone")
 def query_gaia_cone(ra: float, dec: float, radius_deg: float, timeout_s: float | None = None) -> np.ndarray:
     """Gaia DR3 sources with G < 20.5 within radius_deg of (ra, dec), at J2016.0.
 

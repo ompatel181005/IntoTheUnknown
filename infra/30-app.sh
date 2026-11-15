@@ -92,7 +92,8 @@ azs deployment group create -g "$RG" --name core-app \
   --parameters "appName=$API" "location=$LOCATION" "environmentId=$ENV_ID" \
     "identityResourceId=$IDENTITY_ID" "identityClientId=$CLIENT_ID" \
     "image=$IMAGE" "registryServer=$ACR.azurecr.io" "storageAccountUrl=https://$SA.blob.core.windows.net" \
-    "framesContainer=$FRAMES_CONTAINER" "stateContainer=$STATE_CONTAINER" "minReplicas=$MIN_REPLICAS" -o none
+    "framesContainer=$FRAMES_CONTAINER" "stateContainer=$STATE_CONTAINER" "minReplicas=$MIN_REPLICAS" \
+    "applicationInsightsName=$AI" -o none
 HOST=$(azsq containerapp show -g "$RG" -n "$API" --query properties.configuration.ingress.fqdn -o tsv)
 [[ -n $HOST ]] || die 'Deployment returned no public hostname.'
 info "Public app: https://$HOST"

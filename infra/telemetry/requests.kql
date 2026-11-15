@@ -1,0 +1,12 @@
+// Workspace log-planetx. These are API requests, not visits that only use saved web assets.
+AppRequests
+| where TimeGenerated >= ago(24h) and AppRoleName == "spherex-blink-api"
+| where Name == "POST /api/views"
+| extend CacheHit = tolower(tostring(Properties["cache.hit"]))
+| summarize Requests = sum(ItemCount),
+            Tagged = sumif(ItemCount, CacheHit in ("true", "false")),
+            Hits = sumif(ItemCount, CacheHit == "true"),
+            P50ms = percentilew(DurationMs, ItemCount, 50),
+            P95ms = percentilew(DurationMs, ItemCount, 95)
+| extend HitPct = iff(Tagged == 0, real(null), 100.0 * todouble(Hits) / todouble(Tagged)),
+         TagCoveragePct = iff(Requests == 0, real(null), 100.0 * todouble(Tagged) / todouble(Requests))

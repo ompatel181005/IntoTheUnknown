@@ -1,6 +1,7 @@
 """View jobs: find frames (demo pack or live IRSA), stack per epoch, write the manifest and arrays."""
 
 import concurrent.futures as cf
+import contextvars
 import hashlib
 import json
 import logging
@@ -17,6 +18,7 @@ from .. import config
 from ..cache import local
 from ..irsa import fetch
 from ..models import ViewRequest
+from ..telemetry import operation, record_cache_hit
 from . import align, photometry, stack
 from . import gaia as gaia_dr3
 
@@ -187,6 +189,7 @@ def select_epochs(groups: list[list[dict]], minimum: int, saved: bool) -> list[l
     return selected
 
 
+@operation("pipeline", "build", internal=True)
 def build(job: Job) -> None:
     req = job.req
     saved = demo_frames(req, job) if req.source != "live" else None
@@ -342,6 +345,7 @@ def create(req: ViewRequest) -> Job:
     with LOCK:
         job = JOBS.get(qk)
         if job and job.status != "error":
+            record_cache_hit(job.status == "ready", "memory" if job.status == "ready" else "pending")
             return job
         job = Job(qk=qk, req=req)
         ptr = local.read_pointer(qk)
@@ -349,8 +353,9 @@ def create(req: ViewRequest) -> Job:
             job.status, job.from_cache = "ready", True
             job.manifest_url = f"/frames/r/{ptr['render_key']}/manifest.json"
         JOBS[qk] = job
+        record_cache_hit(job.from_cache, "local" if job.from_cache else "miss")
     if job.status != "ready":
-        POOL.submit(_run, job)
+        POOL.submit(contextvars.copy_context().run, _run, job)
     return job
 
 

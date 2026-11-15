@@ -1,6 +1,7 @@
 """Cutout fetch and FITS extraction. From docs/skeletons/fetch.py, plus the demo-pack reader."""
 
 import concurrent.futures as cf
+import contextvars
 import http.client
 import io
 import logging
@@ -16,6 +17,7 @@ from astropy.io import fits
 from astropy.wcs import WCS
 
 from ..config import IRSA_TIMEOUT_S
+from ..telemetry import operation
 
 # Cutouts are a few MB including the PSF extensions. Refuse a full-frame response.
 MAX_CUTOUT_BYTES = 8 * 1024 * 1024
@@ -64,6 +66,7 @@ def _extract(hdul, ra, dec, window=None) -> dict:
     }
 
 
+@operation("IRSA", "cutout", none_is_failure=True)
 def fetch_irsa(frame, ra, dec, size_deg, retries=3):
     url = f"{frame['url']}?center={ra},{dec}d&size={size_deg}"
     for attempt in range(retries):
@@ -91,6 +94,7 @@ def fetch_irsa(frame, ra, dec, size_deg, retries=3):
     return None
 
 
+@operation("S3", "cutout", none_is_failure=True)
 def fetch_s3(frame, ra, dec, size_deg):
     """Same file on the AWS mirror (identical path layout, verified); range-reads only the window."""
     key = frame["url"].split("/ibe/data/spherex/", 1)[1]
@@ -114,7 +118,7 @@ def fetch_all(frames, ra, dec, size_deg, workers=10, on_progress=None) -> list[d
 
     out, done = [], 0
     with cf.ThreadPoolExecutor(max_workers=workers) as ex:
-        for fut in cf.as_completed([ex.submit(one, f) for f in frames]):
+        for fut in cf.as_completed([ex.submit(contextvars.copy_context().run, one, f) for f in frames]):
             done += 1
             if (r := fut.result()) is not None:
                 out.append(r)
