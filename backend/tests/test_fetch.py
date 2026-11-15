@@ -165,3 +165,35 @@ def test_rejected_cutout_uses_existing_s3_fallback(monkeypatch):
     monkeypatch.setattr(fetch, "fetch_s3", lambda frame, *a: {**frame, "source": "s3"})
     result = fetch.fetch_all([{"url": "https://example.invalid/cutout", "t_mjd": 1}], 1, 2, 0.1)
     assert result[0]["source"] == "s3"
+
+
+def test_s3_is_tried_first_and_irsa_is_the_fallback(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        fetch, "fetch_s3", lambda f, *a: calls.append("s3") or (None if f["t_mjd"] == 2 else {**f, "source": "s3"})
+    )
+    monkeypatch.setattr(fetch, "fetch_irsa", lambda f, *a: calls.append("irsa") or {**f, "source": "irsa"})
+    out = fetch.fetch_all([{"t_mjd": 1}, {"t_mjd": 2}], 1, 2, 0.1, workers=1)
+    assert [r["source"] for r in out] == ["s3", "irsa"]
+    assert calls.count("irsa") == 1
+
+
+def test_s3_reader_dependency_is_installed():
+    # fetch_s3 swallows every exception, so a missing package would silently disable the S3 path.
+    import s3fs  # noqa: F401
+
+
+def test_collection_lookup_is_cached_and_falls_back(monkeypatch):
+    from app.irsa import query
+
+    calls = []
+
+    def lookup():
+        calls.append(1)
+        raise TimeoutError
+
+    monkeypatch.setattr(query, "discover_collections", lookup)
+    monkeypatch.setattr(query, "_collections", {"at": 0.0, "names": []})
+    assert query.collections() == query.FALLBACK_COLLECTIONS
+    assert query.collections() == query.FALLBACK_COLLECTIONS
+    assert len(calls) == 1

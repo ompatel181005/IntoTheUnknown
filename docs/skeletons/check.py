@@ -1,17 +1,11 @@
 """Offline checks for the skeletons (PLAN §12.1). No network. Seed for backend/tests/.
 
-Needs: numpy astropy astroquery reproject azure-storage-blob azure-identity
+Needs: numpy astropy astroquery reproject
 Run:   python docs/skeletons/check.py
+Cache-key checks moved to backend/tests/test_keys.py with backend/app/cache/blob.py (issue #12).
 """
 
-from cache import query_key, render_key
 from query import dedupe
-
-# Cache keys: deterministic, independent of frame order, sensitive to position and pipeline version.
-qk = query_key(269.4463, 4.7682, 6, "B1-B2")
-assert qk == query_key(269.44630001, 4.76820001, 6.0, "B1-B2")
-assert qk != query_key(269.4464, 4.7682, 6, "B1-B2")
-assert render_key(1, qk, ["b", "a"]) == render_key(1, qk, ["a", "b"]) != render_key(2, qk, ["a", "b"])
 
 # Dedupe: DR beats QR even when QR was processed later; within a release the later processing date wins.
 URL = "https://irsa.ipac.caltech.edu/ibe/data/spherex/{0}/level2/2025W17_4B/{1}/1/level2_2025W17_4B_0001_1D1_spx_{1}.fits"
