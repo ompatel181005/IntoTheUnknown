@@ -13,9 +13,11 @@ from . import config
 from .models import GaiaResult, Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus
 from .processing import views
 from .targets import TARGETS
+from .telemetry import FASTAPI_TELEMETRY, configure_telemetry
 
 logging.basicConfig(level=logging.INFO)
-app = FastAPI(title="SPHEREx Blink API", version="0.1.0")
+app = FastAPI(title="SPHEREx Blink API", version="0.1.0", telemetry=FASTAPI_TELEMETRY)
+configure_telemetry(app)
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/frames", StaticFiles(directory=config.CACHE_DIR), name="frames")
