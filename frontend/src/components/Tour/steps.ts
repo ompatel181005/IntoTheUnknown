@@ -2,7 +2,7 @@ export interface TourStep {
   /** Matches a data-tour attribute on the element to spotlight. */
   target: string;
   /** Used when `target` is not on screen (e.g. the phone layout). */
-  fallback?: string;
+  fallback?: string | string[];
   /** Round spotlight (for the dome or target star). */
   round?: boolean;
   /** Spotlight the centre of the target element (for the target star in the dome). */
@@ -15,49 +15,42 @@ export interface TourStep {
 
 export const TOUR: TourStep[] = [
   {
-    target: "targets",
+    target: "home-target-search",
+    fallback: ["view-target-search", "home-targets-tab"],
     title: "Find a target",
-    text: "Explore prepared targets or search by name and coordinates (RA, Dec).",
+    text: "Search by name or coordinates to choose a sky target. On the home view, you can also browse the Targets panel.",
   },
   {
     target: "target-sort",
-    fallback: "targets",
-    title: "Sort available data",
-    text: "Most frames puts targets with more prepared observations first. You can also sort by passes or name. Counts describe quantity, not image quality; unknown counts show a question mark.",
+    fallback: "home-targets-tab",
+    title: "Sort the targets",
+    text: "Sort prepared targets by frames, passes, or name. The counts describe how much data is available.",
   },
   {
     target: "dome",
     needs: "view",
     round: true,
-    title: "View the sky",
-    text: "SPHEREx infrared images of this sky patch. North is up and East is left, looking up from Earth.",
-  },
-  {
-    target: "target-star",
-    fallback: "dome",
-    needs: "view",
-    round: true,
     spotlightCenter: true,
-    title: "Spot the mover",
-    text: "This star moves; the background stars do not. Watch the centre star hop across passes while distant stars stay still.",
+    title: "View the sky",
+    text: "The dome shows SPHEREx infrared passes for the selected patch. North is up and east is left.",
   },
   {
     target: "play",
     needs: "view",
     title: "Press play",
-    text: "Step through 6-month survey passes. Watch for position jumps in a straight line or brightness changes.",
+    text: "Play steps through the available survey passes. Look for motion or brightness changes.",
   },
   {
     target: "modes",
     needs: "view",
     title: "Compare passes",
-    text: "Blink toggles two passes to reveal jumps. Difference subtracts a baseline pass to leave a silver and amber pair.",
+    text: "Blink alternates between two passes. Difference subtracts a reference pass to reveal what changed.",
   },
   {
     target: "details",
     fallback: "details-btn",
     needs: "drawer",
-    title: "Inspect measurements",
-    text: "Click any pixel to inspect its 102-band infrared spectrum, track brightness over time, or check data flags.",
+    title: "Open details",
+    text: "Use Details to compare colour, brightness, files, and sky information. Pick a pixel to measure that position.",
   },
 ];

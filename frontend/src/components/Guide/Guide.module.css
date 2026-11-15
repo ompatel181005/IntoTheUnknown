@@ -1,6 +1,6 @@
 .dialog {
   width: min(720px, calc(100vw - 32px));
-  max-height: min(84dvh, 760px);
+  max-height: min(calc(100dvh - 48px), 760px);
   padding: 0;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-panel);
@@ -20,10 +20,11 @@
 }
 
 .head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 10px 6px 24px;
+  padding: 14px 10px 8px 24px;
 }
 
 .title {
@@ -33,17 +34,43 @@
 }
 
 .tabs {
-  padding: 0 14px;
+  flex: 0 0 auto;
+  padding: 4px 14px 6px;
   border-bottom: 1px solid var(--glass-border);
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
 }
 
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tabs > :global([role="tablist"]) {
+  width: max-content;
+  min-width: 100%;
+}
+
+.tabs :global([role="tab"]) {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .body {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  padding: 8px 24px 24px;
+  overscroll-behavior: contain;
+  padding: 20px 24px 24px;
   font-size: 14px;
   line-height: 1.6;
+  -webkit-overflow-scrolling: touch;
+}
+
+.body:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .body h3 {
@@ -53,6 +80,10 @@
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--text-2);
+}
+
+.body > h3:first-child {
+  margin-top: 0;
 }
 
 .body h4 {

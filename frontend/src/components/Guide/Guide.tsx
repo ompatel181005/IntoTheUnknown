@@ -31,12 +31,21 @@ const NOTES: Record<string, string> = {
 /** About, how to use, the science and the data, in one dialog. */
 export function Guide({ onClose, onTour, hasTarget, multi }: { onClose: () => void; onTour: () => void; hasTarget: boolean; multi: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const [section, setSection] = useState<Section>("about");
 
   useEffect(() => {
     const d = ref.current;
     if (d && !d.open) d.showModal();
   }, []);
+
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: 0 });
+    tabsRef.current
+      ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [section]);
 
   const panelId = `guide-${section}`;
   const keys = [
@@ -46,7 +55,7 @@ export function Guide({ onClose, onTour, hasTarget, multi }: { onClose: () => vo
     ["Esc", "Close panels"],
   ];
   return (
-    <dialog ref={ref} className={s.dialog} aria-labelledby="guide-title" onClose={onClose} onCancel={onClose}>
+    <dialog ref={ref} role="dialog" className={s.dialog} aria-labelledby="guide-title" onClose={onClose} onCancel={onClose}>
       <div className={s.head}>
         <h2 id="guide-title" className={`display ${s.title}`}>
           {APP_NAME}
@@ -62,10 +71,18 @@ export function Guide({ onClose, onTour, hasTarget, multi }: { onClose: () => vo
         </GlassButton>
         <GlassButton variant="ghost" icon="close" label="Close guide" onClick={onClose} />
       </div>
-      <div className={s.tabs}>
+      <div ref={tabsRef} className={s.tabs}>
         <Tabs label="Guide sections" value={section} onChange={setSection} tabs={SECTIONS.map((t) => ({ ...t, panelId }))} />
       </div>
-      <div className={s.body} id={panelId} role="tabpanel" aria-labelledby={`tab-${section}`}>
+      <div
+        ref={bodyRef}
+        className={s.body}
+        id={panelId}
+        role="tabpanel"
+        aria-labelledby={`tab-${section}`}
+        aria-label={`${SECTIONS.find((item) => item.value === section)?.label} guide content`}
+        tabIndex={0}
+      >
         {section === "about" && (
           <>
             <h3>About</h3>

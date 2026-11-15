@@ -84,7 +84,7 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
 
   if (sheet) {
     return (
-      <GlassPanel strong id="customize" className={`${s.panel} ${s.sheet}`} role="region" aria-label="Customize" data-tour="customize">
+      <GlassPanel strong id="customize" className={`${s.panel} ${s.sheet}`} role="region" aria-label="Customize" data-tour="customize-sheet">
         {head}
         {body()}
       </GlassPanel>
@@ -98,7 +98,7 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
       data-moving={moving}
       data-fade
       data-flight-hide
-      data-tour="customize"
+      data-tour="customize-rail"
       style={{ ["--flight-hide-x" as string]: "-32px" }}
       onKeyDown={(e) => {
         if (e.key === "Escape" && open) onOpenChange(false);

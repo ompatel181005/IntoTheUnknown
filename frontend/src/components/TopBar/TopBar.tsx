@@ -19,8 +19,8 @@ interface TopBarProps {
 }
 
 export function HomeGuideButton({ onGuide }: { onGuide: () => void }) {
-  return <GlassPanel pill className={s.homeGuide} data-tour="help">
-    <GlassButton variant="ghost" icon="help" label="Guide" onClick={onGuide} />
+  return <GlassPanel pill className={s.homeGuide}>
+    <GlassButton variant="ghost" icon="help" label="Guide" onClick={onGuide} data-tour="guide-home" />
   </GlassPanel>;
 }
 
@@ -46,9 +46,9 @@ export function TopBar(props: TopBarProps) {
       <GlassPanel pill className={s.center}>
         <TargetSearch onPreset={props.onPreset} onCoords={props.onCoords} />
       </GlassPanel>
-      <GlassPanel pill className={s.end} data-tour="help">
+      <GlassPanel pill className={s.end}>
         <a className={s.learnLink} href="/learn.html">Learn &amp; explore</a>
-        <GlassButton variant="ghost" icon="help" label="Guide" onClick={props.onGuide} />
+        <GlassButton variant="ghost" icon="help" label="Guide" onClick={props.onGuide} data-tour="guide-view" />
         {props.crumb !== null && (
           <GlassButton
             variant="ghost"
@@ -119,7 +119,7 @@ function TargetSearch({ onPreset, onCoords }: Pick<TopBarProps, "onPreset" | "on
   };
 
   return (
-    <div className={s.search} role="search" data-tour="targets">
+    <div className={s.search} role="search" data-tour="view-target-search">
       <label className={s.field}>
         <Icon name="search" size={16} />
         <span className="sr-only">Search targets</span>

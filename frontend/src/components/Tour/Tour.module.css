@@ -44,6 +44,13 @@
     top 260ms var(--ease);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .hole,
+  .card {
+    transition: none;
+  }
+}
+
 .count {
   margin: 0 0 6px;
   letter-spacing: 0.3em;

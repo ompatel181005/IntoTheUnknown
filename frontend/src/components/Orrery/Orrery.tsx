@@ -64,6 +64,12 @@ const DEFAULT_DIST = 38;
 type Camera = Omit<OrreryCameraState, "focus">;
 const defaultCamera: Camera = { yaw: initialCamera.yaw, pitch: initialCamera.pitch, dist: DEFAULT_DIST, fade: 1 };
 const cinematic = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+const settle = (t: number) => 1 - (1 - t) ** 4;
+// First load only: start far out, lower and turned, then glide in and settle on the default view.
+const INTRO_MS = 3600;
+const introCamera: Camera = { yaw: defaultCamera.yaw - 1.2, pitch: 0.7, dist: 320, fade: 1 };
+// Module level so a StrictMode remount resumes the intro instead of replaying or dropping it.
+let intro: { start: number; done: boolean } | null = null;
 const ORBIT_STEPS = 128;
 const TRAIL_BANDS = 16;
 const SPRITE_SIZE = 48;
@@ -427,7 +433,8 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
     };
     const textWidths = new Map<string, number>();
     let targetDist = cam.current.dist;
-    let viewGlide: { start: number; from: Camera; to: Camera } | null = null;
+    type Glide = { start: number; from: Camera; to: Camera; ms: number; ease: (t: number) => number; intro?: boolean };
+    let viewGlide: Glide | null = null;
 
     let disposed = false;
     let width = 0;
@@ -608,13 +615,23 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       scheduleFrame();
     };
 
+    if (!reduce && activeRef.current && intro === null && getHomeCamera().dist === initialCamera.dist
+      && getHomeCamera().yaw === initialCamera.yaw && getHomeCamera().pitch === initialCamera.pitch) {
+      intro = { start: -1, done: false };
+    }
+    if (intro && !intro.done) {
+      if (intro.start < 0) cam.current = cloneCamera(introCamera);
+      targetDist = cam.current.dist;
+      viewGlide = { start: intro.start, from: cloneCamera(introCamera), to: cloneCamera(defaultCamera), ms: INTRO_MS, ease: settle, intro: true };
+    }
+
     const glideTo = (to: Camera) => {
       if (reduce) {
         cam.current = cloneCamera(to);
         targetDist = to.dist;
         saveHomeCamera(flightCamera(cam.current));
       } else {
-        viewGlide = { start: -1, from: cloneCamera(cam.current), to: cloneCamera(to) };
+        viewGlide = { start: -1, from: cloneCamera(cam.current), to: cloneCamera(to), ms: 420, ease: cinematic };
       }
       dirty = true;
       scheduleFrame();
@@ -793,20 +810,33 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       const camera = cam.current;
       const currentFlight = getFlightSample();
 
+      // Any other camera move (drag, wheel, reset, flight) ends the intro for good.
+      if (intro && !intro.done && intro.start >= 0 && !viewGlide?.intro) intro.done = true;
+
       if (flightIsActive() && currentFlight) {
+        viewGlide = null;
         Object.assign(camera, currentFlight.camera);
         targetDist = camera.dist;
         dirty = true;
       } else if (viewGlide) {
-        if (viewGlide.start < 0) viewGlide.start = now;
+        if (viewGlide.start < 0) {
+          viewGlide.start = now;
+          if (viewGlide.intro && intro) intro.start = now;
+        }
         const activeGlide = viewGlide;
-        const t = Math.min(1, (now - activeGlide.start) / 420);
-        const eased = cinematic(t);
+        const t = Math.min(1, (now - activeGlide.start) / activeGlide.ms);
+        const eased = activeGlide.ease(t);
         camera.yaw = activeGlide.from.yaw + (activeGlide.to.yaw - activeGlide.from.yaw) * eased;
         camera.pitch = activeGlide.from.pitch + (activeGlide.to.pitch - activeGlide.from.pitch) * eased;
-        camera.dist = activeGlide.from.dist + (activeGlide.to.dist - activeGlide.from.dist) * eased;
+        // The intro zoom is geometric so the approach feels even across an 8x distance change.
+        camera.dist = activeGlide.intro
+          ? activeGlide.from.dist * (activeGlide.to.dist / activeGlide.from.dist) ** eased
+          : activeGlide.from.dist + (activeGlide.to.dist - activeGlide.from.dist) * eased;
         targetDist = camera.dist;
-        if (t >= 1) viewGlide = null;
+        if (t >= 1) {
+          if (activeGlide.intro && intro) intro.done = true;
+          viewGlide = null;
+        }
         dirty = true;
       } else {
         const damping = reduce ? 1 : 1 - Math.exp(-dt / 0.14);

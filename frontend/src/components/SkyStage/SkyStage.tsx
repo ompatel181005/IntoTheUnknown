@@ -125,7 +125,7 @@ function Home({
           onFlightEnd={onFlightEnd}
         />
       </div>
-      <div className={s.zoomControls} aria-label="Orrery zoom controls" data-flight-hide inert={flying}>
+      <div className={s.zoomControls} aria-label="Orrery zoom controls" data-tour="orrery-zoom" data-flight-hide inert={flying}>
         <button
           type="button"
           className={s.zoomButton}

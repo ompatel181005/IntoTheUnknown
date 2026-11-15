@@ -13,13 +13,7 @@ interface TourProps {
 type Rect = { left: number; top: number; width: number; height: number };
 
 function find(step: TourStep): HTMLElement | null {
-  if (step.target === "target-star" || step.spotlightCenter) {
-    const star = document.querySelector<HTMLElement>('[data-tour="target-star"]');
-    if (star && star.getBoundingClientRect().width > 0) return star;
-    const dome = document.querySelector<HTMLElement>('[data-tour="dome"]');
-    if (dome && dome.getBoundingClientRect().width > 0) return dome;
-  }
-  for (const key of [step.target, step.fallback]) {
+  for (const key of [step.target, ...(Array.isArray(step.fallback) ? step.fallback : [step.fallback])]) {
     if (!key) continue;
     for (const el of document.querySelectorAll<HTMLElement>(`[data-tour="${key}"]`)) {
       if (el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== "hidden") return el;
@@ -29,29 +23,37 @@ function find(step: TourStep): HTMLElement | null {
 }
 
 function place(rect: Rect | null, hole: HTMLDivElement, card: HTMLDivElement, round?: boolean) {
-  // Card placement: below the hole when there is room, otherwise anchored above it (no height needed).
   const pad = 8;
+  const margin = 16;
+  const gap = 14;
   const cardW = Math.min(340, window.innerWidth - 32);
-  let pos: { left: number; top?: number; bottom?: number } = { left: 16, top: 16 };
+  card.style.width = `${cardW}px`;
+  const cardH = card.offsetHeight;
+  let pos = { left: margin, top: margin };
   if (rect) {
-    const left = Math.max(16, Math.min(window.innerWidth - cardW - 16, rect.left + rect.width / 2 - cardW / 2));
-    const below = rect.top + rect.height + pad + 14;
-    const top = Math.max(16, Math.min(rect.top, window.innerHeight - 280));
-    if (window.innerHeight - below > 240) pos = { left, top: below };
-    else if (rect.top - pad - 14 > 240) pos = { left, bottom: window.innerHeight - (rect.top - pad - 14) };
-    else if (rect.left - pad - 24 > cardW) pos = { left: rect.left - pad - 24 - cardW, top };
-    else if (window.innerWidth - (rect.left + rect.width + pad + 24) > cardW) pos = { left: rect.left + rect.width + pad + 24, top };
-    else pos = { left, bottom: 16 };
+    const centeredLeft = Math.max(margin, Math.min(window.innerWidth - cardW - margin, rect.left + rect.width / 2 - cardW / 2));
+    const centeredTop = Math.max(margin, Math.min(window.innerHeight - cardH - margin, rect.top + rect.height / 2 - cardH / 2));
+    const below = rect.top + rect.height + pad + gap;
+    const above = rect.top - pad - gap - cardH;
+    const left = rect.left - pad - gap - cardW;
+    const right = rect.left + rect.width + pad + gap;
+    if (below + cardH <= window.innerHeight - margin) pos = { left: centeredLeft, top: below };
+    else if (above >= margin) pos = { left: centeredLeft, top: above };
+    else if (right + cardW <= window.innerWidth - margin) pos = { left: right, top: centeredTop };
+    else if (left >= margin) pos = { left, top: centeredTop };
+    else pos = { left: centeredLeft, top: window.innerHeight - cardH - margin };
   }
 
-  Object.assign(hole.style, rect ? {
-    left: `${rect.left - pad}px`, top: `${rect.top - pad}px`,
-    width: `${rect.width + pad * 2}px`, height: `${rect.height + pad * 2}px`,
+  const holeLeft = rect ? Math.max(0, rect.left - pad) : window.innerWidth / 2;
+  const holeTop = rect ? Math.max(0, rect.top - pad) : window.innerHeight / 2;
+  Object.assign(hole.style, {
+    left: `${holeLeft}px`,
+    top: `${holeTop}px`,
+    width: `${rect ? Math.min(window.innerWidth, rect.left + rect.width + pad) - holeLeft : 0}px`,
+    height: `${rect ? Math.min(window.innerHeight, rect.top + rect.height + pad) - holeTop : 0}px`,
     borderRadius: round ? "50%" : "",
-  } : { left: "50%", top: "50%", width: "0px", height: "0px" });
-  Object.assign(card.style, { left: `${pos.left}px`, top: pos.top === undefined ? "" : `${pos.top}px`,
-    bottom: pos.bottom === undefined ? "" : `${pos.bottom}px`, width: `${cardW}px` });
-
+  });
+  Object.assign(card.style, { left: `${pos.left}px`, top: `${pos.top}px`, bottom: "" });
 }
 
 /** Spotlight tour: dims the screen, cuts a hole around one control, and explains it. */
@@ -71,9 +73,13 @@ export function Tour({ prepare, onClose }: TourProps) {
     const d = dialogRef.current;
     const back = document.activeElement as HTMLElement | null;
     if (d && !d.open) d.showModal();
+    nextRef.current?.focus({ preventScroll: true });
     return () => {
       if (d?.open) d.close();
-      back?.focus({ preventScroll: true });
+      const visibleGuide = [...document.querySelectorAll<HTMLElement>('[data-tour^="guide-"]')]
+        .find((el) => el.getBoundingClientRect().width > 0);
+      const destination = back?.isConnected && back !== document.body ? back : visibleGuide;
+      destination?.focus({ preventScroll: true });
     };
   }, []);
 
@@ -104,7 +110,7 @@ export function Tour({ prepare, onClose }: TourProps) {
         seen = true;
         const raw = el.getBoundingClientRect();
         let targetRect: Rect;
-        if (step.spotlightCenter || step.target === "target-star") {
+        if (step.spotlightCenter) {
           const size = Math.min(84, Math.max(52, Math.round(raw.width * 0.16)));
           const cx = raw.left + raw.width / 2;
           const cy = raw.top + raw.height / 2;

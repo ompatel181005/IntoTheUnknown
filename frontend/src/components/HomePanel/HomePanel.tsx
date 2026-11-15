@@ -116,11 +116,12 @@ export function HomePanel({
   };
 
   return (
-    <div className={s.rail} data-open={open} data-tour="targets" data-flight-hide onKeyDown={handlePanelKeyDown}>
+    <div className={s.rail} data-open={open} data-flight-hide onKeyDown={handlePanelKeyDown}>
       <button
         ref={tabRef}
         type="button"
         className={s.tab}
+        data-tour="home-targets-tab"
         data-open={open}
         onClick={() => onOpenChange(!open)}
         aria-label={open ? "Hide list" : "Show list"}
@@ -148,7 +149,7 @@ export function HomePanel({
           </div>
         </div>
 
-        <div className={s.searchWrap} role="search">
+        <div className={s.searchWrap} role="search" data-tour="home-target-search">
           <label className={s.searchField}>
             <Icon name="search" size={16} />
             <span className="sr-only">Search targets</span>
