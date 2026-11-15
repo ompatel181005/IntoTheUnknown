@@ -5,6 +5,7 @@ import {
   getHomeCamera,
   getReturnFlight,
   initialCamera,
+  markFlight,
   saveHomeCamera,
   saveTargetCommit,
   setFlightFocus,
@@ -19,9 +20,9 @@ import {
   position,
   radialScale,
   raDecToEcliptic,
-  skyStars,
   type Vec3,
 } from "../../lib/orbits";
+import { loadStarfield, type Starfield } from "../../lib/starfield";
 import { galacticToEq } from "../../lib/sky";
 import { tokenRgb } from "../../lib/stretch";
 import type { CatalogObject } from "../../types";
@@ -54,6 +55,7 @@ interface LabelCandidate {
 
 const FLY_MS = 700;
 const COMMIT_AT = 0.78;
+const GALAXY_GLOWS = [[38, 0.018], [20, 0.028], [7, 0.05]] as const;
 const FOV_RADIANS = Math.PI / 3;
 const MIN_DIST = 2.5;
 const MAX_DIST = 120;
@@ -111,7 +113,6 @@ function buildScene(targets: readonly CatalogObject[]) {
       };
     }),
     targets: targetPoints,
-    backgroundStars: skyStars(4000, 1),
   };
 }
 
@@ -160,7 +161,6 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const star = tokenRgb("--star");
     const sun = tokenRgb("--sun");
-    const accent = tokenRgb("--accent");
     const text2 = tokenRgb("--text-2");
     const planetColor = PLANETS.map((planet) => tokenRgb(`--planet-${planet.name.toLowerCase()}`));
     const dprCap = (navigator.hardwareConcurrency || 8) <= 4 ? 1.25 : 1.5;
@@ -218,7 +218,18 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
     let dirty = true;
     let sceneBox = { left: 0, top: 0, width: 0, height: 0 };
     let scheduleFrame = () => undefined;
+    let bitmapDpr = 0;
+    let stars: Starfield | null = null;
+    let starProjection = new Float32Array(0);
+    void loadStarfield().then((field) => {
+      if (disposed || !field) return;
+      stars = field;
+      starProjection = new Float32Array(field.xyz.length);
+      dirty = true;
+      scheduleFrame();
+    });
     const resize = () => {
+      if (disposed || !wrap.isConnected) return;
       const wrapBox = wrap.getBoundingClientRect();
       const anchorBox = anchor.getBoundingClientRect();
       const dpr = Math.min(dprCap, window.devicePixelRatio || 1);
@@ -231,9 +242,15 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
         height: anchorBox.height,
       };
       focalLength = height / (2 * Math.tan(FOV_RADIANS / 2));
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const pixelWidth = Math.round(width * dpr);
+      const pixelHeight = Math.round(height * dpr);
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight || bitmapDpr !== dpr) {
+        markFlight("orrery-resize");
+        if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+        if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        bitmapDpr = dpr;
+      }
       markerRefs.current.forEach((element, index) => {
         const label = element?.querySelector<HTMLElement>(`.${s.label}`);
         targetLabelWidths[index] = label?.offsetWidth ?? 0;
@@ -249,17 +266,30 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
     resizeObserver.observe(wrap);
     resizeObserver.observe(anchor);
 
+    let trigYaw = NaN;
+    let trigPitch = NaN;
+    let cy = 1, sy = 0, cp = 1, sp = 0;
+    const rotated = { x: 0, y: 0, z: 0 };
+    const cameraTrig = (camera: Camera) => {
+      if (trigYaw === camera.yaw && trigPitch === camera.pitch) return;
+      trigYaw = camera.yaw;
+      trigPitch = camera.pitch;
+      cy = Math.cos(camera.yaw);
+      sy = Math.sin(camera.yaw);
+      cp = Math.cos(camera.pitch);
+      sp = Math.sin(camera.pitch);
+    };
     const rotate = (vector: Vec3, camera: Camera) => {
       const x = vector[0];
       const y = vector[1];
       const z = vector[2];
-      const cy = Math.cos(camera.yaw);
-      const sy = Math.sin(camera.yaw);
-      const cp = Math.cos(camera.pitch);
-      const sp = Math.sin(camera.pitch);
+      cameraTrig(camera);
       const x1 = x * cy - y * sy;
       const y1 = x * sy + y * cy;
-      return { x: x1, y: y1 * cp - z * sp, z: y1 * sp + z * cp };
+      rotated.x = x1;
+      rotated.y = y1 * cp - z * sp;
+      rotated.z = y1 * sp + z * cp;
+      return rotated;
     };
 
     const projectScene = (vector: Vec3, camera: Camera, output?: Projection): Projection => {
@@ -387,6 +417,7 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
           saveTargetCommit(activeFlight.target.preset_id ?? activeFlight.target.id, flightCamera(camera));
           if (t >= COMMIT_AT) {
             fly.current = null;
+            markFlight("commit");
             onPickRef.current(activeFlight.target, { x: projected.x, y: projected.y });
             return;
           }
@@ -446,51 +477,60 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
       const skyMarginY = height * 0.2;
       const maxSkySegment = Math.max(width, height) * 0.35;
 
+      cameraTrig(camera);
+      const centerX = sceneBox.left + sceneBox.width / 2;
+      const centerY = sceneBox.top + sceneBox.height / 2;
+      // Project the galaxy once; each brightness path is shared by its three glow widths.
+      const galaxyPaths = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
+      for (let index = 1; index < scene.galaxy.length; index++) {
+        const a = projectSky(scene.galaxy[index - 1].p, camera);
+        const b = projectSky(scene.galaxy[index].p, camera);
+        if (a.depth <= 0.04 || b.depth <= 0.04) continue;
+        if (Math.hypot(b.x - a.x, b.y - a.y) > maxSkySegment) continue;
+        const aOutside = a.x < -skyMarginX || a.x > width + skyMarginX || a.y < -skyMarginY || a.y > height + skyMarginY;
+        const bOutside = b.x < -skyMarginX || b.x > width + skyMarginX || b.y < -skyMarginY || b.y > height + skyMarginY;
+        if (aOutside && bOutside) continue;
+        const path = galaxyPaths[Math.min(3, Math.floor(scene.galaxy[index].w * 4))];
+        path.moveTo(a.x, a.y);
+        path.lineTo(b.x, b.y);
+      }
       context.lineCap = "round";
-      for (const [lineWidth, alpha, color] of [
-        [38, 0.018, star],
-        [20, 0.028, star],
-        [7, 0.05, star],
-      ] as const) {
+      for (const [lineWidth, alpha] of GALAXY_GLOWS) {
         for (let bucket = 0; bucket < 4; bucket++) {
-          const low = bucket / 4;
-          const high = (bucket + 1) / 4;
-          const middle = (low + high) / 2;
-          const path = new Path2D();
-          for (let index = 1; index < scene.galaxy.length; index++) {
-            const weight = scene.galaxy[index].w;
-            if (weight < low || (weight >= high && bucket < 3)) continue;
-            const a = projectSky(scene.galaxy[index - 1].p, camera);
-            const b = projectSky(scene.galaxy[index].p, camera);
-            if (a.depth <= 0.04 || b.depth <= 0.04) continue;
-            if (Math.hypot(b.x - a.x, b.y - a.y) > maxSkySegment) continue;
-            const aOutside = a.x < -skyMarginX || a.x > width + skyMarginX || a.y < -skyMarginY || a.y > height + skyMarginY;
-            const bOutside = b.x < -skyMarginX || b.x > width + skyMarginX || b.y < -skyMarginY || b.y > height + skyMarginY;
-            if (aOutside && bOutside) continue;
-            path.moveTo(a.x, a.y);
-            path.lineTo(b.x, b.y);
-          }
+          const middle = (bucket + 0.5) / 4;
           context.lineWidth = lineWidth * (0.5 + middle * 0.5);
-          context.strokeStyle = rgba(color, alpha * (0.4 + middle));
-          context.stroke(path);
+          context.strokeStyle = rgba(star, alpha * (0.4 + middle));
+          context.stroke(galaxyPaths[bucket]);
         }
       }
       context.lineCap = "butt";
 
-      const starPaths = Array.from({ length: 5 }, () => [new Path2D(), new Path2D(), new Path2D()]);
-      for (const point of scene.backgroundStars) {
-        const projected = projectSky(point.pos, camera);
-        if (projected.depth <= 0.04 || projected.x < -point.size || projected.x > width + point.size || projected.y < -point.size || projected.y > height + point.size) continue;
-        const bin = Math.min(4, Math.floor(point.brightness * 5));
-        starPaths[bin][point.tone].moveTo(projected.x + point.size, projected.y);
-        starPaths[bin][point.tone].arc(projected.x, projected.y, point.size, 0, Math.PI * 2);
+      if (stars) {
+        const xyz = stars.xyz;
+        // Packed projections and canvas paths avoid allocating objects or paths per star/frame.
+        for (let i = 0; i < xyz.length; i += 3) {
+          const x = xyz[i] * cy - xyz[i + 1] * sy;
+          const y = xyz[i] * sy + xyz[i + 1] * cy;
+          const depth = y * cp - xyz[i + 2] * sp;
+          starProjection[i] = centerX + focalLength * x / depth;
+          starProjection[i + 1] = centerY - focalLength * (y * sp + xyz[i + 2] * cp) / depth;
+          starProjection[i + 2] = depth;
+        }
+        for (const bucket of stars.buckets) {
+          context.beginPath();
+          const r = bucket.radius;
+          for (let i = bucket.start * 3; i < bucket.end * 3; i += 3) {
+            const x = starProjection[i], y = starProjection[i + 1];
+            if (starProjection[i + 2] <= 0.04 || x < -r || x > width + r || y < -r || y > height + r) continue;
+            context.moveTo(x + r, y);
+            context.arc(x, y, r, 0, Math.PI * 2);
+          }
+          context.globalAlpha = camera.fade * bucket.alpha;
+          context.fillStyle = bucket.color;
+          context.fill();
+        }
+        context.globalAlpha = camera.fade;
       }
-      const starAlpha = [0.22, 0.34, 0.5, 0.72, 0.96];
-      const starTone = [star, sun, accent];
-      starPaths.forEach((paths, bin) => paths.forEach((path, tone) => {
-        context.fillStyle = rgba(starTone[tone], starAlpha[bin]);
-        context.fill(path);
-      }));
       drawSkyLine(scene.ecliptic, camera, text2, 0.16);
 
       scene.orbits.forEach((orbit, index) => {

@@ -97,15 +97,3 @@ export function niceStep(approx: number, steps = [1, 2, 5]): number {
   for (const s of steps) if (s * p >= approx) return s * p;
   return 10 * p;
 }
-
-/** Deterministic pseudo-random generator for decorative layers. */
-export function seeded(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}

@@ -124,3 +124,10 @@ export async function shrinkDomeForHome() {
   setFlightFocus(centre.x, centre.y);
   await controller.shrink();
 }
+
+/** Bounded phase marks for browser traces, retaining only the latest occurrence of each phase. */
+export function markFlight(phase: string) {
+  const name = `flight:${phase}`;
+  performance.clearMarks(name);
+  performance.mark(name);
+}

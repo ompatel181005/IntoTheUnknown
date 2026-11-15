@@ -20,7 +20,7 @@ import { useMediaQuery } from "./hooks/useMediaQuery";
 import { usePlayback } from "./hooks/usePlayback";
 import { useView } from "./hooks/useView";
 import { DATA_CREDIT } from "./lib/brand";
-import { prepareReturnFlight, shrinkDomeForHome } from "./lib/flight";
+import { markFlight, prepareReturnFlight, shrinkDomeForHome } from "./lib/flight";
 import { readFlag, writeFlag } from "./lib/storage";
 import { findPreset, PRESETS, type Preset } from "./lib/targets";
 import { DEFAULTS, parseUrl, toSearch, type Panel, type ViewMode, type ViewState } from "./lib/url";
@@ -110,14 +110,24 @@ export default function App({ source }: { source: ViewSource }) {
   // Starfield jump starts the instant a flight starts, before the target is committed.
   const [flightKey, setFlightKey] = useState<string | null>(null);
   const [flightActive, setFlightActive] = useState(false);
+  // Prepare controls after first paint, rather than mounting them at landing.
+  const [chromeReady, setChromeReady] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setChromeReady(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const returningHome = useRef(false);
   const finishFlight = useCallback(() => {
     returningHome.current = false;
-    window.setTimeout(() => setFlightActive(false), reducedMotion ? 0 : 250);
+    window.setTimeout(() => {
+      markFlight("chrome-reveal");
+      setFlightActive(false);
+    }, reducedMotion ? 0 : 250);
   }, [reducedMotion]);
   /** Where on screen the last home flight ended, so the dome can grow out of that spot. */
   const [flightOrigin, setFlightOrigin] = useState<{ x: number; y: number } | null>(null);
   const openFromHome = (p: Preset, from: { x: number; y: number } | null) => {
+    markFlight("target-mount");
     setFlightOrigin(from);
     pickPreset(p);
   };
@@ -128,12 +138,14 @@ export default function App({ source }: { source: ViewSource }) {
   };
   /** Target chips and search: no home flight, so the dome zooms from the centre. */
   const pickFromBar = (p: Preset) => {
+    markFlight("search-start");
     setFlightOrigin(null);
     setFlightActive(true);
     pickPreset(p);
   };
   const goHome = () => {
     if (url.ra === null || url.dec === null || returningHome.current) return;
+    markFlight("home-start");
     returningHome.current = true;
     setFlightActive(true);
     prepareReturnFlight({ id: preset?.id ?? null, ra: url.ra, dec: url.dec });
@@ -281,6 +293,7 @@ export default function App({ source }: { source: ViewSource }) {
   const stageLeft = centred ? Math.max(left, right) : left;
   const stageRight = centred ? Math.max(left, right) : right;
   const sheet = mobile && (drawerOpen || sheetOpen);
+  const chromeHidden = flightActive || load.kind === "idle";
 
   return (
     <AppShell
@@ -345,6 +358,7 @@ export default function App({ source }: { source: ViewSource }) {
           onOpenFromHome={openFromHome}
           flightOrigin={flightOrigin}
           onFlightStart={(p) => {
+            markFlight("marker-start");
             setFlightActive(true);
             setFlightKey(`${p.ra},${p.dec}`);
           }}
@@ -354,75 +368,79 @@ export default function App({ source }: { source: ViewSource }) {
         />
       }
       bottom={
-        load.kind === "idle" || flightActive ? null : (
-        <PlaybackBar
-          epochs={epochs}
-          index={pb.index}
-          sequence={pb.sequence}
-          playing={pb.playing}
-          canPlay={pb.canPlay}
-          mode={url.mode}
-          status={status}
-          loading={load.kind === "loading"}
-          customizeOpen={customizeOpen}
-          onToggle={pb.toggle}
-          onPrev={pb.prev}
-          onNext={pb.next}
-          onSeek={pb.seek}
-          onMode={setMode}
-          onCustomize={() => setCustomizeOpen(!customizeOpen)}
-        />
+        !chromeReady ? null : (
+          <div data-flight-chrome="playback" aria-hidden={chromeHidden} inert={chromeHidden}>
+            <PlaybackBar
+              epochs={epochs}
+              index={pb.index}
+              sequence={pb.sequence}
+              playing={pb.playing}
+              canPlay={pb.canPlay}
+              mode={url.mode}
+              status={status}
+              loading={load.kind === "loading"}
+              customizeOpen={customizeOpen}
+              onToggle={pb.toggle}
+              onPrev={pb.prev}
+              onNext={pb.next}
+              onSeek={pb.seek}
+              onMode={setMode}
+              onCustomize={() => setCustomizeOpen(!customizeOpen)}
+            />
+          </div>
         )
       }
       overlays={
         <>
-          {!flightActive && (mobile ? sheetOpen : load.kind !== "idle") && (
-            <CustomizePanel
-              open={customizeOpen}
-              onOpenChange={setCustomizeOpen}
-              values={customize}
-              onChange={(v) => update(v)}
-              onReset={resetCustomize}
-              epochs={epochs}
-              origin={view?.manifest.origin ?? null}
-              collections={view?.manifest.catalog.collections ?? []}
-              loading={load.kind === "loading"}
-              sheet={mobile}
-            />
-          )}
-          {url.ra !== null && !mobile && !flightActive && (
-            <Toolbar
-              groups={[
-                [
-                  { id: "details", label: "Details", icon: "info", expanded: drawerOpen, shortcut: "I", onClick: () => openPanel(drawerOpen ? null : "pass") },
-                ],
-                [
-                  { id: "grid", label: "Coordinate grid", icon: "grid", pressed: overlays.grid, disabled: !available.grid, onClick: () => toggleOverlay("grid") },
-                  ...(!view || available.flags ? [{ id: "flags", label: "Flagged pixels", icon: "flag" as const, pressed: overlays.flags, disabled: !available.flags, onClick: () => toggleOverlay("flags") }] : []),
-                  { id: "invert", label: "Invert", icon: "invert", pressed: url.invert, disabled: !view, onClick: () => update({ invert: !url.invert }) },
-                ],
-                [
-                  { id: "home", label: "Whole sky", icon: "globe", onClick: goHome },
-                  { id: "fullscreen", label: "Full screen", icon: "fullscreen", onClick: fullscreen },
-                ],
-              ]}
-            />
-          )}
-          {!flightActive && drawerOpen && url.panel && (
-            <Drawer
-              panel={url.panel}
-              onPanel={(p) => openPanel(p)}
-              onClose={() => openPanel(null)}
-              view={view}
-              index={pb.index}
-              target={preset ?? null}
-              position={url.ra !== null && url.dec !== null ? { ra: url.ra, dec: url.dec } : null}
-              sel={url.sel}
-              spectrum={spectrum}
-              lightcurve={lightcurve}
-              onSelectEpoch={pb.seek}
-            />
-          )}
+          <div data-flight-chrome="panels" aria-hidden={chromeHidden} inert={chromeHidden}>
+            {chromeReady && (!mobile || sheetOpen) && (
+              <CustomizePanel
+                open={customizeOpen}
+                onOpenChange={setCustomizeOpen}
+                values={customize}
+                onChange={(v) => update(v)}
+                onReset={resetCustomize}
+                epochs={epochs}
+                origin={view?.manifest.origin ?? null}
+                collections={view?.manifest.catalog.collections ?? []}
+                loading={load.kind === "loading"}
+                sheet={mobile}
+              />
+            )}
+            {chromeReady && !mobile && (
+              <Toolbar
+                groups={[
+                  [
+                    { id: "details", label: "Details", icon: "info", expanded: drawerOpen, shortcut: "I", onClick: () => openPanel(drawerOpen ? null : "pass") },
+                  ],
+                  [
+                    { id: "grid", label: "Coordinate grid", icon: "grid", pressed: overlays.grid, disabled: !available.grid, onClick: () => toggleOverlay("grid") },
+                    ...(!view || available.flags ? [{ id: "flags", label: "Flagged pixels", icon: "flag" as const, pressed: overlays.flags, disabled: !available.flags, onClick: () => toggleOverlay("flags") }] : []),
+                    { id: "invert", label: "Invert", icon: "invert", pressed: url.invert, disabled: !view, onClick: () => update({ invert: !url.invert }) },
+                  ],
+                  [
+                    { id: "home", label: "Whole sky", icon: "globe", onClick: goHome },
+                    { id: "fullscreen", label: "Full screen", icon: "fullscreen", onClick: fullscreen },
+                  ],
+                ]}
+              />
+            )}
+            {drawerOpen && url.panel && (
+              <Drawer
+                panel={url.panel}
+                onPanel={(p) => openPanel(p)}
+                onClose={() => openPanel(null)}
+                view={view}
+                index={pb.index}
+                target={preset ?? null}
+                position={url.ra !== null && url.dec !== null ? { ra: url.ra, dec: url.dec } : null}
+                sel={url.sel}
+                spectrum={spectrum}
+                lightcurve={lightcurve}
+                onSelectEpoch={pb.seek}
+              />
+            )}
+          </div>
           {guideOpen && <Guide onClose={() => setGuideOpen(false)} onTour={startTour} hasTarget={url.ra !== null && !flightActive} multi={epochs.length > 1} />}
           {tourOn && <Tour prepare={prepareTour} onClose={() => setTourOn(false)} />}
           <Toast message={toast} />

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import type { LoadedView } from "../../data/source";
 import { useCatalog } from "../../hooks/useCatalog";
 import type { ViewState as LoadState } from "../../hooks/useView";
-import { registerDomeFlight, setFlightFocus } from "../../lib/flight";
+import { markFlight, registerDomeFlight, setFlightFocus } from "../../lib/flight";
 import { formatDec, formatRa } from "../../lib/format";
 import { renderDifference, renderEpoch, tokenRgb } from "../../lib/stretch";
 import { PRESETS, type Preset } from "../../lib/targets";
@@ -53,6 +53,9 @@ export function SkyStage(props: SkyStageProps) {
   const { load } = props;
   // Keep the catalog alive across the dome so a return does not rebuild an empty home first.
   const catalog = useCatalog();
+  useEffect(() => {
+    if (load.kind === "ready") markFlight("data-ready");
+  }, [load.kind]);
   if (load.kind === "idle") return <Home targets={catalog.catalog?.objects ?? NO_TARGETS} onPick={props.onOpenFromHome} onFlightStart={props.onFlightStart} onFlightEnd={props.onFlightEnd} onTour={props.onTour} flying={props.flying} onFullscreen={props.onFullscreen} />;
   const empty = load.kind === "ready" && load.view.manifest.epochs.length === 0;
   return (
@@ -195,10 +198,14 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
     onFlightEndRef.current = props.onFlightEnd;
   }, [props.onFlightEnd]);
   // Captured once at mount: the dome grows out of the spot the flight ended (or the centre).
-  const [origin] = useState(props.flightOrigin);
+  const [origin] = useState(() => {
+    markFlight("eyepiece-render");
+    return props.flightOrigin;
+  });
 
   // Telescope zoom on the real DOM (stays crisp, unlike a scaled snapshot), one easing for the whole move.
   useLayoutEffect(() => {
+    markFlight("eyepiece-layout");
     const col = columnRef.current;
     if (!col) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -210,6 +217,7 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
     let cancelled = false;
     const land = () => {
       if (cancelled) return;
+      markFlight("dome-land");
       delete col.dataset.zooming;
       window.dispatchEvent(new Event("spherex:dome-landed"));
       const defer = window.requestIdleCallback ?? ((callback: IdleRequestCallback) => window.setTimeout(callback, 50));
@@ -590,6 +598,7 @@ function FrameCanvas({ view, index, mode, stretch, invert, smooth, gain, refInde
     const cv = ref.current;
     const ctx = cv?.getContext("2d");
     if (!cv || !ctx) return;
+    markFlight("image-render-start");
     const src = document.createElement("canvas");
     src.width = nx;
     src.height = ny;
@@ -610,7 +619,9 @@ function FrameCanvas({ view, index, mode, stretch, invert, smooth, gain, refInde
     ctx.imageSmoothingEnabled = smooth;
     ctx.imageSmoothingQuality = "high";
     ctx.clearRect(0, 0, cv.width, cv.height);
+    markFlight("image-upload-start");
     ctx.drawImage(src, 0, 0, cv.width, cv.height);
+    markFlight("image-upload-end");
   }, [images, index, mode, stretch, invert, smooth, gain, refIndex, nx, ny, m, k]);
 
   const e = m.epochs[index] ?? m.epochs[0];

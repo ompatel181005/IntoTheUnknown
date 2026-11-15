@@ -113,3 +113,22 @@ button:disabled {
   pointer-events: none;
   transition: opacity 150ms linear;
 }
+
+/* Keep target chrome laid out before landing, with no focus or paint while hidden. */
+[data-flight-chrome] {
+  display: contents;
+}
+
+[data-flight-chrome][aria-hidden="true"] {
+  visibility: hidden;
+}
+
+/* Pause the existing dock entrance so its delay still begins at the reveal. */
+[data-app-shell] > div:has(> [data-flight-chrome="playback"][aria-hidden="true"]) {
+  animation-play-state: paused;
+  height: 0;
+}
+
+[data-flight-chrome="panels"][aria-hidden="true"] > * {
+  animation-name: none;
+}

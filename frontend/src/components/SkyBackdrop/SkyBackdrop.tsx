@@ -1,32 +1,20 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { flightFocus } from "../../lib/flight";
-import { seeded } from "../../lib/sky";
-import { tokenRgb } from "../../lib/stretch";
+import { flightFocus, getHomeCamera, markFlight } from "../../lib/flight";
+import { loadStarfield, type Starfield } from "../../lib/starfield";
 import s from "./SkyBackdrop.module.css";
 
-interface Star {
-  x: number;
-  y: number;
-  z: number;
-  /** 0 = white, 1 = warm, 2 = blue-white. */
-  tint: number;
-}
-
-const COUNT = 2600;
-/** Share of stars packed into a Milky Way band across the field. */
-const BAND_SHARE = 0.4;
 const TRAVEL_MS = 1000;
 const NEAR = 0.04;
 
 /**
- * Decorative 3D starfield behind everything. It is not data: the stars are random and the science image
- * sits on an opaque dome above it. When `travelKey` changes the field flies forward (a target was picked)
- * or backward (`travelKey` became null: back to the whole sky), like moving through space.
+ * BSC5 catalogue directions, visual magnitudes and B-V colours behind the science dome.
+ * The warp is decorative: its synthetic travel depths are not stellar distances.
+ * `travelKey` starts forward or reverse travel without blocking the first paint.
  */
 export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: string | null }) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLCanvasElement>(null);
-  const stars = useRef<Star[]>([]);
+  const prepare = useRef<() => void>(() => {});
   const draw = useRef<(streak: number, travel?: number) => void>(() => {});
   const settle = useRef<(travel: number) => void>(() => {});
   const lastKey = useRef<string | null | undefined>(undefined);
@@ -38,22 +26,17 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
   useEffect(() => {
     const cv = ref.current;
     if (!cv) return;
-    const palette = [tokenRgb("--star"), tokenRgb("--sun"), tokenRgb("--accent")];
     const ctx = cv.getContext("2d");
     if (!ctx) return;
-    const rnd = seeded(20261115);
-    const gauss = () => Math.sqrt(-2 * Math.log(rnd() || 1e-9)) * Math.cos(2 * Math.PI * rnd());
-    stars.current = Array.from({ length: COUNT }, () => {
-      const inBand = rnd() < BAND_SHARE;
-      const x = rnd() * 2 - 1;
-      const y = inBand ? 0.42 * x + gauss() * 0.09 : rnd() * 2 - 1;
-      const t = rnd();
-      return { x, y, z: NEAR + rnd() * (1 - NEAR), tint: t < 0.08 ? 1 : t < 0.16 ? 2 : 0 };
-    });
+    let field: Starfield | null = null;
+    let geometry = new Float32Array(0);
+    let projected = new Float32Array(0);
+    let disposed = false;
     let w = 0;
     let h = 0;
     let pixelWidth = 0;
     let pixelHeight = 0;
+    let bitmapDpr = 0;
     let viewportWidth = window.innerWidth;
     let viewportHeight = window.innerHeight;
     const resize = () => {
@@ -62,88 +45,111 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       const nextHeight = viewportHeight + 48;
       const nextPixelWidth = Math.round(nextWidth * dpr);
       const nextPixelHeight = Math.round(nextHeight * dpr);
-      if (nextPixelWidth === pixelWidth && nextPixelHeight === pixelHeight) return;
+      if (nextPixelWidth === pixelWidth && nextPixelHeight === pixelHeight && bitmapDpr === dpr) return;
+      markFlight("backdrop-resize");
       w = nextWidth;
       h = nextHeight;
       pixelWidth = nextPixelWidth;
       pixelHeight = nextPixelHeight;
-      cv.width = pixelWidth;
-      cv.height = pixelHeight;
+      bitmapDpr = dpr;
+      if (cv.width !== pixelWidth) cv.width = pixelWidth;
+      if (cv.height !== pixelHeight) cv.height = pixelHeight;
       cv.style.width = `${w}px`;
       cv.style.height = `${h}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       draw.current(0);
     };
-    // `streak` is how far (in z) each star moved this frame; it draws motion trails.
-    // Stars are batched into a few paths (tint x depth bin) so a frame is ~20 draw calls, not thousands.
-    const BINS = 6;
-    const RANGE = 1 - NEAR;
-    const paths: Path2D[] = [];
-    const styles = palette.flatMap(([r, g, b]) =>
-      Array.from({ length: BINS }, (_, bin) => {
-        const near = (bin + 0.5) / BINS;
-        return { color: `rgba(${r},${g},${b},${0.14 + near * near * 0.86})`, width: 0.4 + near * 1.6 };
-      }),
-    );
-    const [starR, starG, starB] = palette[0];
-    const haloColor = `rgba(${starR},${starG},${starB},0.08)`;
+    // Catalogue directions are real; the warp's depth and travel are cinematic, not distances.
+    prepare.current = () => {
+      if (!field) return;
+      const camera = getHomeCamera();
+      const cy = Math.cos(camera.yaw), sy = Math.sin(camera.yaw);
+      const cp = Math.cos(camera.pitch), sp = Math.sin(camera.pitch);
+      for (let i = 0; i < field.xyz.length; i += 3) {
+        const xyz = field.xyz;
+        const x = xyz[i] * cy - xyz[i + 1] * sy;
+        const y = xyz[i] * sy + xyz[i + 1] * cy;
+        const depth = y * cp - xyz[i + 2] * sp;
+        const z = NEAR + Math.max(0, depth) * (1 - NEAR);
+        geometry[i] = x * z / depth;
+        geometry[i + 1] = -(y * sp + xyz[i + 2] * cp) * z / depth;
+        geometry[i + 2] = depth > 0.04 ? z : -1;
+      }
+    };
     draw.current = (streak: number, travel = 0) => {
       ctx.clearRect(0, 0, w, h);
+      if (!field) return;
       const cx = Number.isFinite(focus.current.x) ? focus.current.x : w / 2;
       const cy = Number.isFinite(focus.current.y) ? focus.current.y : h / 2;
       const f = Math.max(w, h) * 0.5;
       const moving = Math.abs(streak) > 1e-4;
-      for (let k = 0; k < palette.length * BINS; k++) paths[k] = new Path2D();
-      const halos = moving ? null : new Path2D();
-      const stride = moving ? 2 : 1;
-      for (let starIndex = 0; starIndex < stars.current.length; starIndex += stride) {
-        const st = stars.current[starIndex];
-        let z = st.z - travel;
-        if (z < NEAR) z += RANGE;
-        else if (z >= 1) z -= RANGE;
-        const px = cx + (st.x / z) * f;
-        const py = cy + (st.y / z) * f;
-        if (px < -50 || py < -50 || px > w + 50 || py > h + 50) continue;
-        const near = 1 - z;
-        const bin = Math.min(BINS - 1, Math.floor(near * BINS));
-        const path = paths[st.tint * BINS + bin];
-        if (moving) {
-          const z0 = Math.min(1.2, Math.max(NEAR, z + streak));
-          path.moveTo(cx + (st.x / z0) * f, cy + (st.y / z0) * f);
-          path.lineTo(px, py);
-        } else {
-          const r = 0.3 + near * near * near * 1.7;
-          path.moveTo(px + r, py);
-          path.arc(px, py, r, 0, Math.PI * 2);
-          if (near > 0.9 && halos) {
-            halos.moveTo(px + 5, py);
-            halos.arc(px, py, 5, 0, Math.PI * 2);
-          }
+      const range = 1 - NEAR;
+      for (let i = 0; i < geometry.length; i += 3) {
+        const j = i / 3 * 4;
+        if (geometry[i + 2] < 0) {
+          projected[j] = NaN;
+          continue;
         }
+        const z = NEAR + ((geometry[i + 2] - travel - NEAR) % range + range) % range;
+        projected[j] = cx + geometry[i] / z * f;
+        projected[j + 1] = cy + geometry[i + 1] / z * f;
+        const z0 = Math.min(1.2, Math.max(NEAR, z + streak));
+        projected[j + 2] = cx + geometry[i] / z0 * f;
+        projected[j + 3] = cy + geometry[i + 1] / z0 * f;
       }
-      for (let t = 0; t < palette.length; t++) {
-        for (let bin = 0; bin < BINS; bin++) {
-          const pathIndex = t * BINS + bin;
-          const style = styles[pathIndex];
+      ctx.lineCap = "round";
+      for (const bucket of field.buckets) {
+        ctx.beginPath();
+        const r = bucket.radius;
+        for (let i = bucket.start * 4; i < bucket.end * 4; i += 4) {
+          const x = projected[i], y = projected[i + 1];
+          if (!Number.isFinite(x) || x < -50 || y < -50 || x > w + 50 || y > h + 50) continue;
           if (moving) {
-            ctx.strokeStyle = style.color;
-            ctx.lineWidth = style.width;
-            ctx.stroke(paths[pathIndex]);
+            ctx.moveTo(projected[i + 2], projected[i + 3]);
+            ctx.lineTo(x, y);
           } else {
-            ctx.fillStyle = style.color;
-            ctx.fill(paths[pathIndex]);
+            ctx.moveTo(x + r, y);
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+          }
+        }
+        ctx.globalAlpha = bucket.alpha;
+        if (moving) {
+          ctx.strokeStyle = bucket.color;
+          ctx.lineWidth = bucket.radius * 2;
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = bucket.color;
+          ctx.fill();
+          if (bucket.alpha > 0.6) {
+            ctx.beginPath();
+            for (let i = bucket.start * 4; i < bucket.end * 4; i += 4) {
+              const x = projected[i], y = projected[i + 1];
+              if (!Number.isFinite(x) || x < -8 || y < -8 || x > w + 8 || y > h + 8) continue;
+              ctx.moveTo(x + r * 4, y);
+              ctx.arc(x, y, r * 4, 0, Math.PI * 2);
+            }
+            ctx.globalAlpha = bucket.alpha * 0.08;
+            ctx.fill();
           }
         }
       }
-      if (halos) {
-        ctx.fillStyle = haloColor;
-        ctx.fill(halos);
-      }
+      ctx.globalAlpha = 1;
     };
     settle.current = (travel) => {
-      for (const st of stars.current) st.z = NEAR + (((st.z - travel - NEAR) % (1 - NEAR)) + (1 - NEAR)) % (1 - NEAR);
+      const range = 1 - NEAR;
+      for (let i = 2; i < geometry.length; i += 3) {
+        if (geometry[i] >= 0) geometry[i] = NEAR + ((geometry[i] - travel - NEAR) % range + range) % range;
+      }
       draw.current(0);
     };
+    void loadStarfield().then((catalogue) => {
+      if (disposed || !catalogue) return;
+      field = catalogue;
+      geometry = new Float32Array(field.xyz.length);
+      projected = new Float32Array(field.xyz.length / 3 * 4);
+      prepare.current();
+      draw.current(0);
+    });
     resize();
     const ro = new ResizeObserver(([entry]) => {
       viewportWidth = entry.contentRect.width;
@@ -152,6 +158,8 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
     });
     ro.observe(document.documentElement);
     return () => {
+      disposed = true;
+      prepare.current = () => {};
       draw.current = () => {};
       settle.current = () => {};
       ro.disconnect();
@@ -165,6 +173,7 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
     if (prev === undefined || prev === travelKey) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const dir = travelKey === null ? -1 : 1;
+    if (dir > 0) prepare.current();
     const backdrop = backdropRef.current;
     cancelAnimationFrame(anim.current);
     if (backdrop) backdrop.dataset.traveling = "true";
