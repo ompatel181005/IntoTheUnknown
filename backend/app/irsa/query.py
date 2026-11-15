@@ -2,6 +2,7 @@
 
 import concurrent.futures as cf
 import contextvars
+import logging
 import re
 import threading
 import time
@@ -17,7 +18,9 @@ from ..telemetry import operation
 
 COLL_RE = re.compile(r"^spherex_(dr|qr)(\d+)(_deep)?$")  # drops spherex_dr1_cube etc.
 PROC_RE = re.compile(r"-(\d{4})-(\d{3})\.fits$")  # processing year-doy in filename
-METADATA_TIMEOUT_S = 30
+METADATA_HTTP_TIMEOUT_S = (5, 30)
+METADATA_TIMEOUT_S = 40
+log = logging.getLogger(__name__)
 # A timed-out caller cannot kill a thread inside a third-party parser. Never queue
 # more work behind it: fixed admission and daemon workers bound that failure mode.
 _metadata_slots = threading.BoundedSemaphore(4)
@@ -32,7 +35,9 @@ class MetadataSession(Session):
         self.responses = []
 
     def send(self, request, **kwargs):
-        kwargs["timeout"] = (5, 20)  # connection and socket read; outer deadline includes parsing
+        # Normal Azure SIA responses measured p95=21.607 s; leave room for them.
+        # The independent wall-clock deadline also bounds parsing and slow streams.
+        kwargs["timeout"] = METADATA_HTTP_TIMEOUT_S
         response = super().send(request, **kwargs)
         self.responses.append(response)
         return response
@@ -78,7 +83,19 @@ def bounded_metadata(function):
         except BaseException:
             slots.release()
             raise
-        return result.result(timeout=METADATA_TIMEOUT_S)
+        try:
+            return result.result(timeout=METADATA_TIMEOUT_S)
+        except Exception as error:
+            cause = getattr(error, "cause", None) or error.__cause__ or error.__context__
+            status = getattr(error, "code", None)
+            log.warning(
+                "IRSA metadata %s failed: type=%s cause=%s http_status=%s",
+                function.__name__,
+                type(error).__name__,
+                type(cause).__name__ if cause is not None else "none",
+                status if isinstance(status, int) else "none",
+            )
+            raise
 
     return wrapped
 

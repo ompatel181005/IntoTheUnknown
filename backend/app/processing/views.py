@@ -128,7 +128,7 @@ def live_rows(req: ViewRequest) -> list[dict]:
         except Exception:
             rows = query.query_frames_tap(req.ra, req.dec)
     except Exception as e:  # both SIA and TAP failed
-        log.warning("IRSA query failed: %s", e)
+        log.warning("IRSA metadata fallback exhausted: %s", type(e).__name__)
         raise ViewError(
             "IRSA_DOWN",
             "NASA's SPHEREx archive (IRSA) is not answering right now. The five test targets still work from "

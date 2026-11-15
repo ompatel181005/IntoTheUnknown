@@ -363,3 +363,33 @@ subdomain CNAME must target the generated app hostname directly, root CAA
 restrictions must permit DigiCert, and ingress must remain publicly reachable
 for validation/renewal. Public DNS showed no root CAA restriction on this date.
 The runbook is [CUSTOM-DOMAIN.md](../infra/CUSTOM-DOMAIN.md).
+
+## 2026-11-15: metadata deadlines allow observed normal SIA latency (#101)
+
+The 20 s socket-read timeout added in #83 was shorter than recorded Azure SIA
+timings: 21 operations, 3 failures, median 20.788 s and p95 21.607 s in the
+local Application Insights diagnostic snapshot. Those aggregate percentiles do
+not prove every observed response succeeded, but a 20 s cutoff has no margin
+for this measured latency range. Keep the 5 s connect limit, allow 30 s socket
+reads, and increase each operation's independent caller deadline to 40 s.
+Sequential SIA and TAP therefore have at most 80 s of caller waiting, excluding
+cold imports and subsequent image work. Four daemon worker slots, no queue,
+and immediate rejection when all slots are occupied remain unchanged. The
+wall-clock deadline still bounds a slow stream or parser even if individual
+socket reads continue succeeding.
+
+Rechecked the official
+[IRSA introduction tutorial](https://caltech-ipac.github.io/irsa-tutorials/spherex-intro/):
+it still documents the same 1 arcsec SIA search over DR1 and QR3. Metadata-only
+Barnard queries with the expanded limits failed in 1.266 s (initial probe) and
+0.359 s (patched implementation). The latter safely recorded DALServiceError,
+underlying HTTPError, HTTP502. This confirms an upstream failure in that probe;
+it is not a successful live query or proof that the archive is available.
+No image downloads were made. Failures now log only operation, exception type,
+cause type and numeric HTTP status, so a SIA timeout is visible before TAP
+fallback without exposing raw error text or query URLs.
+
+The regression models the observed 21.607 s response at the transport boundary
+without a long test sleep; existing deadline/admission tests retain bounded
+caller return. Issue #96 is owned by UnusualGelo and covers prewarming bands,
+which is separate from these archive metadata limits. Owner: ompatel181005 (Codex).

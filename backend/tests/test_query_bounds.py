@@ -4,7 +4,9 @@ import threading
 import time
 
 import pytest
+from pyvo.dal.exceptions import DALServiceError
 from requests import Response
+from requests.exceptions import ReadTimeout
 
 from app.irsa import query
 from app.models import ViewRequest
@@ -82,8 +84,41 @@ def test_pyvo_session_sets_http_timeout_and_closes_response(monkeypatch):
     monkeypatch.setattr(response, "close", lambda: closed.append(True))
     with query.MetadataSession() as session:
         assert session.get("https://example.invalid", timeout=None) is response
-    assert calls[0]["timeout"] == (5, 20)
+    assert calls[0]["timeout"] == (5, 30)
     assert closed == [True]
+
+
+def test_metadata_transport_allows_observed_normal_sia_latency(monkeypatch):
+    """Model the measured Azure p95 without a 22-second unit-test sleep."""
+    observed_response_s = 21.607
+    response = Response()
+    response.status_code = 200
+    response._content = b"metadata"
+    response._content_consumed = True
+
+    def send(self, request, **kwargs):
+        connect_s, read_s = kwargs["timeout"]
+        if read_s < observed_response_s:
+            raise ReadTimeout("normal response arrived after the read deadline")
+        assert connect_s + read_s < query.METADATA_TIMEOUT_S
+        assert query.METADATA_TIMEOUT_S <= 40
+        return response
+
+    monkeypatch.setattr(query.Session, "send", send)
+    with query.MetadataSession() as session:
+        assert session.get("https://example.invalid") is response
+
+
+def test_metadata_failure_log_keeps_http_cause_without_query_details(caplog):
+    @query.bounded_metadata
+    def fails():
+        raise DALServiceError("sensitive URL?token=private", code=502, cause=ValueError("private"))
+
+    with pytest.raises(DALServiceError):
+        fails()
+    assert "type=DALServiceError cause=ValueError http_status=502" in caplog.text
+    assert "private" not in caplog.text
+    assert "token=" not in caplog.text
 
 
 def test_sia_uses_known_query_endpoint_without_capabilities_request(monkeypatch):
