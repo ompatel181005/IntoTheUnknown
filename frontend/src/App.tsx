@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { flushSync } from "react-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getLightCurve, getSpectrum } from "./api";
 import { AppShell } from "./components/AppShell/AppShell";
 import { CustomizePanel, type CustomizeValues } from "./components/Customize/CustomizePanel";
@@ -20,7 +19,7 @@ import { useIdle } from "./hooks/useIdle";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import { usePlayback } from "./hooks/usePlayback";
 import { useView } from "./hooks/useView";
-import { DATA_CREDIT } from "./lib/brand";
+import { markFlight, prepareReturnFlight, requestTargetFlight } from "./lib/flight";
 import { readFlag, writeFlag } from "./lib/storage";
 import { findPreset, PRESETS, type Preset } from "./lib/targets";
 import { DEFAULTS, parseUrl, toSearch, type Panel, type ViewMode, type ViewState } from "./lib/url";
@@ -108,24 +107,44 @@ export default function App({ source }: { source: ViewSource }) {
 
   const pickPreset = (p: Preset) => update({ ra: p.ra, dec: p.dec, fov: p.fov, band: p.band, target: p.id, epoch: 0, sel: null, ref: 0 });
   // Starfield jump starts the instant a flight starts, before the target is committed.
-  const [flightKey, setFlightKey] = useState<string | null>(null);
-  /** Leave the home orrery for a target. The clicked ring morphs into the dome with a View Transition. */
+  const [flightActive, setFlightActive] = useState(false);
+  // Prepare controls after first paint, rather than mounting them at landing.
+  const [chromeReady, setChromeReady] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setChromeReady(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  const returningHome = useRef(false);
+  const finishFlight = useCallback(() => {
+    returningHome.current = false;
+    markFlight("chrome-reveal");
+    setFlightActive(false);
+  }, []);
   const openFromHome = (p: Preset) => {
-    const apply = () => flushSync(() => pickPreset(p));
-    const doc = document as Document & { startViewTransition?: (cb: () => void) => { finished: Promise<void> } };
-    if (reducedMotion || !doc.startViewTransition) return apply();
-    document.documentElement.dataset.vt = "1";
-    try {
-      doc.startViewTransition(apply).finished.finally(() => delete document.documentElement.dataset.vt);
-    } catch {
-      delete document.documentElement.dataset.vt;
-      apply();
-    }
+    markFlight("target-mount");
+    pickPreset(p);
   };
-  const pickCoords = (ra: number, dec: number) => update({ ra, dec, target: null, epoch: 0, sel: null, ref: 0 });
+  const pickCoords = (ra: number, dec: number) => {
+    if (flightActive) return;
+    update({ ra, dec, target: null, epoch: 0, sel: null, ref: 0 });
+  };
+  const pickFromBar = (p: Preset) => {
+    if (flightActive) return;
+    markFlight("search-start");
+    if (url.ra === null && requestTargetFlight(p.id)) return;
+    pickPreset(p);
+  };
   const goHome = () => {
-    setFlightKey(null);
-    update({ ra: null, dec: null, target: null, epoch: 0, panel: null, mode: "all", sel: null });
+    if (url.ra === null || url.dec === null || returningHome.current || flightActive) return;
+    markFlight("home-start");
+    returningHome.current = true;
+    setFlightActive(true);
+    const r = document.querySelector('[data-tour="dome"]')?.getBoundingClientRect();
+    const dome = r ? { x: r.left + r.width / 2, y: r.top + r.height / 2, side: r.width } : null;
+    void prepareReturnFlight({ id: preset?.id ?? null, ra: url.ra, dec: url.dec }, dome).then(() => {
+      update({ ra: null, dec: null, target: null, epoch: 0, panel: null, mode: "all", sel: null });
+      finishFlight();
+    });
   };
   const openPanel = (panel: Panel | null) => {
     if (mobile && panel) setSheetOpen(false);
@@ -200,12 +219,10 @@ export default function App({ source }: { source: ViewSource }) {
     });
 
   const available = {
-    gaia: false, // Needs GET /api/views/{id}/gaia (issue #29).
     flags: !!view && view.masks.some((m) => m !== null),
     grid: !!view,
   };
   const overlays = {
-    gaia: url.overlays.gaia && available.gaia,
     flags: url.overlays.flags && available.flags,
     grid: url.overlays.grid && available.grid,
   };
@@ -222,6 +239,7 @@ export default function App({ source }: { source: ViewSource }) {
         return;
       }
       if (k === "?") return setGuideOpen(true);
+      if (url.ra === null || flightActive) return;
       if ((k === " " || k === "ArrowLeft" || k === "ArrowRight") && ownsKeys(e.target)) return;
       if (k === " ") {
         e.preventDefault();
@@ -249,17 +267,6 @@ export default function App({ source }: { source: ViewSource }) {
   const guideDone: [boolean, boolean, boolean] = [load.kind !== "idle", pb.played, pb.loops > 0];
   const showGuide = !guideHidden && !(mobile && (drawerOpen || sheetOpen));
 
-  const status = view
-    ? [
-        view.label ?? null,
-        view.manifest.catalog.collections.join(" + "),
-        `${epochs.length} ${epochs.length === 1 ? "PASS" : "PASSES"}`,
-        view.fromCache ? "FROM CACHE" : null,
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : DATA_CREDIT;
-
   const left = mobile || load.kind === "idle" ? GUTTER : customizeOpen ? PANEL_W + GUTTER * 2 : 44 + GUTTER * 2;
   const right = mobile ? GUTTER : drawerOpen ? DRAWER_W + RAIL_W + GUTTER * 3 : RAIL_W + GUTTER * 2;
   // The map and the dome are centred on the screen, so the stage reserves the same space on both sides.
@@ -268,10 +275,12 @@ export default function App({ source }: { source: ViewSource }) {
   const stageLeft = centred ? Math.max(left, right) : left;
   const stageRight = centred ? Math.max(left, right) : right;
   const sheet = mobile && (drawerOpen || sheetOpen);
+  const chromeHidden = flightActive || load.kind === "idle";
 
   return (
     <AppShell
       idle={idle}
+      flying={flightActive}
       stageLeft={stageLeft}
       stageRight={stageRight}
       hideBottom={sheet}
@@ -279,15 +288,15 @@ export default function App({ source }: { source: ViewSource }) {
       backdrop={
         <SkyBackdrop
           dim={load.kind !== "idle"}
-          travelKey={url.ra === null || url.dec === null ? flightKey : `${url.ra},${url.dec}`}
         />
       }
       top={
         <>
           <TopBar
-            activeTarget={url.target}
+            crumb={url.ra === null ? null : (preset?.name ?? "Custom position")}
             onHome={goHome}
-            onPreset={pickPreset}
+            homeDisabled={flightActive}
+            onPreset={pickFromBar}
             onCoords={pickCoords}
             onShare={share}
             shareDisabled={!query}
@@ -320,89 +329,98 @@ export default function App({ source }: { source: ViewSource }) {
           gain={url.gain}
           refIndex={ref}
           overlays={overlays}
-          gaia={null}
+          flying={flightActive}
+          onFullscreen={fullscreen}
           showLabel={!drawerOpen}
           sel={url.sel}
           onSelect={select}
           onRetry={() => setAttempt((a) => a + 1)}
           onPreset={pickPreset}
           onOpenFromHome={openFromHome}
-          onFlightStart={(p) => setFlightKey(`${p.ra},${p.dec}`)}
+          onFlightStart={() => {
+            markFlight("marker-start");
+            setFlightActive(true);
+          }}
+          onFlightEnd={finishFlight}
           onCursor={(xy) => update({ sel: xy })}
           onTour={startTour}
         />
       }
       bottom={
-        load.kind === "idle" ? null : (
-        <PlaybackBar
-          epochs={epochs}
-          index={pb.index}
-          sequence={pb.sequence}
-          playing={pb.playing}
-          canPlay={pb.canPlay}
-          mode={url.mode}
-          status={status}
-          customizeOpen={customizeOpen}
-          onToggle={pb.toggle}
-          onPrev={pb.prev}
-          onNext={pb.next}
-          onSeek={pb.seek}
-          onMode={setMode}
-          onCustomize={() => setCustomizeOpen(!customizeOpen)}
-        />
+        !chromeReady ? null : (
+          <div data-flight-chrome="playback" aria-hidden={chromeHidden} inert={chromeHidden}>
+            <PlaybackBar
+              epochs={epochs}
+              index={pb.index}
+              sequence={pb.sequence}
+              playing={pb.playing}
+              canPlay={pb.canPlay}
+              mode={url.mode}
+              status={null}
+              loading={load.kind === "loading"}
+              customizeOpen={customizeOpen}
+              onToggle={pb.toggle}
+              onPrev={pb.prev}
+              onNext={pb.next}
+              onSeek={pb.seek}
+              onMode={setMode}
+              onCustomize={() => setCustomizeOpen(!customizeOpen)}
+            />
+          </div>
         )
       }
       overlays={
         <>
-          {(mobile ? sheetOpen : load.kind !== "idle") && (
-            <CustomizePanel
-              open={customizeOpen}
-              onOpenChange={setCustomizeOpen}
-              values={customize}
-              onChange={(v) => update(v)}
-              onReset={resetCustomize}
-              epochs={epochs}
-              origin={view?.manifest.origin ?? null}
-              collections={view?.manifest.catalog.collections ?? []}
-              loading={load.kind === "loading"}
-              sheet={mobile}
-            />
-          )}
-          {!mobile && (
-            <Toolbar
-              groups={[
-                [
-                  { id: "details", label: "Details and measurements", icon: "info", expanded: drawerOpen, shortcut: "I", onClick: () => openPanel(drawerOpen ? null : "pass") },
-                ],
-                [
-                  { id: "grid", label: "RA, Dec grid on the image", icon: "grid", pressed: overlays.grid, disabled: !available.grid, onClick: () => toggleOverlay("grid") },
-                  { id: "gaia", label: available.gaia ? "Gaia positions" : "Gaia positions (coming soon)", icon: "gaia", pressed: overlays.gaia, disabled: !available.gaia, onClick: () => toggleOverlay("gaia") },
-                  { id: "flags", label: "Flagged pixels", icon: "flag", pressed: overlays.flags, disabled: !available.flags, onClick: () => toggleOverlay("flags") },
-                  { id: "invert", label: "Invert", icon: "invert", pressed: url.invert, disabled: !view, onClick: () => update({ invert: !url.invert }) },
-                ],
-                [
-                  { id: "home", label: "Whole sky", icon: "globe", onClick: goHome },
-                  { id: "fullscreen", label: "Full screen", icon: "fullscreen", onClick: fullscreen },
-                ],
-              ]}
-            />
-          )}
-          {drawerOpen && url.panel && (
-            <Drawer
-              panel={url.panel}
-              onPanel={(p) => openPanel(p)}
-              onClose={() => openPanel(null)}
-              view={view}
-              index={pb.index}
-              target={preset ?? null}
-              position={url.ra !== null && url.dec !== null ? { ra: url.ra, dec: url.dec } : null}
-              sel={url.sel}
-              spectrum={spectrum}
-              lightcurve={lightcurve}
-              onSelectEpoch={pb.seek}
-            />
-          )}
-          {guideOpen && <Guide onClose={() => setGuideOpen(false)} onTour={startTour} />}
+          <div data-flight-chrome="panels" aria-hidden={chromeHidden} inert={chromeHidden}>
+            {chromeReady && (!mobile || sheetOpen) && (
+              <CustomizePanel
+                open={customizeOpen}
+                onOpenChange={setCustomizeOpen}
+                values={customize}
+                onChange={(v) => update(v)}
+                onReset={resetCustomize}
+                epochs={epochs}
+                origin={view?.manifest.origin ?? null}
+                collections={view?.manifest.catalog.collections ?? []}
+                loading={load.kind === "loading"}
+                sheet={mobile}
+              />
+            )}
+            {chromeReady && !mobile && (
+              <Toolbar
+                groups={[
+                  [
+                    { id: "details", label: "Details", icon: "info", expanded: drawerOpen, shortcut: "I", onClick: () => openPanel(drawerOpen ? null : "pass") },
+                  ],
+                  [
+                    { id: "grid", label: "Coordinate grid", icon: "grid", pressed: overlays.grid, disabled: !available.grid, onClick: () => toggleOverlay("grid") },
+                    ...(!view || available.flags ? [{ id: "flags", label: "Flagged pixels", icon: "flag" as const, pressed: overlays.flags, disabled: !available.flags, onClick: () => toggleOverlay("flags") }] : []),
+                    { id: "invert", label: "Invert", icon: "invert", pressed: url.invert, disabled: !view, onClick: () => update({ invert: !url.invert }) },
+                  ],
+                  [
+                    { id: "home", label: "Whole sky", icon: "globe", onClick: goHome },
+                    { id: "fullscreen", label: "Full screen", icon: "fullscreen", onClick: fullscreen },
+                  ],
+                ]}
+              />
+            )}
+            {drawerOpen && url.panel && (
+              <Drawer
+                panel={url.panel}
+                onPanel={(p) => openPanel(p)}
+                onClose={() => openPanel(null)}
+                view={view}
+                index={pb.index}
+                target={preset ?? null}
+                position={url.ra !== null && url.dec !== null ? { ra: url.ra, dec: url.dec } : null}
+                sel={url.sel}
+                spectrum={spectrum}
+                lightcurve={lightcurve}
+                onSelectEpoch={pb.seek}
+              />
+            )}
+          </div>
+          {guideOpen && <Guide onClose={() => setGuideOpen(false)} onTour={startTour} hasTarget={url.ra !== null && !flightActive} multi={epochs.length > 1} />}
           {tourOn && <Tour prepare={prepareTour} onClose={() => setTourOn(false)} />}
           <Toast message={toast} />
         </>

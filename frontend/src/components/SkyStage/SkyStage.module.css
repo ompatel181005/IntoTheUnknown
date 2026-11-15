@@ -6,10 +6,14 @@
   container-type: size;
 }
 
-/* Fixed full-viewport layer: RA/Dec grid across the sky, viewfinder, leader line. */
+/* Local overlay follows the exact image transform, including the overscanned sky grid. */
 .sky {
-  position: fixed;
-  inset: 0;
+  position: absolute;
+  left: 0;
+  top: var(--row);
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
   pointer-events: none;
   overflow: visible;
 }
@@ -41,14 +45,15 @@
 .ringLine {
   fill: none;
   stroke: var(--text-2);
-  stroke-opacity: 0.5;
+  stroke-opacity: 0.85;
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .cardinal {
   fill: var(--text-1);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.1em;
 }
 
@@ -69,10 +74,18 @@
   --side: min(calc(100cqw - 170px), calc(100cqh - var(--row) * 2 - 40px));
   position: relative;
   z-index: 1;
+  width: var(--side);
+  transform-origin: 50% 50%;
+}
+
+.column[data-flight] {
+  will-change: transform, opacity;
+}
+
+.imageColumn {
   display: grid;
   grid-template-rows: var(--row) auto var(--row);
   grid-template-columns: minmax(0, 1fr);
-  width: var(--side);
 }
 
 .topRow {
@@ -84,12 +97,10 @@
   letter-spacing: 0.06em;
   color: var(--text-2);
   white-space: nowrap;
-  overflow: hidden;
   padding-bottom: 20px;
 }
 
 .frame {
-  view-transition-name: aperture;
   position: relative;
   width: 100%;
   aspect-ratio: 1;
@@ -97,7 +108,6 @@
   border-radius: 50%;
   overflow: hidden;
   cursor: crosshair;
-  box-shadow: 0 0 0 1px var(--glass-border);
 }
 
 .canvas,
@@ -106,6 +116,19 @@
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.canvas {
+  opacity: 0;
+  transition: opacity 180ms linear;
+}
+
+.canvas[data-ready="true"] {
+  opacity: 1;
+}
+
+.column[data-flight="forward"] .canvas {
+  opacity: 0;
 }
 
 .canvas[data-smooth="false"] {
@@ -117,6 +140,7 @@
 }
 
 .scale {
+  transform: translateY(-16px);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -155,10 +179,11 @@
 
 /* Target label at the end of the leader line, Eyes style. */
 .targetLabel {
-  position: fixed;
+  position: absolute;
   z-index: 2;
   display: grid;
   gap: 6px;
+  width: max-content;
   max-width: 260px;
   translate: 0 -14px;
   pointer-events: none;
@@ -204,11 +229,18 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   justify-items: center;
-  gap: 4px;
+  gap: var(--gutter);
   overflow: clip;
+  cursor: grab;
+  touch-action: none;
+}
+
+.home:active {
+  cursor: grabbing;
 }
 
 .homeText {
+  transition: opacity 300ms var(--ease);
   display: grid;
   gap: 8px;
   justify-items: center;
@@ -218,25 +250,55 @@
   z-index: 1;
 }
 
-.kicker {
-  margin: 0;
-  letter-spacing: 0.3em;
-}
-
 .homeTitle {
   margin: 0;
   font-size: clamp(28px, 3.6vw, 46px);
 }
 
-.homeSub {
-  margin: 0 0 4px;
-  color: var(--text-2);
-  font-size: 15px;
-}
-
 .homeMap {
   width: 100%;
   height: 100%;
+  min-height: 0;
+}
+
+.zoomControls {
+  position: fixed;
+  z-index: 4;
+  right: var(--gutter);
+  bottom: var(--gutter);
+  display: grid;
+  gap: 8px;
+}
+
+.zoomButton {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  background: var(--glass-sheen), var(--glass-bg);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(var(--glass-blur));
+  color: var(--text-1);
+  font: 500 20px/1 var(--font-ui);
+  cursor: pointer;
+}
+
+.zoomButton:hover {
+  background-color: var(--hover-wash);
+}
+
+.zoomButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* The round controls also sit over the moving home canvas during a flight. */
+:global([data-app-shell][data-flying="true"]) .zoomButton {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 /* States */
@@ -248,18 +310,7 @@
 .skeleton {
   position: absolute;
   inset: 0;
-  background: linear-gradient(100deg, transparent 30%, var(--hover-wash) 50%, transparent 70%) var(--space-1);
-  background-size: 300% 100%;
-  animation: shimmer 2.4s linear infinite;
-}
-
-@keyframes shimmer {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: -50% 0;
-  }
+  background: var(--space-1);
 }
 
 .progress {
@@ -289,13 +340,6 @@
   color: var(--text-2);
 }
 
-.code {
-  display: block;
-  margin-bottom: 18px;
-  font-size: 12px;
-  color: var(--flag);
-}
-
 @media (max-width: 768px) {
   .hintText {
     display: none;
@@ -309,33 +353,6 @@
     display: none;
   }
 
-  .homeSub {
-    font-size: 13px;
-  }
-}
-
-/* Telescope zoom: the dome swims up out of the starfield. Opacity and scale only (animated blur is slow in Firefox). */
-.zoomIn {
-  animation: telescope 750ms var(--ease-cinematic) both;
-  transform-origin: 50% 50%;
-}
-
-@keyframes telescope {
-  from {
-    opacity: 0;
-    scale: 0.2;
-  }
-}
-
-.labelIn {
-  animation: label-in 400ms var(--ease) 650ms both;
-}
-
-@keyframes label-in {
-  from {
-    opacity: 0;
-    translate: -8px -14px;
-  }
 }
 
 .frame:focus-visible {
@@ -349,27 +366,50 @@
   color: var(--text-2);
 }
 
-/* View Transition: the clicked target ring grows into the dome. */
-:global(::view-transition-group(aperture)) {
-  animation-duration: 650ms;
-  animation-timing-function: var(--ease-cinematic);
+
+/* The neutral plate stays steady until the shared flight lands. */
+.column[data-flight] .progress {
+  visibility: hidden;
 }
 
-:global(::view-transition-old(root)),
-:global(::view-transition-new(root)) {
-  animation-duration: 450ms;
+
+/* The heading steps aside as soon as a flight starts. */
+:global([data-app-shell][data-flying="true"]) .homeText {
+  opacity: 0;
 }
 
-/* Reduced motion: a short dissolve, no scale or travel. */
+.homeLayer {
+  position: fixed;
+  inset: 0;
+  padding: var(--chrome-top) var(--gutter) 32px;
+  visibility: visible;
+}
+
+.homeLayer[data-home="false"] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+:global([data-app-shell][data-flying="true"]) .homeLayer {
+  visibility: visible;
+}
+
+:global([data-app-shell][data-flying="true"]) .homeLayer .zoomControls {
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .zoomIn {
-    animation: dissolve 150ms linear both !important;
-    animation-duration: 150ms !important;
+  .canvas {
+    transition: opacity 150ms linear !important;
   }
+}
 
-  @keyframes dissolve {
-    from {
-      opacity: 0;
-    }
-  }
+.positionReadout {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding-top: 24px;
+  color: var(--text-2);
+  font-size: 10px;
+  white-space: nowrap;
 }

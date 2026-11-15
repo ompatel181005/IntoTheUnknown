@@ -143,10 +143,10 @@ export function Tour({ prepare, onClose }: TourProps) {
         <p className={s.text}>{step.text}</p>
         <div className={s.actions}>
           <button type="button" className={s.skip} onClick={onClose}>
-            Skip tour
+            Skip
           </button>
           <span className={s.spacer} />
-          <GlassButton onClick={() => go(-1)} disabled={i === 0} title={i === 0 ? "This is the first step" : undefined}>
+          <GlassButton onClick={() => go(-1)} disabled={i === 0} title={i === 0 ? "First step" : undefined}>
             Back
           </GlassButton>
           <button ref={nextRef} type="button" className={s.next} onClick={() => go(1)}>

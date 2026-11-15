@@ -2,13 +2,13 @@
 :root {
   --space-0: #05070a;
   --space-1: #0a0d12;
-  /* Glass: see-through, blurred, with a glossy top sheen. Text contrast is checked over the starfield. */
-  --glass-bg: rgba(16, 20, 30, 0.5);
-  --glass-bg-strong: rgba(14, 17, 25, 0.82); /* any panel that can sit over the science image */
-  --glass-border: rgba(220, 226, 235, 0.16);
-  --glass-highlight: rgba(255, 255, 255, 0.12);
-  --glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.02) 38%, rgba(255, 255, 255, 0) 60%);
-  --glass-blur: 22px;
+  /* Glass: grounded in space-0, calibrated blur without acrylic specular shine. */
+  --glass-bg: rgba(7, 10, 15, 0.78);
+  --glass-bg-strong: rgba(5, 7, 10, 0.92); /* deep cosmic black for panels over imagery */
+  --glass-border: rgba(163, 172, 185, 0.14);
+  --glass-highlight: rgba(255, 255, 255, 0.03);
+  --glass-sheen: none;
+  --glass-blur: 10px;
   --text-1: #e6e9ee;
   --text-2: #a3acb9;
   --accent: #8ab4ff;
@@ -21,10 +21,22 @@
   --radius-panel: 8px;
   --radius-chip: 4px;
 
-  --font-ui: "Inter", "Overpass", system-ui, sans-serif;
+  --font-ui: "Manrope Variable", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Eyes on the Solar System motion: fades 500 ms, panel moves 800 ms after a 200 ms beat. */
+  --ease-ui: cubic-bezier(0.2, 0.2, 0, 1);
+  --ease-panel: cubic-bezier(0.2, 0.75, 0, 1);
+  /* Planet colours for the home orrery (decorative, never data). Values as used by NASA Eyes. */
+  --planet-mercury: #9768ac;
+  --planet-venus: #b07919;
+  --planet-earth: #4d79c7;
+  --planet-mars: #9a4e19;
+  --planet-jupiter: #da8b72;
+  --planet-saturn: #d5c187;
+  --planet-uranus: #a7b8bd;
+  --planet-neptune: #708ce3;
   /* One curve for the whole target flight (cubic in-out). */
   --ease-cinematic: cubic-bezier(0.65, 0, 0.35, 1);
   --dur: 180ms;
@@ -34,9 +46,6 @@
   --grid-line-strong: rgba(163, 172, 185, 0.34);
   --sky-band: rgba(178, 196, 255, 0.5);
   --star: #dfe6f2;
-  /* Hologram projection on the home orrery (decorative, never data). */
-  --holo: #6ee7f2;
-  --holo-scan: rgba(110, 231, 242, 0.035);
   --sun: #ffd58a;
 
   --font-display-weight: 300;
@@ -45,7 +54,7 @@
   --hover-wash: rgba(220, 226, 235, 0.08);
   --accent-wash: rgba(138, 180, 255, 0.14);
   --flag-wash: rgba(248, 113, 113, 0.12);
-  --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 4px 20px rgba(0, 0, 0, 0.65);
   --gutter: 16px;
   --drawer-w: 340px;
   --target-min: 44px;

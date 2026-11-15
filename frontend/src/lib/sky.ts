@@ -33,7 +33,7 @@ export function mollweide(raDeg: number, decDeg: number): [number, number] {
 
 /** Ecliptic longitude (beta = 0) to equatorial, J2000 obliquity. */
 export function eclipticToEq(lonDeg: number): RaDec {
-  const eps = 23.4393 * D2R;
+  const eps = 23.43928 * D2R;
   const l = lonDeg * D2R;
   const dec = Math.asin(Math.sin(eps) * Math.sin(l));
   const ra = Math.atan2(Math.sin(l) * Math.cos(eps), Math.cos(l));
@@ -96,16 +96,4 @@ export function niceStep(approx: number, steps = [1, 2, 5]): number {
   const p = Math.pow(10, Math.floor(Math.log10(approx)));
   for (const s of steps) if (s * p >= approx) return s * p;
   return 10 * p;
-}
-
-/** Deterministic pseudo-random generator for decorative layers. */
-export function seeded(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }

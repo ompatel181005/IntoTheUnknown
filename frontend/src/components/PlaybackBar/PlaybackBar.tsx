@@ -12,6 +12,8 @@ interface PlaybackBarProps {
   canPlay: boolean;
   mode: ViewMode;
   status: string | null;
+  /** A target is chosen but its passes are still loading. */
+  loading: boolean;
   customizeOpen: boolean;
   onToggle: () => void;
   onPrev: () => void;
@@ -39,11 +41,11 @@ export function PlaybackBar(p: PlaybackBarProps) {
   const n = ready ? p.epochs.length : 4;
   const tOf = (i: number) => (n === 1 ? 0.5 : i / (n - 1));
   const knob = ready ? arc(tOf(p.index)) : null;
-  const stateText = !ready ? "NO TARGET" : !multi ? "ONE PASS" : p.playing ? "PLAYING" : "PAUSED";
+  const stateText = p.loading ? "Loading" : !ready ? "No target" : !multi ? "One pass" : p.playing ? "Playing" : "Paused";
 
   return (
     <div className={s.dock} data-tour="time">
-      <ModeSwitch mode={p.mode} multi={multi} ready={ready} onMode={p.onMode} />
+      <ModeSwitch mode={p.mode} multi={multi} ready={ready} loading={p.loading} onMode={p.onMode} />
       <div className={s.clock}>
         <div className={s.row}>
           <div className={s.transport}>
@@ -54,7 +56,7 @@ export function PlaybackBar(p: PlaybackBarProps) {
               onClick={p.onToggle}
               disabled={!p.canPlay}
               aria-label={p.playing ? "Pause" : "Play"}
-              title={!p.canPlay ? (ready ? "Needs two or more passes" : "Pick a target first") : "Play or pause (Space)"}
+              title={!p.canPlay ? (ready ? "Needs at least two passes" : "Pick a target") : "Play or pause (Space)"}
               data-tour="play"
             >
               <Icon name={p.playing ? "pause" : "play"} size={20} />
@@ -62,7 +64,8 @@ export function PlaybackBar(p: PlaybackBarProps) {
             <GlassButton variant="ghost" icon="next" label="Next pass" onClick={p.onNext} disabled={!multi} title={titleFor(ready, multi)} />
           </div>
           <span className={`display ${s.date}`}>{e ? e.label : "----"}</span>
-          <span className={s.state} aria-live="polite">
+          <span className={s.state} data-playing={p.playing} aria-live="polite">
+            <span className={s.stateDot} aria-hidden="true" />
             {stateText}
           </span>
           <span className={`mono ${s.epoch}`}>
@@ -99,7 +102,7 @@ export function PlaybackBar(p: PlaybackBarProps) {
                     data-out={ready && !placeholder && !p.sequence.includes(i)}
                     disabled={placeholder}
                     aria-label={ep ? `Pass ${i + 1}, ${ep.label}` : `Pass ${i + 1}`}
-                    title={placeholder ? (ready ? undefined : "Pick a target first") : undefined}
+                    title={placeholder ? (ready ? undefined : "Pick a target") : undefined}
                     onClick={() => p.onSeek(i)}
                   >
                     <span className={s.dot} />
@@ -111,35 +114,32 @@ export function PlaybackBar(p: PlaybackBarProps) {
           </ol>
           {knob && (
             <span className={s.knob} style={{ left: `${(knob.x / W) * 100}%`, top: `${(knob.y / H) * 100}%` }} aria-hidden="true">
-              <Crescent />
+              <TargetReticle />
             </span>
           )}
         </nav>
       </div>
-      <p className={`${s.status} mono`} role="status" title={p.status ?? undefined}>
-        {p.status}
-      </p>
     </div>
   );
 }
 
 function titleFor(ready: boolean, multi: boolean) {
-  if (!ready) return "Pick a target first";
-  if (!multi) return "Only one pass so far";
+  if (!ready) return "Pick a target";
+  if (!multi) return "Needs at least two passes";
   return undefined;
 }
 
-function Crescent() {
+function TargetReticle() {
   return (
-    <svg width="22" height="22" viewBox="0 0 26 26">
-      <circle cx="13" cy="13" r="11" fill="var(--space-1)" stroke="var(--accent)" strokeWidth="1.5" />
-      <path d="M16 6a7.6 7.6 0 1 0 0 14 6 6 0 0 1 0-14z" fill="var(--accent)" />
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r="8" fill="var(--space-1)" stroke="var(--accent)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+      <circle cx="10" cy="10" r="2.5" fill="var(--accent)" />
     </svg>
   );
 }
 
-function ModeSwitch({ mode, multi, ready, onMode }: { mode: ViewMode; multi: boolean; ready: boolean; onMode: (m: ViewMode) => void }) {
-  const why = ready ? "Needs two or more passes" : "Pick a target first";
+function ModeSwitch({ mode, multi, ready, loading, onMode }: { mode: ViewMode; multi: boolean; ready: boolean; loading: boolean; onMode: (m: ViewMode) => void }) {
+  const why = ready ? "Needs at least two passes" : "Pick a target";
   return (
     <GlassPanel pill className={s.modes} data-tour="modes">
       <Segmented
@@ -148,10 +148,12 @@ function ModeSwitch({ mode, multi, ready, onMode }: { mode: ViewMode; multi: boo
         onChange={onMode}
         className={s.segmented}
         options={[
-          { value: "all", label: "Play all", disabled: !ready, title: ready ? "Every pass in order" : why },
-          { value: "blink", label: "Blink", disabled: !multi, title: multi ? "Flip between two passes (B)" : why },
-          { value: "diff", label: "Difference", disabled: !multi, title: multi ? "Each pass minus the reference (D)" : why },
-          { value: "inspect", label: "Investigate", disabled: !ready, title: ready ? "Open measurements for this pass" : why },
+          { value: "all", label: "Play all", disabled: !ready, title: ready ? "Play every pass" : why },
+          ...(loading || multi ? [
+            { value: "blink" as const, label: "Blink", disabled: !multi, title: multi ? "Alternate two passes (B)" : why },
+            { value: "diff" as const, label: "Difference", disabled: !multi, title: multi ? "Compare with the reference pass (D)" : why },
+          ] : []),
+          { value: "inspect", label: "Investigate", disabled: !ready, title: ready ? "Open measurements" : why },
         ]}
       />
     </GlassPanel>

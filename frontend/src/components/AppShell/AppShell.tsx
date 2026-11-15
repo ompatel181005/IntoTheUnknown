@@ -3,6 +3,7 @@ import s from "./AppShell.module.css";
 
 interface AppShellProps {
   idle: boolean;
+  flying: boolean;
   /** Width reserved on the left of the stage (object card), in px. */
   stageLeft: number;
   /** Width reserved on the right of the stage (drawer or tool rail), in px. */
@@ -23,7 +24,7 @@ interface AppShellProps {
  * The stage fills the viewport. Top and bottom chrome float over it; their measured heights
  * become --chrome-top and --chrome-bottom so the sky image is never placed under glass.
  */
-export function AppShell({ idle, stageLeft, stageRight, hideBottom, bottomReserve, backdrop, stage, top, bottom, overlays }: AppShellProps) {
+export function AppShell({ idle, flying, stageLeft, stageRight, hideBottom, bottomReserve, backdrop, stage, top, bottom, overlays }: AppShellProps) {
   const hasBottom = bottom !== null;
   const shellRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
@@ -51,6 +52,8 @@ export function AppShell({ idle, stageLeft, stageRight, hideBottom, bottomReserv
       ref={shellRef}
       className={s.shell}
       data-idle={idle}
+      data-app-shell
+      data-flying={flying}
       style={{ ["--stage-right" as string]: `${stageRight}px`, ["--stage-left" as string]: `${stageLeft}px` }}
     >
       {backdrop}

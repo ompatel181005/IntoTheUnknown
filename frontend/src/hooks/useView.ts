@@ -29,7 +29,7 @@ export function useView(source: ViewSource, query: ViewQuery | null, attempt: nu
             key,
             kind: "error",
             code: err.code ?? "ERROR",
-            message: err.message ?? "Something went wrong while loading this view.",
+            message: err.message ?? "Could not load this view. Try again.",
           });
         },
       );

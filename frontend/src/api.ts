@@ -1,5 +1,5 @@
 // Client for the backend contract in docs/PLAN.md section 4.3. No mock data here.
-import type { Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus } from "./types";
+import type { Catalog, Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus } from "./types";
 
 export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
@@ -60,7 +60,7 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
     return await fetch(`${API_BASE}${path}`, init);
   } catch (e) {
     if ((e as Error).name === "AbortError") throw e;
-    throw new ApiRequestError("NETWORK", "Could not reach the server. Check your connection and try again.");
+    throw new ApiRequestError("NETWORK", "Could not connect. Check your connection and try again.");
   }
 }
 
@@ -70,6 +70,11 @@ export function getHealth(signal?: AbortSignal): Promise<Health> {
 
 export function getTargets(signal?: AbortSignal): Promise<Target[]> {
   return request("/api/targets", { signal }).then((r) => json<Target[]>(r));
+}
+
+/** Static file in frontend/public/catalog, like /golden: the home sky needs no backend route. */
+export function getCatalog(setName = "targets", signal?: AbortSignal): Promise<Catalog> {
+  return request(`/catalog/${encodeURIComponent(setName)}.json`, { signal }).then((r) => json<Catalog>(r));
 }
 
 /** Per-frame values at one grid pixel for one epoch (x, y in FITS orientation, row 0 = south). */
@@ -107,8 +112,8 @@ export async function fetchAsset(url: string, signal?: AbortSignal): Promise<Res
     res = await fetch(full, { signal });
   } catch (e) {
     if ((e as Error).name === "AbortError") throw e;
-    throw new ApiRequestError("NETWORK", "Could not download the images. Check your connection and try again.");
+    throw new ApiRequestError("NETWORK", "Could not download images. Check your connection and try again.");
   }
-  if (!res.ok) throw new ApiRequestError(`HTTP_${res.status}`, `An image file is missing (${res.status}).`);
+  if (!res.ok) throw new ApiRequestError(`HTTP_${res.status}`, `An image is missing (${res.status}). Try again later.`);
   return res;
 }

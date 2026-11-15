@@ -1,142 +1,181 @@
 import { useEffect, useRef } from "react";
-import { seeded } from "../../lib/sky";
-import { tokenRgb } from "../../lib/stretch";
+import { flightIsActive, getHomeCamera, markFlight, subscribeFlight } from "../../lib/flight";
+import { drawStarfield, loadStarfield, type Starfield } from "../../lib/starfield";
 import s from "./SkyBackdrop.module.css";
 
-interface Star {
-  x: number;
-  y: number;
-  z: number;
-  /** 0 = white, 1 = warm, 2 = blue-white. */
-  tint: number;
-}
-
-const COUNT = 2600;
-/** Share of stars packed into a Milky Way band across the field. */
-const BAND_SHARE = 0.4;
-const TRAVEL_MS = 1000;
 const NEAR = 0.04;
 
 /**
- * Decorative 3D starfield behind everything. It is not data: the stars are random and the science image
- * sits on an opaque dome above it. When `travelKey` changes the field flies forward (a target was picked)
- * or backward (`travelKey` became null: back to the whole sky), like moving through space.
+ * BSC5 catalogue directions, visual magnitudes and B-V colours behind the science dome.
+ * The warp is decorative: its synthetic travel depths are not stellar distances.
+ * The shared flight clock supplies position, direction and speed.
  */
-export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: string | null }) {
+export function SkyBackdrop({ dim }: { dim: boolean }) {
+  const backdropRef = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLCanvasElement>(null);
-  const stars = useRef<Star[]>([]);
-  const draw = useRef<(streak: number) => void>(() => {});
-  const lastKey = useRef<string | null | undefined>(undefined);
-  const anim = useRef(0);
+  const prepare = useRef<() => void>(() => {});
+  const draw = useRef<(streak: number, travel?: number) => void>(() => {});
+  const settle = useRef<(travel: number) => void>(() => {});
+  /** Current vanishing point in canvas pixels (NaN = canvas centre). */
+  const focus = useRef({ x: NaN, y: NaN });
 
   // Build the field and the painter once; repaint on resize.
   useEffect(() => {
     const cv = ref.current;
-    const ctx = cv?.getContext("2d");
-    if (!cv || !ctx) return;
-    const rnd = seeded(20261115);
-    const gauss = () => Math.sqrt(-2 * Math.log(rnd() || 1e-9)) * Math.cos(2 * Math.PI * rnd());
-    stars.current = Array.from({ length: COUNT }, () => {
-      const inBand = rnd() < BAND_SHARE;
-      const x = rnd() * 2 - 1;
-      const y = inBand ? 0.42 * x + gauss() * 0.09 : rnd() * 2 - 1;
-      const t = rnd();
-      return { x, y, z: NEAR + rnd() * (1 - NEAR), tint: t < 0.08 ? 1 : t < 0.16 ? 2 : 0 };
-    });
-    const palette = [tokenRgb("--star"), tokenRgb("--sun"), tokenRgb("--accent")];
+    if (!cv) return;
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+    let field: Starfield | null = null;
+    let geometry = new Float32Array(0);
+    let projected = new Float32Array(0);
+    let disposed = false;
     let w = 0;
     let h = 0;
+    let pixelWidth = 0;
+    let pixelHeight = 0;
+    let bitmapDpr = 0;
+    let viewportWidth = window.innerWidth;
+    let viewportHeight = window.innerHeight;
     const resize = () => {
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
-      w = window.innerWidth + 48;
-      h = window.innerHeight + 48;
-      cv.width = Math.round(w * dpr);
-      cv.height = Math.round(h * dpr);
+      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+      const nextWidth = viewportWidth + 48;
+      const nextHeight = viewportHeight + 48;
+      const nextPixelWidth = Math.round(nextWidth * dpr);
+      const nextPixelHeight = Math.round(nextHeight * dpr);
+      if (nextPixelWidth === pixelWidth && nextPixelHeight === pixelHeight && bitmapDpr === dpr) return;
+      markFlight("backdrop-resize");
+      w = nextWidth;
+      h = nextHeight;
+      pixelWidth = nextPixelWidth;
+      pixelHeight = nextPixelHeight;
+      bitmapDpr = dpr;
+      if (cv.width !== pixelWidth) cv.width = pixelWidth;
+      if (cv.height !== pixelHeight) cv.height = pixelHeight;
       cv.style.width = `${w}px`;
       cv.style.height = `${h}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       draw.current(0);
     };
-    // `streak` is how far (in z) each star moved this frame; it draws motion trails.
-    draw.current = (streak: number) => {
-      ctx.clearRect(0, 0, w, h);
-      const cx = w / 2;
-      const cy = h / 2;
-      const f = Math.max(w, h) * 0.5;
-      for (const st of stars.current) {
-        const px = cx + (st.x / st.z) * f;
-        const py = cy + (st.y / st.z) * f;
-        if (px < -50 || py < -50 || px > w + 50 || py > h + 50) continue;
-        const near = 1 - st.z;
-        const a = 0.14 + near ** 2 * 0.86;
-        const [r, g, b] = palette[st.tint];
-        if (Math.abs(streak) > 1e-4) {
-          const z0 = Math.min(1.2, Math.max(NEAR, st.z + streak));
-          ctx.strokeStyle = `rgba(${r},${g},${b},${a})`;
-          ctx.lineWidth = 0.4 + near * 1.6;
-          ctx.beginPath();
-          ctx.moveTo(cx + (st.x / z0) * f, cy + (st.y / z0) * f);
-          ctx.lineTo(px, py);
-          ctx.stroke();
-        } else {
-          ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
-          ctx.beginPath();
-          ctx.arc(px, py, 0.3 + near ** 3 * 1.7, 0, Math.PI * 2);
-          ctx.fill();
-          if (near > 0.9) {
-            // The nearest few get a soft halo.
-            ctx.fillStyle = `rgba(${r},${g},${b},0.08)`;
-            ctx.beginPath();
-            ctx.arc(px, py, 5, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        }
+    // Catalogue directions are real; the warp's depth and travel are cinematic, not distances.
+    prepare.current = () => {
+      if (!field) return;
+      const camera = getHomeCamera();
+      const cy = Math.cos(camera.yaw), sy = Math.sin(camera.yaw);
+      const cp = Math.cos(camera.pitch), sp = Math.sin(camera.pitch);
+      for (let i = 0; i < field.xyz.length; i += 3) {
+        const xyz = field.xyz;
+        const x = xyz[i] * cy - xyz[i + 1] * sy;
+        const y = xyz[i] * sy + xyz[i + 1] * cy;
+        const depth = y * cp - xyz[i + 2] * sp;
+        const z = NEAR + Math.max(0, depth) * (1 - NEAR);
+        geometry[i] = x * z / depth;
+        geometry[i + 1] = -(y * sp + xyz[i + 2] * cp) * z / depth;
+        geometry[i + 2] = depth > 0.04 ? z : -1;
       }
     };
+    draw.current = (streak: number, travel = 0) => {
+      ctx.setTransform(cv.width / w, 0, 0, cv.height / h, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      if (!field) return;
+      const cx = Number.isFinite(focus.current.x) ? focus.current.x : w / 2;
+      const cy = Number.isFinite(focus.current.y) ? focus.current.y : h / 2;
+      const f = Math.max(w, h) * 0.5;
+      const moving = Math.abs(streak) > 1e-4;
+      const range = 1 - NEAR;
+      for (let i = 0; i < geometry.length; i += 3) {
+        const j = i / 3 * 4;
+        if (geometry[i + 2] < 0) {
+          projected[j] = NaN;
+          continue;
+        }
+        const z = NEAR + ((geometry[i + 2] - travel - NEAR) % range + range) % range;
+        projected[j] = cx + geometry[i] / z * f;
+        projected[j + 1] = cy + geometry[i + 1] / z * f;
+        const z0 = Math.min(1.2, Math.max(NEAR, z + streak));
+        projected[j + 2] = cx + geometry[i] / z0 * f;
+        projected[j + 3] = cy + geometry[i + 1] / z0 * f;
+      }
+      ctx.lineCap = "round";
+      drawStarfield(ctx, field, projected, 4, w, h, 1, moving);
+      ctx.globalAlpha = 1;
+    };
+    settle.current = (travel) => {
+      const range = 1 - NEAR;
+      for (let i = 2; i < geometry.length; i += 3) {
+        if (geometry[i] >= 0) geometry[i] = NEAR + ((geometry[i] - travel - NEAR) % range + range) % range;
+      }
+      draw.current(0);
+    };
+    void loadStarfield().then((catalogue) => {
+      if (disposed || !catalogue) return;
+      field = catalogue;
+      geometry = new Float32Array(field.xyz.length);
+      projected = new Float32Array(field.xyz.length / 3 * 4);
+      prepare.current();
+      draw.current(0);
+    });
     resize();
-    window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
+    const ro = new ResizeObserver(([entry]) => {
+      viewportWidth = entry.contentRect.width;
+      viewportHeight = entry.contentRect.height;
+      resize();
+    });
+    ro.observe(document.documentElement);
+    return () => {
+      disposed = true;
+      prepare.current = () => {};
+      draw.current = () => {};
+      settle.current = () => {};
+      ro.disconnect();
+    };
   }, []);
 
-  // Fly when the target changes. Skipped on first render and under reduced motion.
   useEffect(() => {
-    const prev = lastKey.current;
-    lastKey.current = travelKey;
-    if (prev === undefined || prev === travelKey) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const dir = travelKey === null ? -1 : 1;
-    cancelAnimationFrame(anim.current);
-    const start = performance.now();
-    let last = start;
-    const step = (now: number) => {
-      const t = Math.min(1, (now - start) / TRAVEL_MS);
-      const speed = Math.sin(Math.PI * t) ** 2 * 1.6; // ease in and out, in z-units per second
-      const dz = (speed * (now - last)) / 1000;
-      last = now;
-      for (const st of stars.current) {
-        st.z -= dir * dz;
-        if (st.z < NEAR) {
-          st.z += 1 - NEAR;
-          st.x = Math.random() * 2 - 1;
-          st.y = Math.random() < BAND_SHARE ? 0.42 * st.x + (Math.random() - 0.5) * 0.25 : Math.random() * 2 - 1;
-        } else if (st.z > 1) {
-          st.z -= 1 - NEAR;
+    let lastProgress = 0;
+    return subscribeFlight((sample) => {
+      const backdrop = backdropRef.current;
+      if (sample.progress === 0) {
+        if (ref.current) {
+          ref.current.style.transition = "none";
+          ref.current.style.translate = "0px 0px";
         }
+        prepare.current();
+        lastProgress = 0;
       }
-      draw.current(t < 1 ? dir * dz * 6 : 0);
-      if (t < 1) anim.current = requestAnimationFrame(step);
-    };
-    anim.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(anim.current);
-  }, [travelKey]);
+      if (backdrop) {
+        backdrop.style.transition = "none";
+        backdrop.style.opacity = String(0.55 * (1 - sample.camera.fade));
+        backdrop.dataset.traveling = String(sample.progress < 1);
+      }
+      if (sample.progress === 1 && ref.current) ref.current.style.removeProperty("transition");
+      if (sample.reduced) return;
+      focus.current = { x: sample.pose.x + 24, y: sample.pose.y + 24 };
+      const speed = 6 * sample.progress * (1 - sample.progress);
+      const travel = sample.u * 0.8;
+      draw.current(sample.direction * speed * (sample.progress - lastProgress) * 4, travel);
+      lastProgress = sample.progress;
+      if (sample.progress === 1) {
+        if (backdrop) delete backdrop.dataset.traveling;
+        settle.current(travel);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!flightIsActive() && backdropRef.current) {
+      backdropRef.current.style.removeProperty("opacity");
+      backdropRef.current.style.removeProperty("transition");
+    }
+  }, [dim]);
 
   // Slow parallax on pointer move. Skipped under reduced motion.
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const cv = ref.current;
     if (!cv) return;
+    if (!dim || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let raf = 0;
     const onMove = (e: PointerEvent) => {
+      if (flightIsActive()) return;
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const dx = (e.clientX / window.innerWidth - 0.5) * -16;
@@ -149,10 +188,10 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", onMove);
     };
-  }, []);
+  }, [dim]);
 
   return (
-    <div className={s.backdrop} data-dim={dim} aria-hidden="true">
+    <div ref={backdropRef} className={s.backdrop} data-dim={dim} data-home={!dim} aria-hidden="true">
       <canvas ref={ref} className={s.canvas} />
       <div className={s.vignette} />
     </div>

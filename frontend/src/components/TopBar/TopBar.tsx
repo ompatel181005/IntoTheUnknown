@@ -1,13 +1,15 @@
-import { useId, useState, type FormEvent } from "react";
-import { Chip, GlassButton, GlassPanel, Icon } from "../glass";
-import { parseCoords } from "../../lib/format";
-import { matchPresetName, PRESETS, type Preset } from "../../lib/targets";
+import { useId, useState, type KeyboardEvent, type ReactNode } from "react";
+import { GlassButton, GlassPanel, Icon } from "../glass";
+import { formatDec, formatRa, parseCoords } from "../../lib/format";
+import { searchPresets, type Preset } from "../../lib/targets";
 import { APP_NAME } from "../../lib/brand";
 import s from "./TopBar.module.css";
 
 interface TopBarProps {
-  activeTarget: string | null;
+  /** Shown as a breadcrumb after the app name. */
+  crumb: string | null;
   onHome: () => void;
+  homeDisabled: boolean;
   onPreset: (p: Preset) => void;
   onCoords: (ra: number, dec: number) => void;
   onShare: () => void;
@@ -19,29 +21,38 @@ interface TopBarProps {
 export function TopBar(props: TopBarProps) {
   return (
     <header className={s.bar}>
-      <button type="button" className={s.brand} onClick={props.onHome} title="Back to the whole sky">
-        <Mark />
-        <span className={s.name}>{APP_NAME}</span>
-      </button>
+      {props.crumb === null ? (
+        <div className={s.brand}>
+          <Mark />
+          <span className={s.name}>{APP_NAME}</span>
+        </div>
+      ) : (
+        <button type="button" className={s.brand} onClick={props.onHome} disabled={props.homeDisabled} title="Whole sky">
+          <Mark />
+          <span className={s.name}>{APP_NAME}</span>
+          {props.crumb && (
+            <span className={s.crumb}>
+              <span aria-hidden="true">›</span> {props.crumb}
+            </span>
+          )}
+        </button>
+      )}
       <GlassPanel pill className={s.center}>
         <TargetSearch onPreset={props.onPreset} onCoords={props.onCoords} />
-        <span className={s.divider} aria-hidden="true" />
-        <TargetChips active={props.activeTarget} onPick={props.onPreset} />
       </GlassPanel>
       <GlassPanel pill className={s.end} data-tour="help">
-        <GlassButton variant="ghost" icon="tour" onClick={props.onTour} title="A one-minute tour of the screen">
-          <span className={s.shareLabel}>Tour</span>
-        </GlassButton>
-        <GlassButton variant="ghost" icon="help" label="Guide and keyboard shortcuts (?)" onClick={props.onGuide} />
-        <GlassButton
-          variant="ghost"
-          icon="share"
-          onClick={props.onShare}
-          disabled={props.shareDisabled}
-          title={props.shareDisabled ? "Pick a target first" : "Copy a link to this view"}
-        >
-          <span className={s.shareLabel}>Share</span>
-        </GlassButton>
+        <GlassButton variant="ghost" icon="help" label="Guide" onClick={props.onGuide} />
+        {props.crumb !== null && (
+          <GlassButton
+            variant="ghost"
+            icon="share"
+            onClick={props.onShare}
+            disabled={props.shareDisabled}
+            title={props.shareDisabled ? "Pick a target" : "Share link"}
+          >
+            <span className={s.shareLabel}>Share</span>
+          </GlassButton>
+        )}
       </GlassPanel>
     </header>
   );
@@ -59,67 +70,130 @@ function Mark() {
 
 function TargetSearch({ onPreset, onCoords }: Pick<TopBarProps, "onPreset" | "onCoords">) {
   const [text, setText] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const id = useId();
+  const [open, setOpen] = useState(false);
+  const [highlighted, setHighlighted] = useState(0);
+  const uid = useId();
+  const listboxId = `${uid}-results`;
+  const query = text.trim();
+  const coords = parseCoords(text);
+  const presets = searchPresets(text);
+  const options: SearchOption[] = [
+    ...(coords ? [{ type: "coords" as const, key: "coords", ra: coords.ra, dec: coords.dec }] : []),
+    ...presets.map((preset) => ({ type: "preset" as const, key: preset.id, preset })),
+  ].slice(0, 8);
+  const activeIndex = options.length ? Math.min(highlighted, options.length - 1) : -1;
+  const activeId = activeIndex >= 0 ? `${uid}-option-${activeIndex}` : undefined;
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const preset = matchPresetName(text);
-    if (preset) {
-      setError(null);
-      onPreset(preset);
-      return;
+  const pick = (option: SearchOption) => {
+    if (option.type === "preset") onPreset(option.preset);
+    else onCoords(option.ra, option.dec);
+    setText("");
+    setOpen(false);
+    setHighlighted(0);
+  };
+
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      setOpen(true);
+      if (!options.length) return;
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      setHighlighted((activeIndex + direction + options.length) % options.length);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      if (open && activeIndex >= 0) pick(options[activeIndex]);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      if (open) setOpen(false);
+      else event.currentTarget.blur();
+    } else if (event.key === "Tab") {
+      setOpen(false);
     }
-    const c = parseCoords(text);
-    if (c) {
-      setError(null);
-      onCoords(c.ra, c.dec);
-      return;
-    }
-    setError(
-      text.trim()
-        ? "Enter RA, Dec such as 269.446, 4.768 or 17:57:47 +04:46:06. Name search covers the five test targets for now."
-        : "Type a target name or RA, Dec.",
-    );
   };
 
   return (
-    <form className={s.search} onSubmit={submit} role="search">
+    <div className={s.search} role="search" data-tour="targets">
       <label className={s.field}>
         <Icon name="search" size={16} />
-        <span className="sr-only">Target name or RA, Dec</span>
+        <span className="sr-only">Search targets</span>
         <input
           className={s.input}
           value={text}
           onChange={(e) => {
             setText(e.target.value);
-            if (error) setError(null);
+            setHighlighted(0);
+            setOpen(true);
           }}
-          placeholder="Search a name or RA, Dec"
+          onFocus={() => {
+            setHighlighted(0);
+            setOpen(true);
+          }}
+          onBlur={() => setOpen(false)}
+          onKeyDown={onKeyDown}
+          placeholder="Search name or RA, Dec"
           autoComplete="off"
           spellCheck={false}
           enterKeyHint="search"
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? id : undefined}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={listboxId}
+          aria-activedescendant={open ? activeId : undefined}
         />
       </label>
-      {error && (
-        <p id={id} role="alert" className={s.error}>
-          {error}
-        </p>
+      {open && (
+        <div id={listboxId} className={s.results} role="listbox" aria-label="Suggestions">
+          {options.length ? (
+            options.map((option, index) => (
+              <div
+                id={`${uid}-option-${index}`}
+                key={option.key}
+                className={s.option}
+                role="option"
+                aria-selected={index === activeIndex}
+                onMouseEnter={() => setHighlighted(index)}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => pick(option)}
+              >
+                {option.type === "coords" ? (
+                  <span className={s.coordLabel}>
+                    Go to RA {formatRa(option.ra)}, Dec {formatDec(option.dec)}
+                  </span>
+                ) : (
+                  <>
+                    <span className={s.optionCopy}>
+                      <span className={s.optionName}>{highlightMatch(option.preset.name, query)}</span>
+                      <span className={s.tagline}>{highlightMatch(option.preset.tagline, query)}</span>
+                    </span>
+                    <span className={s.kindLabel}>{option.preset.kind === "motion" ? "Moves" : "Changes brightness"}</span>
+                  </>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className={`${s.option} ${s.noMatch}`} role="option" aria-selected="false" aria-disabled="true">
+              No match. Try a name or RA, Dec.
+            </div>
+          )}
+        </div>
       )}
-    </form>
+    </div>
   );
 }
 
-function TargetChips({ active, onPick }: { active: string | null; onPick: (p: Preset) => void }) {
+type SearchOption =
+  | { type: "preset"; key: string; preset: Preset }
+  | { type: "coords"; key: string; ra: number; dec: number };
+
+function highlightMatch(value: string, query: string): ReactNode {
+  if (!query) return value;
+  const index = value.toLocaleLowerCase().indexOf(query.toLocaleLowerCase());
+  if (index < 0) return value;
   return (
-    <div className={s.chips} role="group" aria-label="Test targets" data-tour="targets">
-      {PRESETS.map((p) => (
-        <Chip key={p.id} pressed={active === p.id} onClick={() => onPick(p)} title={p.name} className={s.chip}>
-          {p.short}
-        </Chip>
-      ))}
-    </div>
+    <>
+      {value.slice(0, index)}
+      <strong>{value.slice(index, index + query.length)}</strong>
+      {value.slice(index + query.length)}
+    </>
   );
 }

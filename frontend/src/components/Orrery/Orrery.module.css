@@ -1,15 +1,17 @@
-.orrery {
+.anchor {
   position: relative;
   width: 100%;
   height: 100%;
   min-height: 320px;
-  cursor: grab;
-  touch-action: none;
-  overflow: hidden;
+  pointer-events: none;
 }
 
-.orrery:active {
-  cursor: grabbing;
+.orrery {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  touch-action: none;
+  pointer-events: none;
 }
 
 .canvas {
@@ -17,19 +19,11 @@
   inset: 0;
   width: 100%;
   height: 100%;
-}
-
-/* Faint scanlines: the projection reads as a hologram, not a photo. */
-.scan {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: repeating-linear-gradient(to bottom, var(--holo-scan) 0 1px, transparent 1px 4px);
-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  pointer-events: auto;
 }
 
 .target {
-  position: absolute;
+  position: fixed;
   left: 0;
   top: 0;
   display: flex;
@@ -43,7 +37,14 @@
   color: var(--text-1);
   text-align: left;
   cursor: pointer;
+  pointer-events: auto;
   will-change: transform;
+  transform-origin: 22px 22px;
+  transition: opacity 150ms linear;
+}
+
+.targetStatic {
+  pointer-events: none;
 }
 
 .target[data-behind="true"] {
@@ -61,12 +62,13 @@
 
 .ring::before {
   content: "";
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  border: 1.5px solid var(--accent);
-  box-shadow: 0 0 12px var(--accent);
-  transition: scale var(--dur) var(--ease);
+  border: 1px solid var(--text-1);
+  box-shadow: 0 0 6px var(--glass-highlight);
+  opacity: 0.85;
+  transition: scale 250ms ease-out;
 }
 
 .ring::after {
@@ -75,64 +77,76 @@
   width: 4px;
   height: 4px;
   border-radius: 50%;
+  background: var(--text-1);
+  opacity: 0.85;
+}
+
+.target[data-edge="true"] .ring::before {
+  border-color: var(--accent);
+}
+
+.target[data-edge="true"] .ring::after {
+  width: 8px;
+  height: 1px;
+  border-radius: 0;
   background: var(--accent);
+  translate: 10px 0;
+  rotate: var(--edge-angle);
+  transform-origin: -8px 50%;
 }
 
 .target:hover .ring::before,
 .target:focus-visible .ring::before {
-  scale: 1.6;
+  opacity: 1;
 }
 
-/* One outward pulse on the target you picked. */
-.target[data-picked="true"] .ring::before {
-  animation: pulse 600ms var(--ease-cinematic);
+.target[data-label-left="true"] .label {
+  text-align: right;
 }
 
-@keyframes pulse {
-  to {
-    scale: 3;
-    opacity: 0;
-  }
-}
-
-/* A slow scan plane sweeping down the projection. */
-.orrery::after {
-  content: "";
-  position: absolute;
-  left: 15%;
-  right: 15%;
-  height: 120px;
-  top: -120px;
-  pointer-events: none;
-  background: linear-gradient(to bottom, transparent, var(--holo-scan) 70%, rgba(110, 231, 242, 0.08) 98%, transparent);
-  animation: sweep 7s linear infinite;
-}
-
-@keyframes sweep {
-  to {
-    top: 100%;
-  }
+.target[data-label-hidden="true"] .label {
+  opacity: 0;
 }
 
 .label {
+  position: absolute;
+  left: var(--label-offset, 54px);
+  top: var(--label-top, 22px);
+  translate: 0 -50%;
+  width: max-content;
+  max-width: min(240px, 60vw);
+  transition: opacity 150ms linear;
   display: grid;
   gap: 1px;
   white-space: nowrap;
 }
 
+/* Eyes label style: uppercase, wide tracking, dimmed until hovered. */
 .name {
-  font-size: 15px;
-  font-weight: var(--font-display-weight);
-  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  opacity: 0.75;
   text-shadow: 0 0 10px var(--space-0);
+  transition: opacity 250ms ease-out;
+}
+
+.target:hover .name,
+.target:focus-visible .name {
+  opacity: 1;
 }
 
 .kind {
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: var(--holo);
+  color: var(--text-2);
 }
 
 .hud {
@@ -151,40 +165,46 @@
   pointer-events: none;
 }
 
-.live {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-1);
-  font-weight: 600;
-}
-
-.liveDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--holo);
-  box-shadow: 0 0 8px var(--holo);
-  animation: blink 2s ease-in-out infinite;
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0.3;
-  }
-}
-
-.hudNote {
-  letter-spacing: 0.04em;
-}
-
 @media (max-width: 768px) {
-  .hudNote,
+  .hud {
+    left: 16px;
+    translate: 0;
+    font-size: 10px;
+  }
+
   .kind {
+  overflow: hidden;
+  text-overflow: ellipsis;
     display: none;
   }
 
   .name {
-    font-size: 12px;
+    font-size: 14px;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring::before,
+  .name,
+  .label {
+    transition: none;
+  }
+
+  .target[data-picked="true"] .ring::before {
+    animation: none;
+  }
+
+  .target {
+    transition: none;
+  }
+}
+
+.orrery[data-active="false"] .canvas,
+.orrery[data-active="false"] .target {
+  pointer-events: none !important;
+}
+
+:global([data-app-shell][data-flying="true"]) .target[data-flight-target="true"] .ring,
+:global([data-app-shell][data-flying="true"]) .target[data-flight-target="true"] .label {
+  visibility: hidden;
 }

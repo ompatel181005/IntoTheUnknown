@@ -91,3 +91,43 @@ button:disabled {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* While flying to a target the starfield redraws every frame; blurring glass over it each frame is the
+   main source of dropped frames. Panels go flat for that second and get their blur back on landing. */
+[data-app-shell][data-flying="true"] header > *,
+[data-app-shell][data-flying="true"] [data-flight-hide] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* Eyes pattern: chrome that is not the target steps aside during a flight, then returns. */
+[data-flight-hide] {
+  transition:
+    opacity 500ms var(--ease-ui),
+    translate 800ms var(--ease-panel) 200ms;
+}
+
+[data-app-shell][data-flying="true"] [data-flight-hide] {
+  opacity: 0 !important;
+  translate: var(--flight-hide-x, 0) 0;
+  pointer-events: none;
+  transition: opacity 150ms linear;
+}
+
+/* Keep target chrome laid out before landing, with no focus or paint while hidden. */
+[data-flight-chrome] {
+  display: contents;
+}
+
+[data-flight-chrome][aria-hidden="true"] {
+  visibility: hidden;
+}
+
+/* Pause the existing dock entrance so its delay still begins at the reveal. */
+[data-app-shell] > div:has(> [data-flight-chrome="playback"][aria-hidden="true"]) {
+  animation-play-state: paused;
+}
+
+[data-flight-chrome="panels"][aria-hidden="true"] > * {
+  animation-name: none;
+}
