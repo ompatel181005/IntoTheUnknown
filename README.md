@@ -52,14 +52,14 @@ Example: `/?ra=269.44627&dec=4.76820&fov=6&target=barnard&band=B1-B2&mode=blink`
 
 ## 3. The five validation targets
 
-Measured results come from [`validation.md`](validation.md) and nothing else. Only Barnard's Star has validated
-science so far. The other four load and play, but their motion or variability has not been measured against a
-reference, so we make no claim for them.
+Measured results come from [`validation.md`](validation.md). Barnard's Star and epsilon Indi B pass the stated
+astrometry checks against independent predictions. All five saved products are assessed; WISE 0855, RW Aur and
+R Dra have unmet science prerequisites, recorded explicitly in the report.
 
 | Target | What it is | Loads with the API down | Science |
 |---|---|---|---|
 | Barnard's Star | Nearby red dwarf with the largest known proper motion | Pass | **Astrometry pass** |
-| ε Indi B | Pair of T-type brown dwarfs orbiting ε Indi A | Pass | Not validated |
+| ε Indi B | Pair of T-type brown dwarfs orbiting ε Indi A | Pass | **Astrometry pass** |
 | WISE 0855 | Coldest known brown dwarf; not in Gaia | Pass | Not validated |
 | RW Aurigae | Young T Tauri star with a dusty disc | Pass | Not validated |
 | R Draconis | Mira variable | Pass | Not validated |
@@ -72,6 +72,10 @@ reference, so we make no claim for them.
 | Gaia proper motion + parallax prediction | 1.6687 px | Independent Astropy calculation |
 | Motion-vector error | **0.0410 px, pass** | At most 0.2 px |
 | Largest per-pass positional residual | **0.1704 px, pass** | Less than 0.3 px |
+
+**Epsilon Indi B, default preset (4 passes from 148 cutouts):** measured shift 1.0587 px, predicted shift
+1.0552 px, motion-vector error **0.0308 px**, and largest positional residual **0.1606 px**. Both errors are
+within the stated 0.2 px gates. This assesses the unresolved pair's astrometry; it does not validate its photometry.
 
 The prediction uses Gaia DR3 J2016.0 astrometry, Astropy space motion and Earth's barycentric position, with no
 aberration. Catalogue values and pass criteria for all five targets are in [`docs/TARGETS.md`](docs/TARGETS.md).
@@ -137,8 +141,8 @@ Details, scripts and costs: [`infra/README.md`](infra/README.md).
 
 - **Pixels and baseline.** SPHEREx pixels are 6.15″ and the baseline is about one year, so only fast movers
   shift by a pixel or more.
-- **Only one target is validated.** See section 3. The tool shows candidates to look at; it never claims a
-  discovery.
+- **Science gates have a limited scope.** The two astrometry passes are described in section 3. WISE 0855's
+  detection and RW Aur/R Dra variability are not established by this assessment. No discovery is claimed.
 - **Gaia overlay.** The backend serves Gaia predictions, but the overlay toggle in the app is not switched on
   yet.
 - **Saturation.** Barnard's Star and R Dra saturate SPHEREx; the pipeline blanks part of their cores, and
