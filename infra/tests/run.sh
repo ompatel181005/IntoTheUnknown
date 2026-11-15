@@ -18,6 +18,8 @@ run_case() { # label expected-exit script [ENV=value ...]
     # No ambient test settings or real subscription IDs can enter a case.
     for v in ${!FAKE_@}; do unset "$v"; done
     unset AZ_SUBSCRIPTION_ID AZ_TENANT_ID AZ_OIDC_APP_ID LOC SWA_LOC SUF FRONTEND_HOST ALLOW_UNVERIFIED_REGION SOURCE_REF APP_MODE APP_MIN_REPLICAS MIN_REPLICAS
+    # Test the checked-out commit, including a shallow PR checkout with no origin/main ref.
+    export SOURCE_REF=HEAD
     export FAKE_LOG="$CASE_DIR/calls" AZ_ENV_LOCAL="$CASE_DIR/env"
     export FAKE_SUB_ID=11111111-2222-3333-4444-555555555555
     export FAKE_TENANT=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
