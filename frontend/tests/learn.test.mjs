@@ -47,6 +47,7 @@ test("postcard metadata and advanced link use the actual saved manifests", async
     assert.equal(url.searchParams.get("dec"), String(m.query.dec));
     assert.equal(url.searchParams.get("band"), m.query.band);
     assert.equal(url.searchParams.get("src"), "saved");
+    assert.equal(url.searchParams.get("target"), target);
     assert.equal(url.searchParams.get("sel"), "8,9");
   }
 });

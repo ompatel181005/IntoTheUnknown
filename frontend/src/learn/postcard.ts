@@ -1,6 +1,7 @@
 import type { LoadedView } from "../data/source";
 import type { Manifest } from "../types";
 import { renderEpoch } from "../lib/stretch";
+import { PRESETS } from "../lib/targets";
 import { content, names } from "./content";
 import { learnSearch, type LearnState } from "./state";
 
@@ -18,6 +19,8 @@ export function epochEvidence(manifest: Manifest, index: number) {
 export function advancedLink(manifest: Manifest, epoch: number, selection: [number, number] | null): string {
   const q = manifest.query;
   const p = new URLSearchParams({ ra: String(q.ra), dec: String(q.dec), fov: String(q.fov_arcmin), band: q.band, src: "saved", epoch: String(epoch + 1) });
+  const preset = PRESETS.find(target => target.ra === q.ra && target.dec === q.dec && target.fov === q.fov_arcmin && target.band === q.band);
+  if (preset) p.set("target", preset.id);
   if (selection) p.set("sel", selection.join(","));
   return `/${"?" + p}`;
 }
