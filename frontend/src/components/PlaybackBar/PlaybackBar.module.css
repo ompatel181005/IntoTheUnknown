@@ -33,6 +33,10 @@
   animation: hintIn 250ms var(--ease);
 }
 
+.hintBanner[data-dismiss="fast"] {
+  transition: opacity 120ms var(--ease), translate 120ms var(--ease);
+}
+
 .hintBanner[data-fading="true"] {
   opacity: 0;
   translate: -50% -8px;
@@ -85,6 +89,7 @@
   bottom: calc(100% + 10px);
   left: 50%;
   translate: -50% 4px;
+  max-width: calc(100vw - 20px);
   padding: 6px 10px;
   border-radius: var(--radius-chip);
   background: var(--glass-bg-strong);
@@ -96,7 +101,8 @@
   font-weight: 400;
   letter-spacing: 0.02em;
   text-transform: none;
-  white-space: nowrap;
+  white-space: normal;
+  width: max-content;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
@@ -330,6 +336,8 @@
   }
 
   .date {
+    /* A wrapped date must fit the transport row without changing the flight destination. */
+    align-self: center;
     font-size: 22px;
   }
 

@@ -98,16 +98,24 @@
 
 .leader path {
   fill: none;
+  stroke-dasharray: 1;
 }
 
 /* Frame column: label row, square image, grid-label row. */
 .column {
+  --dur: 360ms;
   --row: 40px;
-  --side: min(calc(100cqw - 170px), calc(100cqh - var(--row) * 2 - 40px));
+  --full-side: calc(100cqh - var(--row) * 2 - 40px);
+  --side: min(calc(100cqw - var(--eyepiece-gutter, 170px)), var(--full-side));
   position: relative;
   z-index: 1;
   width: var(--side);
   transform-origin: 50% 50%;
+}
+
+/* Details occupies the label space; reserve only the rim and its gutter beside the card. */
+.column[data-details="true"] {
+  --eyepiece-gutter: 52px;
 }
 
 .column[data-flight] {
@@ -230,13 +238,32 @@
 /* Target label at the end of the leader line, Eyes style. */
 .targetLabel {
   position: absolute;
+  /* The 45 degree leader anchor follows layout in the same commit as the dome. */
+  left: calc(var(--side) * 0.85355 + 85.4556px);
+  top: calc(var(--side) * 0.14645 - 45.4556px);
   z-index: 2;
   display: grid;
   gap: 6px;
   width: max-content;
-  max-width: 260px;
+  /* Details must not rewrap the title partway through its absorption. */
+  max-width: clamp(160px, calc((100vw - var(--full-side)) / 2 - 150px), 280px);
   translate: 0 -14px;
+  transform-origin: 0 0;
   pointer-events: none;
+}
+
+.labelLine {
+  overflow: hidden;
+  transform-origin: 0 0;
+}
+
+.labelLine > * {
+  display: block;
+  transform-origin: 0 0;
+}
+
+.labelLine:has(.sourceTag) {
+  justify-self: start;
 }
 
 .targetName {
@@ -448,7 +475,8 @@
 .homeLayer {
   position: fixed;
   inset: 0;
-  padding: var(--chrome-top) var(--gutter) 32px;
+  /* Home keeps its own projection while the target header mounts and unmounts. */
+  padding: calc(var(--gutter) * 5) var(--gutter) 32px;
   visibility: visible;
 }
 

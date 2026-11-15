@@ -52,6 +52,7 @@ async function loadApiSource(api, globals = {}) {
       fetchAsset: api.fetchAsset ?? (async () => { throw new Error("unexpected asset request"); }),
       getViewStatus: api.getViewStatus ?? (async () => { throw new Error("unexpected status request"); }),
       registerGoldenView: api.registerGoldenView ?? (() => {}),
+      registerMeasurementRender: api.registerMeasurementRender ?? (() => {}),
     },
     "../lib/targets": { findPreset: api.findPreset ?? (() => null) },
   }, globals);
@@ -301,9 +302,44 @@ test("Saved and Live requests bypass an injected live prebuilt URL and strip it 
 async function loadCatalogApi(fetch) {
   const { namespace } = await loadTypescriptModule("src/api.ts", {}, {
     "./lib/catalog": { validateCatalog: (value) => value },
-  }, { fetch, AbortSignal });
+  }, { fetch, AbortSignal, URLSearchParams });
   return namespace;
 }
+
+test("static measurements carry the displayed render key even when registration returns a newer query view", async () => {
+  const urls = [];
+  const api = await loadCatalogApi(async (url) => {
+    urls.push(url);
+    return { ok: true, json: async () => url === "/api/views"
+      ? { view_id: "query-view", status: "ready", manifest_url: "/frames/new/manifest.json" }
+      : { points: [] } };
+  });
+  const rendered = "a".repeat(24);
+  api.registerGoldenView(rendered, { ra: 10, dec: 20, fov_arcmin: 2, band: "B1", source: "auto" });
+  await api.getSpectrum(rendered, 1, 2, 0);
+  await api.getLightCurve(rendered, 1, 2);
+  await api.getGaiaMatch(rendered, 1, 2, 0);
+  assert.equal(urls.filter((url) => url === "/api/views").length, 1);
+  for (const url of urls.slice(1)) {
+    assert.match(url, /^\/api\/views\/query-view\//);
+    assert.equal(new URL(url, "https://example.test").searchParams.get("render_key"), rendered);
+  }
+});
+
+test("dynamic view measurements stay tied to the displayed render when a watcher updates the query", async () => {
+  const urls = [];
+  const api = await loadCatalogApi(async (url) => {
+    urls.push(url);
+    return { ok: true, json: async () => ({ points: [] }) };
+  });
+  const displayed = "b".repeat(24);
+  api.registerMeasurementRender("live-query", displayed);
+  await api.getSpectrum("live-query", 1, 2, 0);
+  await api.getLightCurve("live-query", 1, 2);
+  await api.getGaiaMatch("live-query", 1, 2, 0);
+  assert.equal(urls.length, 3);
+  for (const url of urls) assert.equal(new URL(url, "https://example.test").searchParams.get("render_key"), displayed);
+});
 
 test("direct coordinate catalog loading stays bundled while home remains Blob first with fallback", async () => {
   const calls = [];
@@ -323,6 +359,7 @@ test("direct coordinate catalog loading stays bundled while home remains Blob fi
 
 
 test("exact default presets prefer golden snapshots before an unavailable prebuilt Blob URL", async () => {
+  let registered;
   const requested = { ...query(), mode: "stack", source: "auto", presetId: "preset", manifestUrl: "https://storage.invalid/unavailable/manifest.json" };
   const preset = { id: "preset", ra: requested.ra, dec: requested.dec, fov: requested.fov_arcmin, band: requested.band };
   const calls = [];
@@ -330,6 +367,7 @@ test("exact default presets prefer golden snapshots before an unavailable prebui
     findPreset: () => preset,
     createView: async () => { throw new Error("must not build"); },
     fetchAsset: async () => { throw new Error("must not fetch Blob"); },
+    registerGoldenView: (id, q) => { registered = { id, q }; },
   }, { fetch: async (url) => {
     calls.push(url);
     return { ok: true, headers: { get: () => "application/json" }, json: async () => ({ render_key: "golden", epochs: [] }) };
@@ -337,6 +375,7 @@ test("exact default presets prefer golden snapshots before an unavailable prebui
   const result = await source.load(requested, () => {}, new AbortController().signal);
   assert.equal(result.cacheLayer, "snapshot");
   assert.deepEqual(calls, ["/golden/preset/manifest.json"]);
+  assert.equal(registered.q.source, "saved");
 });
 
 

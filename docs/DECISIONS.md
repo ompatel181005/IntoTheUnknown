@@ -306,3 +306,31 @@ This is not an Azure measurement or a production speedup claim. No read-block,
 worker-count, resampling, wavelength, mask, or subtraction tuning was applied.
 
 Owner: ompatel181005 (Codex)
+
+## 2026-11-15: preserve exact measurement inputs across restarts (#82)
+
+Persist lossless aligned per-frame arrays, variance, flags and frame/WCS metadata
+in a pickle-free versioned NPZ sidecar keyed by the immutable render key.
+Azure sidecars use the existing private state container and runtime managed
+identity. Local sidecars are siblings of the public /frames directory. The
+public manifest/image schema and science pipeline remain version 3.
+
+Hydration is serialized per job. Legacy renders without sidecars can rebuild
+once using the bounded render pool, but frame keys and rendered image bytes
+must still match before accepting measurements. Missing/corrupt inputs must
+never silently substitute a newer frame set. Static-view measurement requests
+also carry the displayed render key so a moving query pointer cannot attach
+measurements or Gaia labels to a different image.
+
+This cache does not instantly populate analysis for the 47 existing prepared
+renders. New builds persist inputs automatically; older fields need one exact
+recovery while their source data are available. The five bundled Saved targets
+can recover without IRSA. Pixel/measurement values are preserved without lossy
+conversion; no new detection claim follows from faster delivery.
+
+Official references rechecked before implementation: the
+[IRSA mission page](https://irsa.ipac.caltech.edu/Missions/spherex.html) still
+lists DR1 and QR3 and links cloud access; the
+[Astropy cloud FITS guide](https://docs.astropy.org/en/stable/io/fits/usage/cloud.html)
+documents subset access. This change caches existing cutouts/analysis only;
+it does not retrieve full frames. Owner: ompatel181005 (Codex).

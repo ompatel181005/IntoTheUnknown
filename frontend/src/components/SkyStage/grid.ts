@@ -14,6 +14,9 @@ interface Frame {
   side: number;
 }
 
+// Keep the open and closed drawer geometry, including the optional inner grid.
+const cache = new Map<string, GridGeometry>();
+
 const ARCMIN_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
 
 /**
@@ -21,6 +24,9 @@ const ARCMIN_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
  * frame spans `fovDeg`. Lines cover a `w` x `h` area; labels sit where lines cross the frame edges.
  */
 export function buildGrid(ra0: number, dec0: number, fovDeg: number, frame: Frame, w: number, h: number): GridGeometry {
+  const key = [ra0, dec0, fovDeg, frame.left, frame.top, frame.side, w, h].join(",");
+  const cached = cache.get(key);
+  if (cached) return cached;
   const scale = frame.side / fovDeg; // px per degree
   const cx = frame.left + frame.side / 2;
   const cy = frame.top + frame.side / 2;
@@ -68,5 +74,8 @@ export function buildGrid(ra0: number, dec0: number, fovDeg: number, frame: Fram
     const x = project(ra, dec0);
     if (x && x[0] > frame.left + 4 && x[0] < frame.left + frame.side - 4) raLabels.push({ x: x[0], text: formatRa(((ra % 360) + 360) % 360) });
   }
-  return { lines, raLabels, decLabels };
+  const grid = { lines, raLabels, decLabels };
+  cache.set(key, grid);
+  if (cache.size > 4) cache.delete(cache.keys().next().value!);
+  return grid;
 }

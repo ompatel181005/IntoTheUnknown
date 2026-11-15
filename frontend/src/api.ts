@@ -8,8 +8,13 @@ export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undef
 // so image loading still works with the API stopped.
 const goldenQueries = new Map<string, ViewRequest>();
 const measurementViews = new Map<string, string>();
+const displayedRenders = new Map<string, string>();
+export function registerMeasurementRender(viewId: string, renderKey: string): void {
+  displayedRenders.set(viewId, renderKey);
+}
 export function registerGoldenView(renderId: string, query: ViewRequest): void {
   goldenQueries.set(renderId, query);
+  registerMeasurementRender(renderId, renderId);
 }
 
 async function measurementViewId(id: string, signal?: AbortSignal): Promise<string> {
@@ -107,22 +112,28 @@ export function getCatalog(setName = "points", signal?: AbortSignal, preferRemot
 
 /** Per-frame values at one grid pixel for one epoch (x, y in FITS orientation, row 0 = south). */
 export async function getSpectrum(viewId: string, x: number, y: number, epoch: number, signal?: AbortSignal): Promise<Spectrum> {
+  const renderKey = displayedRenders.get(viewId);
   viewId = await measurementViewId(viewId, signal);
   const q = new URLSearchParams({ x: String(x), y: String(y), epoch: String(epoch) });
+  if (renderKey) q.set("render_key", renderKey);
   return request(`/api/views/${viewId}/spectrum?${q}`, { signal }).then((r) => json<Spectrum>(r));
 }
 
 /** Forced aperture photometry on every frame at one grid position. */
 export async function getLightCurve(viewId: string, x: number, y: number, signal?: AbortSignal): Promise<LightCurve> {
+  const renderKey = displayedRenders.get(viewId);
   viewId = await measurementViewId(viewId, signal);
   const q = new URLSearchParams({ x: String(x), y: String(y) });
+  if (renderKey) q.set("render_key", renderKey);
   return request(`/api/views/${viewId}/lightcurve?${q}`, { signal }).then((r) => json<LightCurve>(r));
 }
 
 /** "Gaia match" label of the source at one grid position in one pass (null when the view has no label). */
 export async function getGaiaMatch(viewId: string, x: number, y: number, epoch: number, signal?: AbortSignal): Promise<GaiaSelection | null> {
+  const renderKey = displayedRenders.get(viewId);
   viewId = await measurementViewId(viewId, signal);
   const q = new URLSearchParams({ x: String(x), y: String(y), epoch: String(epoch) });
+  if (renderKey) q.set("render_key", renderKey);
   return request(`/api/views/${viewId}/gaia?${q}`, { signal }).then((r) => json<GaiaResult>(r)).then((g) => g.selection ?? null);
 }
 

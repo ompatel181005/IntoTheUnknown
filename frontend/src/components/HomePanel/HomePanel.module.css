@@ -1,6 +1,6 @@
 /* HomePanel styling: Lunar Glass tokens only, no hex colors. */
 
-.panel {
+.rail {
   position: absolute;
   z-index: 15;
   left: var(--gutter);
@@ -8,23 +8,43 @@
   bottom: 64px;
   width: 284px;
   max-width: calc(100vw - calc(var(--gutter) * 2));
+  box-sizing: content-box;
+  padding-right: var(--target-min);
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform var(--dur) var(--ease-panel);
+}
+
+.rail[data-open="false"] {
+  transform: translateX(calc(-100% + var(--target-min)));
+}
+
+.panel {
+  position: relative;
+  height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  transition: transform var(--dur) var(--ease-panel), visibility 0s 0s;
+  isolation: isolate;
+  pointer-events: auto;
+  transition: visibility 0s;
 }
 
-.panel[data-open="true"] {
-  transform: translateX(0);
-  visibility: visible;
-  pointer-events: auto;
+/* A steady reading surface keeps the moving sky out of glyph edges; the rim stays glass. */
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  border-radius: calc(var(--radius-panel) - 1px);
+  background: var(--space-0);
+  pointer-events: none;
 }
 
 .panel[data-open="false"] {
-  transform: translateX(calc(-100% - var(--gutter) - 24px));
   visibility: hidden;
   pointer-events: none;
-  transition: transform var(--dur) var(--ease-panel), visibility 0s var(--dur);
+  transition-delay: var(--dur);
 }
 
 .head {
@@ -32,6 +52,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 10px 10px 8px 16px;
+  min-height: 50px;
   gap: 8px;
   flex: none;
 }
@@ -51,40 +72,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.headActions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex: none;
-}
-
-.actionBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  min-height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-chip);
-  background: transparent;
-  color: var(--text-2);
-  cursor: pointer;
-  transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease);
-}
-
-.actionBtn:hover {
-  color: var(--text-1);
-  background: var(--hover-wash);
-}
-
-.actionBtn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 .searchWrap {
@@ -384,9 +371,8 @@
 
 .tab {
   position: absolute;
-  z-index: 15;
-  left: var(--gutter);
-  top: 50%;
+  left: calc(100% - var(--target-min));
+  top: calc(50% + 24px);
   translate: 0 -50%;
   display: flex;
   flex-direction: column;
@@ -394,13 +380,14 @@
   gap: 10px;
   width: var(--target-min);
   padding: 16px 0;
-  border-radius: var(--radius-chip);
+  border-radius: 0 var(--radius-chip) var(--radius-chip) 0;
   border: 1px solid var(--glass-border);
   background: var(--glass-bg-strong);
   color: var(--text-1);
   font-weight: 600;
   cursor: pointer;
-  transition: transform var(--dur) var(--ease-panel), opacity var(--dur) var(--ease-panel), border-color var(--dur) var(--ease), visibility 0s 0s;
+  pointer-events: auto;
+  transition: border-color var(--dur) var(--ease);
 }
 
 .tab:hover {
@@ -410,21 +397,6 @@
 .tab:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-
-.tab[data-open="true"] {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(calc(-100% - var(--gutter) - 24px));
-  visibility: hidden;
-  transition: transform var(--dur) var(--ease-panel), opacity var(--dur) var(--ease-panel), visibility 0s var(--dur);
-}
-
-.tab[data-open="false"] {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(0);
-  visibility: visible;
 }
 
 .tabLabel {
@@ -437,7 +409,7 @@
 }
 
 @media (max-width: 768px) {
-  .panel {
+  .rail {
     left: 8px;
     top: 72px;
     bottom: 76px;
@@ -446,25 +418,19 @@
     z-index: 30;
   }
 
+  .rail[data-open="false"] {
+    transform: translateX(calc(-100% + var(--target-min) + var(--gutter) - 8px));
+  }
+
   .tab {
-    left: var(--gutter);
-    top: 50%;
-    translate: 0 -50%;
-    z-index: 30;
+    top: calc(50% + 2px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .rail,
   .panel,
   .tab {
     transition: none;
-  }
-
-  .panel[data-open="false"] {
-    display: none;
-  }
-
-  .tab[data-open="true"] {
-    display: none;
   }
 }

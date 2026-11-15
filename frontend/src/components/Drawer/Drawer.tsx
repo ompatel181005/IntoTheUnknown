@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LoadedView } from "../../data/source";
 import type { AsyncState } from "../../hooks/useAsync";
 import { formatDec, formatParallaxDistance, formatProperMotionMoon, formatRa, mjdToDate } from "../../lib/format";
@@ -41,12 +41,64 @@ const TABS: { value: Panel; label: string }[] = [
   { value: "sky", label: "Sky" },
 ];
 
+/** Upper bound for the opening motion (title absorption is 360 ms), in case an animation never ends. */
+const SETTLE_MAX_MS = 700;
+/** Upper bound for the body fade (--dur), in case transitionend never fires. */
+const REVEAL_MAX_MS = 400;
+
+/**
+ * Opening Details starts the drawer slide, the title absorption and the dome resize at once. Until they are over
+ * the drawer stays cheap to composite ("enter": no live blur, no float shadow, body laid out but unpainted). Then
+ * the body fades in, still flat ("reveal"), and only when it is opaque does the glass get its blur back ("rest").
+ */
+type Phase = "enter" | "reveal" | "rest";
+
+function useOpeningPhase(bodyRef: React.RefObject<HTMLDivElement | null>): Phase {
+  const [phase, setPhase] = useState<Phase>("enter");
+  useEffect(() => {
+    let alive = true;
+    const toReveal = () => {
+      if (alive) setPhase((p) => (p === "enter" ? "reveal" : p));
+    };
+    const cap = window.setTimeout(toReveal, SETTLE_MAX_MS);
+    // One frame later, so animations started by this commit are registered.
+    const raf = requestAnimationFrame(() => {
+      const finite = document
+        .getAnimations()
+        .filter((a) => a.playState === "running" && Number.isFinite(a.effect?.getComputedTiming().endTime ?? Infinity));
+      void Promise.all(finite.map((a) => a.finished.catch(() => undefined))).then(toReveal);
+    });
+    return () => {
+      alive = false;
+      window.clearTimeout(cap);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+  useEffect(() => {
+    if (phase !== "reveal") return;
+    const body = bodyRef.current;
+    const rest = () => setPhase("rest");
+    const onEnd = (e: TransitionEvent) => {
+      if (e.target === body && e.propertyName === "opacity") rest();
+    };
+    body?.addEventListener("transitionend", onEnd);
+    const cap = window.setTimeout(rest, REVEAL_MAX_MS);
+    return () => {
+      body?.removeEventListener("transitionend", onEnd);
+      window.clearTimeout(cap);
+    };
+  }, [phase, bodyRef]);
+  return phase;
+}
+
 /** Measurements and data, one tab each (the "Advanced" pages of the prototype on initialammar). */
 export function Drawer(p: DrawerProps) {
   const tabsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     tabsRef.current?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus({ preventScroll: true });
   }, []);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const phase = useOpeningPhase(bodyRef);
   const panelId = `drawer-panel-${p.panel}`;
   return (
     <GlassPanel
@@ -58,13 +110,14 @@ export function Drawer(p: DrawerProps) {
       aria-label="Details"
       data-tour="details"
       data-flight-hide
+      data-phase={phase}
       style={{ ["--flight-hide-x" as string]: "32px" }}
     >
       <div className={s.head} ref={tabsRef}>
         <Tabs label="Details" value={p.panel} onChange={p.onPanel} tabs={TABS.map((t) => ({ ...t, panelId }))} />
         <GlassButton className={s.closeBtn} variant="ghost" icon="close" label="Close details" onClick={p.onClose} />
       </div>
-      <div className={s.body} id={panelId} role="tabpanel" aria-labelledby={`tab-${p.panel}`}>
+      <div className={s.body} ref={bodyRef} id={panelId} role="tabpanel" aria-labelledby={`tab-${p.panel}`}>
         {p.panel === "pass" && <PassTab {...p} />}
         {p.panel === "colours" && <ColoursTab {...p} />}
         {p.panel === "brightness" && <BrightnessTab {...p} />}

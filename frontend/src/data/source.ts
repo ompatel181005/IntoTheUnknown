@@ -1,4 +1,4 @@
-import { ApiRequestError, createView, fetchAsset, getViewStatus, registerGoldenView } from "../api";
+import { ApiRequestError, createView, fetchAsset, getViewStatus, registerGoldenView, registerMeasurementRender } from "../api";
 import { findPreset } from "../lib/targets";
 import type { GaiaResult, Manifest, ViewRequest, ViewStage } from "../types";
 
@@ -128,7 +128,8 @@ async function tryGolden(q: ViewQuery, signal: AbortSignal): Promise<LoadedView 
   if (!res.ok || !(res.headers.get("content-type") ?? "").includes("json")) return null;
   const manifest = (await res.json()) as Manifest;
   const arrays = await loadArrays(manifest, base, signal);
-  registerGoldenView(manifest.render_key, viewRequest(q));
+  // Bundled renders were built with Saved keys, even when the viewer selected Auto.
+  registerGoldenView(manifest.render_key, { ...viewRequest(q), source: "saved" });
   return { viewId: manifest.render_key, manifest, ...arrays, fromCache: true, cacheLayer: "snapshot" };
 }
 
@@ -172,6 +173,7 @@ export const apiSource: ViewSource = {
     report({ stage: "fetch", path: "prepared" });
     const manifest = (await (await fetchAsset(manifestUrl, signal)).json()) as Manifest;
     const arrays = await loadArrays(manifest, dirOf(manifestUrl), signal);
+    registerMeasurementRender(created.view_id, manifest.render_key);
     return { viewId: created.view_id, manifest, ...arrays, fromCache };
   },
 };

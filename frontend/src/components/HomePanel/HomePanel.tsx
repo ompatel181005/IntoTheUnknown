@@ -71,17 +71,12 @@ export function HomePanel({
   brand,
 }: HomePanelProps) {
   const tabRef = useRef<HTMLButtonElement>(null);
-  const collapseBtnRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const prevOpenRef = useRef(open);
 
   useEffect(() => {
     if (prevOpenRef.current !== open) {
-      if (open) {
-        collapseBtnRef.current?.focus();
-      } else {
-        tabRef.current?.focus();
-      }
+      tabRef.current?.focus({ preventScroll: true });
       prevOpenRef.current = open;
     }
   }, [open]);
@@ -112,26 +107,25 @@ export function HomePanel({
   };
 
   const handlePanelKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Escape" && !query) {
+    if (e.key === "Escape" && (!query || e.target === tabRef.current)) {
       onOpenChange(false);
     }
   };
 
   return (
-    <>
+    <div className={s.rail} data-open={open} data-tour="targets" data-flight-hide onKeyDown={handlePanelKeyDown}>
       <button
         ref={tabRef}
         type="button"
         className={s.tab}
         data-open={open}
-        onClick={() => onOpenChange(true)}
-        aria-label="Show list"
+        onClick={() => onOpenChange(!open)}
+        aria-label={open ? "Hide list" : "Show list"}
         aria-expanded={open}
         aria-controls="home-panel"
-        tabIndex={open ? -1 : 0}
-        title="Show list"
+        title={open ? "Hide list" : "Show list"}
       >
-        <Icon name="search" size={16} />
+        <Icon name={open ? "prev" : "next"} size={16} />
         <span className={s.tabLabel}>Targets</span>
       </button>
 
@@ -141,28 +135,13 @@ export function HomePanel({
         className={s.panel}
         role="region"
         aria-label="Targets"
-        data-tour="targets"
-        data-flight-hide
         data-open={open}
         inert={!open ? true : undefined}
-        onKeyDown={handlePanelKeyDown}
       >
         <div className={s.head}>
           <div className={s.brand}>
             <Mark />
             <span className={s.brandName}>{brand}</span>
-          </div>
-          <div className={s.headActions}>
-            <button
-              ref={collapseBtnRef}
-              type="button"
-              className={s.actionBtn}
-              aria-label="Hide list"
-              title="Hide list"
-              onClick={() => onOpenChange(false)}
-            >
-              <Icon name="collapse" size={16} />
-            </button>
           </div>
         </div>
 
@@ -269,6 +248,6 @@ export function HomePanel({
           )}
         </div>
       </GlassPanel>
-    </>
+    </div>
   );
 }

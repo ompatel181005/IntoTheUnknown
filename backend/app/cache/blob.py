@@ -11,7 +11,7 @@ import logging
 from typing import Protocol
 
 from .. import config
-from .local import LocalCache, safe_name
+from .local import LocalCache, analysis_key, safe_name
 
 log = logging.getLogger("cache")
 
@@ -51,10 +51,14 @@ class FrameCache(Protocol):
     def read(self, rk: str, name: str) -> bytes: ...  # one file of a render, manifest.json included
     def manifest_url(self, rk: str) -> str: ...
     def catalog(self) -> dict | None: ...  # meta/catalog.json from the new-data watcher; None until it has run
+    def read_analysis(self, rk: str) -> bytes | None: ...
+    def put_analysis(self, rk: str, data: bytes) -> None: ...
 
 
 class BlobCache:
-    def __init__(self, account_url: str, container: str, public_base: str = "", container_client=None):
+    def __init__(
+        self, account_url: str, container: str, public_base: str = "", container_client=None, analysis_client=None
+    ):
         if container_client is None:
             from azure.identity import DefaultAzureCredential
             from azure.storage.blob import BlobServiceClient
@@ -64,8 +68,33 @@ class BlobCache:
                 account_url, credential=DefaultAzureCredential(), retry_total=1, connection_timeout=5, read_timeout=20
             )
             container_client = service.get_container_client(container)
+            analysis_client = service.get_container_client(config.STATE_CONTAINER)
         self.c = container_client
+        self.analysis = analysis_client  # injected test clients must explicitly supply a separate private container
         self.public_base = (public_base or f"{account_url.rstrip('/')}/{container}").rstrip("/")
+
+    def read_analysis(self, rk: str) -> bytes | None:
+        from azure.core.exceptions import ResourceNotFoundError
+
+        if self.analysis is None:
+            return None
+        try:
+            return self.analysis.download_blob(f"analysis/v1/{analysis_key(rk)}.npz").readall()
+        except ResourceNotFoundError:
+            return None
+
+    def put_analysis(self, rk: str, data: bytes) -> None:
+        from azure.storage.blob import ContentSettings
+
+        if self.analysis is not None:
+            self.analysis.upload_blob(
+                f"analysis/v1/{analysis_key(rk)}.npz",
+                data,
+                overwrite=True,
+                content_settings=ContentSettings(
+                    content_type="application/octet-stream", cache_control="private, no-store"
+                ),
+            )
 
     def _put(self, path: str, data: bytes, ctype: str, cache: str) -> None:
         from azure.storage.blob import ContentSettings

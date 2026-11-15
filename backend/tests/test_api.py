@@ -83,11 +83,12 @@ def test_measurement_inputs_are_bounded():
 def test_rebuild_failure_is_not_a_bare_500(monkeypatch):
     from app.processing import views
 
-    def down(job):
+    def down(job, expected_render=None, expected_cache=None):
         raise views.ViewError("IRSA_DOWN", "archive down")
 
     job = views.JOBS[view_id]
     monkeypatch.setattr(job, "epochs", [])  # as after a restart
+    monkeypatch.setattr(job.cache, "read_analysis", lambda rk: None)  # legacy render, no persisted inputs
     monkeypatch.setattr(views, "build", down)
     r = client.get(f"/api/views/{view_id}/spectrum?x=1&y=1")
     assert r.status_code == 503 and r.json()["error"]["code"] == "IRSA_DOWN"
