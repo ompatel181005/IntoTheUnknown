@@ -83,7 +83,8 @@ The browser never talks to IRSA. The React app (`frontend/`) asks the FastAPI ba
 
 1. **Frames.** The five targets build from the real cutouts in `demo/`, so they work with IRSA down. Any other
    position queries IRSA's SIA service, with TAP as the fallback, and dedupes releases (newest wins).
-2. **Cutouts.** Fetched in parallel from IRSA's cutout service, sized from the field of view (never full frames).
+2. **Cutouts.** Fetched in parallel as range reads of the pixel window from IRSA's public AWS mirror, with
+   IRSA's cutout service as the fallback. Sized from the field of view (never full frames).
 3. **Cleaning.** `IMAGE − ZODI`, then masking by the bit names in each file's FLAGS header (`MSKNnnnn` cards).
    SOURCE, OVERFLOW, NONLINEAR, FULLSAMPLE, HALO and BLOOM are kept so bright stars' cores and wings survive;
    TRANSIENT and SUR_ERROR never mask a SOURCE pixel (`docs/DECISIONS.md`).
@@ -126,7 +127,7 @@ five targets ship inside the frontend, so the presets render even when the API i
 |---|---|---|
 | Container Apps + Container Registry | Hosts the public app; GitHub Actions builds and deploys `main` | Live |
 | User-assigned managed identity | Registry pulls and Blob access with no stored secrets | Live |
-| Blob Storage | Render cache and watcher state | Account live; backend cache integration in progress |
+| Blob Storage | Render cache: finished views survive deploys, and the browser loads images straight from Blob | Live |
 | Functions | Daily watcher that detects new SPHEREx data | Code in `functions/`; deployment pending |
 | Log Analytics + Application Insights | Platform logs; API latency, cache hits and archive failures | Logs live; app telemetry merged, not yet verified live |
 
@@ -146,7 +147,9 @@ Details, scripts and costs: [`infra/README.md`](infra/README.md).
   background star that is bright at 1–2 µm; only its 4–5 µm points are WISE 0855 itself.
 - **RW Aurigae.** One pass has a field-star scale of about 0.925. That is a calibration concern, not a
   variability detection.
-- **Live positions depend on IRSA.** Positions outside the five saved fields need the archive to answer.
+- **Live positions depend on IRSA.** Positions outside the five saved fields need the archive to answer with
+  the list of exposures. A new position took about 33 s to build in our test; after that it is served from the
+  cache.
 
 ## 7. Run locally and deploy
 
@@ -194,7 +197,7 @@ alignment check. Credit: ESA/Gaia/DPAC. Cite Gaia Collaboration et al. (2016b) a
 **Other.** The WISE 0855 position comes from CatWISE2020 (via IRSA). The demo pack's Gaia field catalogues were
 downloaded through CDS VizieR.
 
-**Software.** Astropy, astroquery, reproject, NumPy, SciPy, FastAPI, React and Vite.
+**Software.** Astropy, astroquery, reproject, NumPy, SciPy, s3fs, FastAPI, React and Vite.
 
 ## 9. AI-tools disclosure
 
