@@ -41,6 +41,33 @@
   stroke-width: 1;
 }
 
+.gaiaMatch,
+.gaiaMiss {
+  fill: none;
+  stroke: var(--match);
+  stroke-width: 0.2;
+}
+
+.gaiaMiss {
+  stroke: var(--text-2);
+  stroke-dasharray: 0.5 0.5;
+}
+
+.gaiaArrow line {
+  stroke: var(--mover);
+  stroke-width: 0.25;
+}
+
+.gaiaArrow circle {
+  fill: var(--mover);
+}
+
+.gaiaArrow text {
+  fill: var(--mover);
+  font-size: 1.8px;
+  dominant-baseline: middle;
+}
+
 .ticks {
   fill: none;
   stroke: var(--text-2);

@@ -3,10 +3,11 @@ import type { LoadedView } from "../../data/source";
 import type { ViewState as LoadState } from "../../hooks/useView";
 import { flightIsActive, getFlightDirection, getFlightStartPose, markFlight, registerDomeLayout, setDomeDestination, subscribeFlight, type FlightPose } from "../../lib/flight";
 import { formatDec, formatRa } from "../../lib/format";
+import { ARROW_GAIN, gaiaMarks } from "../../lib/gaia";
 import { renderDifference, renderEpoch, tokenRgb } from "../../lib/stretch";
 import { type Preset } from "../../lib/targets";
 import type { Overlays, StretchKind, ViewMode } from "../../lib/url";
-import type { CatalogObject, FovArcmin } from "../../types";
+import type { CatalogObject, FovArcmin, GaiaResult } from "../../types";
 import { Orrery } from "../Orrery/Orrery";
 import { GlassButton, GlassPanel, Icon, Term } from "../glass";
 import { buildGrid } from "./grid";
@@ -29,7 +30,7 @@ interface SkyStageProps {
   gain: number;
   /** Reference pass for Difference. */
   refIndex: number;
-  overlays: Pick<Overlays, "flags" | "grid">;
+  overlays: Overlays;
   flying: boolean;
   onFullscreen: () => void;
   /** Show the leader-line label beside the dome (hidden when a panel covers it). */
@@ -389,6 +390,7 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
                   ))}
                 </svg>
               )}
+              {props.overlays.gaia && view.gaia && <GaiaLayer gaia={view.gaia} index={index} nx={view.manifest.grid.nx} ny={view.manifest.grid.ny} />}
               <Crosshair />
               {props.sel && <SelectionMarker sel={props.sel} nx={view.manifest.grid.nx} ny={view.manifest.grid.ny} />}
             </>
@@ -441,6 +443,30 @@ function SelectionMarker({ sel, nx, ny }: { sel: [number, number]; nx: number; n
     <svg className={s.overlay} viewBox={`0 0 ${nx} ${ny}`} aria-hidden="true">
       <circle cx={x} cy={y} r={1.8} fill="none" stroke="var(--accent)" strokeWidth={0.25} />
       <path d={`M${x - 3},${y}h1.2M${x + 1.8},${y}h1.2M${x},${y - 3}v1.2M${x},${y + 1.8}v1.2`} stroke="var(--accent)" strokeWidth={0.25} />
+    </svg>
+  );
+}
+
+/** Gaia DR3 predictions for this pass: green ring = SPHEREx sees the star there, dashed = it does not. */
+function GaiaLayer({ gaia, index, nx, ny }: { gaia: GaiaResult; index: number; nx: number; ny: number }) {
+  const marks = useMemo(() => gaiaMarks(gaia, index, ny), [gaia, index, ny]);
+  return (
+    <svg className={s.overlay} viewBox={`0 0 ${nx} ${ny}`} aria-hidden="true">
+      {marks.map((m, i) => (
+        <circle key={i} cx={m.x} cy={m.y} r={1.3} className={m.matched ? s.gaiaMatch : s.gaiaMiss} />
+      ))}
+      {marks.map(
+        (m, i) =>
+          m.arrow && (
+            <g key={`a${i}`} className={s.gaiaArrow}>
+              <line x1={m.arrow[0]} y1={m.arrow[1]} x2={m.arrow[2]} y2={m.arrow[3]} />
+              <circle cx={m.arrow[2]} cy={m.arrow[3]} r={0.45} />
+              <text x={m.arrow[2] + 1} y={m.arrow[3]}>
+                Gaia motion ×{ARROW_GAIN}
+              </text>
+            </g>
+          ),
+      )}
     </svg>
   );
 }

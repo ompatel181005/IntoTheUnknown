@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getLightCurve, getSpectrum } from "./api";
+import { getGaiaMatch, getLightCurve, getSpectrum } from "./api";
 import { AppShell } from "./components/AppShell/AppShell";
 import { CustomizePanel, type CustomizeValues } from "./components/Customize/CustomizePanel";
 import { Drawer } from "./components/Drawer/Drawer";
@@ -136,6 +136,10 @@ export default function App({ source }: { source: ViewSource }) {
     view && url.panel === "brightness" ? `${view.viewId}|${at[0]}|${at[1]}` : null,
     (signal) => getLightCurve(view!.viewId, at[0], at[1], signal),
   );
+  const gaiaMatch = useAsync(
+    view?.gaia && (url.panel === "colours" || url.panel === "brightness") ? `${view.viewId}|${at[0]}|${at[1]}|${pb.index}` : null,
+    (signal) => getGaiaMatch(view!.viewId, at[0], at[1], pb.index, signal),
+  );
 
   const preset = findPreset(url.target);
   const drawerOpen = url.panel !== null;
@@ -268,10 +272,12 @@ export default function App({ source }: { source: ViewSource }) {
   const available = {
     flags: !!view && view.masks.some((m) => m !== null),
     grid: !!view,
+    gaia: !!view?.gaia,
   };
   const overlays = {
     flags: url.overlays.flags && available.flags,
     grid: url.overlays.grid && available.grid,
+    gaia: url.overlays.gaia && available.gaia,
   };
 
   // Keyboard shortcuts. Ignored while typing.
@@ -468,6 +474,7 @@ export default function App({ source }: { source: ViewSource }) {
                   [
                     { id: "grid", label: "Coordinate grid", icon: "grid", pressed: overlays.grid, disabled: !available.grid, onClick: () => toggleOverlay("grid") },
                     ...(!view || available.flags ? [{ id: "flags", label: "Flagged pixels", icon: "flag" as const, pressed: overlays.flags, disabled: !available.flags, onClick: () => toggleOverlay("flags") }] : []),
+                    ...(available.gaia ? [{ id: "gaia", label: "Gaia stars", icon: "gaia" as const, pressed: overlays.gaia, onClick: () => toggleOverlay("gaia") }] : []),
                     { id: "invert", label: "Invert", icon: "invert", pressed: url.invert, disabled: !view, onClick: () => update({ invert: !url.invert }) },
                   ],
                   [
@@ -490,6 +497,7 @@ export default function App({ source }: { source: ViewSource }) {
                 sel={url.sel}
                 spectrum={spectrum}
                 lightcurve={lightcurve}
+                gaiaMatch={gaiaMatch}
                 onSelectEpoch={pb.seek}
               />
             )}

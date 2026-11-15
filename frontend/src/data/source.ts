@@ -1,12 +1,14 @@
 import { ApiRequestError, createView, fetchAsset, getViewStatus, registerGoldenView } from "../api";
 import { findPreset } from "../lib/targets";
-import type { Manifest, ViewRequest, ViewStage } from "../types";
+import type { GaiaResult, Manifest, ViewRequest, ViewStage } from "../types";
 
 export interface LoadedView {
   viewId: string;
   manifest: Manifest;
   images: Float32Array[];
   masks: (Uint8Array | null)[];
+  /** Gaia predictions for the overlay; null when the view has none (the overlay then hides). */
+  gaia?: GaiaResult | null;
   /** True when served from a cache layer (golden snapshot or an already-rendered view). */
   fromCache: boolean;
   /** Set by non-production sources so the UI can label the data honestly. */
@@ -57,6 +59,12 @@ function wait(ms: number, signal: AbortSignal) {
 async function loadArrays(m: Manifest, base: string, signal: AbortSignal) {
   const assetUrl = (path: string) => /^(https?:|\/)/.test(path) ? path : base + path;
   throwIfAborted(signal);
+  const gaiaPromise: Promise<GaiaResult | null> = !m.extras?.gaia ? Promise.resolve(null) : fetchAsset(assetUrl(m.extras.gaia), signal)
+    .then((response) => response.json() as Promise<GaiaResult>)
+    .catch((error: unknown) => {
+      if (signal.aborted || (error as { name?: string } | null)?.name === "AbortError") throw error;
+      return null; // A missing gaia.json only disables the Gaia overlay.
+    });
   const arrays = await Promise.all(m.epochs.map(async (e) => {
     const imagePromise = fetchAsset(assetUrl(e.image), signal).then(async (response) => {
       const buffer = await response.arrayBuffer();
@@ -76,10 +84,11 @@ async function loadArrays(m: Manifest, base: string, signal: AbortSignal) {
     const [image, mask] = await Promise.all([imagePromise, maskPromise]);
     return { image, mask };
   }));
+  const gaia = await gaiaPromise;
   throwIfAborted(signal);
   const images = arrays.map(({ image }) => image);
   const masks = arrays.map(({ mask }) => mask);
-  return { images, masks };
+  return { images, masks, gaia };
 }
 
 const dirOf = (url: string) => url.slice(0, url.lastIndexOf("/") + 1);
