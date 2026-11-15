@@ -216,6 +216,34 @@ def test_second_image_mismatch_aborts_before_npz_or_upload(rebuild_fixture):
     assert encoded == []
 
 
+def test_display_stretch_drift_with_exact_images_preserves_public_manifest(monkeypatch, rebuild_fixture, capsys):
+    req, manifest, rows, files, rk, cache, encoded = rebuild_fixture
+    original = copy.deepcopy(manifest)
+    rebuilt = {**copy.deepcopy(manifest), "stretch": {"vmax": 1.00000000001}}
+    monkeypatch.setattr(recovery.views, "_render", lambda *args: (rebuilt, files))
+    assert recovery.rebuild(manifest, req, rows, cache, rk) == b"npz"
+    assert manifest == original
+    assert json.loads(cache.read(rk, "manifest.json")) == original
+    assert len(encoded) == 1
+    assert json.loads(capsys.readouterr().out)["originalimagesexact"] is True
+
+
+@pytest.mark.parametrize("field", ["grid", "epochs", "frames", "catalog", "origin", "bandpass_matched"])
+def test_scientific_metadata_drift_still_refuses_before_npz(monkeypatch, rebuild_fixture, field):
+    req, manifest, rows, files, rk, cache, encoded = rebuild_fixture
+    rebuilt = copy.deepcopy(manifest)
+    if field in ("epochs", "frames"):
+        rebuilt[field][0] = {**rebuilt[field][0], "unexpected_change": True}
+    elif field == "bandpass_matched":
+        rebuilt[field] = False
+    else:
+        rebuilt[field] = {**rebuilt[field], "unexpected_change": True}
+    monkeypatch.setattr(recovery.views, "_render", lambda *args: (rebuilt, files))
+    with pytest.raises((recovery.RecoveryError, recovery.views.ViewError)):
+        recovery.rebuild(manifest, req, rows, cache, rk)
+    assert not encoded
+
+
 def test_original_science_gate_is_not_relaxed(monkeypatch, rebuild_fixture):
     req, manifest, rows, _, rk, cache, encoded = rebuild_fixture
     monkeypatch.setattr(recovery.config, "MIN_EPOCH_FRAMES_LIVE", 10)

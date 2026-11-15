@@ -4,6 +4,11 @@ Default: metadata-only discovery for one frame. --apply explicitly enables S3
 cutout range reads and a create-only private sidecar upload after exact matching.
 No public render/pointer writes; no full-image downloads or new exposure search.
 Run with PYTHONPATH=backend and the backend Python environment.
+
+Display stretch is derived from pre-serialization floating-point stacks, is not
+used by the measurement sidecar, and stays unchanged in the public manifest.
+Recovery requires exact published float32 image bytes and scientific metadata;
+display-only stretch differences do not substitute for or weaken those checks.
 """
 
 from __future__ import annotations
@@ -236,6 +241,15 @@ def rebuild(
         [],
         None,
     )
+    image_names = {e["image"] for e in manifest["epochs"]}
+    if image_names != {name for name in files if name.endswith(".f32")}:
+        raise RecoveryError("Rebuilt image inventory differs from original")
+    try:
+        views._verify_render(cache, rk, rebuilt, files)
+    except Exception:
+        print(json.dumps({"originalimagesexact": False, "render_key": rk}))
+        raise
+    print(json.dumps({"originalimagesexact": True, "render_key": rk}))
     for field in (
         "schema",
         "render_key",
@@ -245,7 +259,6 @@ def rebuild(
         "grid",
         "catalog",
         "origin",
-        "stretch",
         "bandpass_matched",
         "epochs",
         "frames",
@@ -254,10 +267,6 @@ def rebuild(
             raise RecoveryError(
                 f"Rebuilt {field} differs from original; no sidecar written"
             )
-    image_names = {e["image"] for e in manifest["epochs"]}
-    if image_names != {name for name in files if name.endswith(".f32")}:
-        raise RecoveryError("Rebuilt image inventory differs from original")
-    views._verify_render(cache, rk, rebuilt, files)
     data = analysis_cache.encode(rk, epochs, shape)
     analysis_cache.decode(
         data, rk, manifest
