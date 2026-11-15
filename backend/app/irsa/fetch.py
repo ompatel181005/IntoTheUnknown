@@ -2,19 +2,23 @@
 
 import concurrent.futures as cf
 import http.client
+import io
 import logging
 import time
 import urllib.error
+import urllib.request
 import warnings
 
 import astropy.units as u
 import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.io import fits
-from astropy.utils.data import conf
 from astropy.wcs import WCS
 
-conf.remote_timeout = 120
+from ..config import IRSA_TIMEOUT_S
+
+# Cutouts are a few MB including the PSF extensions. Refuse a full-frame response.
+MAX_CUTOUT_BYTES = 8 * 1024 * 1024
 RETRYABLE_HTTP = {429, 500, 502, 503, 504}
 TRANSIENT = (
     TimeoutError,
@@ -64,7 +68,19 @@ def fetch_irsa(frame, ra, dec, size_deg, retries=3):
     url = f"{frame['url']}?center={ra},{dec}d&size={size_deg}"
     for attempt in range(retries):
         try:
-            with fits.open(url, cache=False, memmap=False) as hdul:
+            # fits.open(URL, cache=False) retains its temporary download until process exit.
+            # A long-running API must instead own and close each bounded response buffer.
+            with urllib.request.urlopen(url, timeout=IRSA_TIMEOUT_S) as response:
+                body = response.read(MAX_CUTOUT_BYTES + 1)
+                length = response.headers.get("Content-Length")
+                expected = int(length) if length and length.isdecimal() else None
+                if len(body) > MAX_CUTOUT_BYTES or (expected is not None and expected > MAX_CUTOUT_BYTES):
+                    logging.getLogger(__name__).warning("IRSA cutout exceeded the %d-byte limit", MAX_CUTOUT_BYTES)
+                    return None
+                if expected is not None and len(body) < expected:
+                    # A bounded HTTPResponse.read can silently return short on premature EOF.
+                    raise http.client.IncompleteRead(body, expected - len(body))
+            with io.BytesIO(body) as buffer, fits.open(buffer, memmap=False) as hdul:
                 return {**frame, **_extract(hdul, ra, dec), "source": "irsa"}
         except urllib.error.HTTPError as e:
             if e.code not in RETRYABLE_HTTP:
