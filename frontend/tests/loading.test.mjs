@@ -76,7 +76,7 @@ test("starts image and mask fetches together and allows an absent mask", async (
     },
   });
   const load = source.load(query(), () => {}, new AbortController().signal);
-  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setTimeout(resolve, 225));
   assert.deepEqual(started, ["/r/v/manifest.json", "/r/v/e.f32", "/r/v/e.mask"]);
 
   image.resolve(responseForArrayBuffer(new Float32Array([1, 2]).buffer));
@@ -108,7 +108,7 @@ test("rejects when a signal aborts while an asset body is being read", async () 
     },
   });
   const load = source.load(query(), () => {}, controller.signal);
-  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setTimeout(resolve, 225));
   controller.abort();
   body.resolve(new Float32Array([1]).buffer);
   await assert.rejects(load, { name: "AbortError" });
@@ -123,10 +123,11 @@ test("pre-aborted loads reject before creating an API request", async () => {
   assert.equal(requests, 0);
 });
 
-test("queued wait abort cleans up its listener and does not poll", async () => {
+test("abort before submission drops obsolete queued work and cleans up its listener", async () => {
   let polls = 0;
+  let posts = 0;
   const source = await loadApiSource({
-    createView: async () => ({ status: "queued", status_url: "/status", view_id: "v" }),
+    createView: async () => { posts += 1; return { status: "queued", status_url: "/status", view_id: "v" }; },
     getViewStatus: async () => { polls += 1; return { status: "queued" }; },
   });
   const controller = new AbortController();
@@ -143,6 +144,7 @@ test("queued wait abort cleans up its listener and does not poll", async () => {
   assert.equal(added, 1);
   assert.equal(removed, 1);
   assert.equal(polls, 0);
+  assert.equal(posts, 0);
 });
 
 test("uses a short first poll and the existing cadence afterward", async () => {
@@ -158,7 +160,29 @@ test("uses a short first poll and the existing cadence afterward", async () => {
   }, { setTimeout: (callback, delay) => { delays.push(delay); return setImmediate(callback); }, clearTimeout: clearImmediate });
   await source.load(query(), () => {}, new AbortController().signal);
   assert.equal(poll, 2);
-  assert.deepEqual(delays, [350, 1500]);
+  assert.deepEqual(delays, [200, 350, 1500]);
+});
+
+test("aborting one submitted viewer stops its polling while another viewer completes the shared job", async () => {
+  const first = new AbortController();
+  const second = new AbortController();
+  const posts = [];
+  const polls = [];
+  const sharedJob = { status: "queued", status_url: "/shared/status", view_id: "shared" };
+  const source = await loadApiSource({
+    createView: async (_q, signal) => { posts.push(signal); return sharedJob; },
+    getViewStatus: async (_url, signal) => { polls.push(signal); return { status: "ready", manifest_url: "/shared/manifest.json" }; },
+    fetchAsset: async () => ({ json: async () => ({ render_key: "shared", epochs: [] }) }),
+  });
+  const abandoned = source.load(query(), () => {}, first.signal);
+  const remaining = source.load(query(), () => {}, second.signal);
+  await new Promise((resolve) => setTimeout(resolve, 225));
+  assert.equal(posts.length, 2);
+  first.abort();
+  await assert.rejects(abandoned, { name: "AbortError" });
+  assert.equal((await remaining).viewId, "shared");
+  assert.deepEqual(polls, [second.signal]);
+  assert.equal(sharedJob.status, "queued"); // browser never mutates/cancels server ownership
 });
 
 test("ignores late progress and completion from a source that ignores abort", async () => {
@@ -455,7 +479,7 @@ test("Gaia abort rejects promptly while an image request is still pending", asyn
   });
   const load = source.load(query(), () => {}, new AbortController().signal);
   const rejected = assert.rejects(load, { name: "AbortError" });
-  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setTimeout(resolve, 225));
   gaia.reject(new DOMException("aborted", "AbortError"));
   // No image resolution is needed for a failed/aborted Gaia request to reject.
   await rejected;

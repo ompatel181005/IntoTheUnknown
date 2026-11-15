@@ -21,6 +21,8 @@ export interface LoadProgress {
   stage: ViewStage;
   done?: number;
   total?: number;
+  path?: "prepared" | "build";
+  startedAtMs?: number;
 }
 
 export interface ViewQuery extends ViewRequest {
@@ -35,6 +37,7 @@ export interface ViewSource {
 
 const FIRST_POLL_MS = 350;
 const POLL_MS = 1500;
+const SUBMIT_DELAY_MS = 200;
 
 function throwIfAborted(signal: AbortSignal) {
   if (signal.aborted) throw new DOMException("aborted", "AbortError");
@@ -133,10 +136,13 @@ async function tryGolden(q: ViewQuery, signal: AbortSignal): Promise<LoadedView 
 export const apiSource: ViewSource = {
   async load(q, onProgress, signal) {
     throwIfAborted(signal);
+    const startedAtMs = Date.now();
+    const report = (p: LoadProgress) => onProgress({ ...p, startedAtMs });
+    report({ stage: "fetch", path: "prepared" });
     const golden = await tryGolden(q, signal);
     if (golden) return golden;
     if (q.manifestUrl && q.source === "auto") {
-      onProgress({ stage: "fetch" });
+      report({ stage: "fetch", path: "prepared" });
       const manifest = (await (await fetchAsset(q.manifestUrl, signal)).json()) as Manifest;
       throwIfAborted(signal);
       if (!matchesManifestQuery(manifest?.query, q)) throw new ApiRequestError("BAD_RESPONSE", "Prepared images do not match the requested position, field of view or band.");
@@ -145,8 +151,12 @@ export const apiSource: ViewSource = {
       return { viewId: manifest.render_key, manifest, ...arrays, fromCache: true };
     }
 
-    onProgress({ stage: "queued" });
+    report({ stage: "queued", path: "build" });
+    // Rapid control changes and StrictMode cleanup should not submit obsolete jobs.
+    // Once submitted, jobs can be shared by other visitors; abort only this browser's wait.
+    await wait(SUBMIT_DELAY_MS, signal);
     const created = await createView(viewRequest(q), signal);
+    throwIfAborted(signal);
     let manifestUrl = created.manifest_url;
     const fromCache = created.status === "ready";
     let pollDelay = FIRST_POLL_MS;
@@ -157,9 +167,10 @@ export const apiSource: ViewSource = {
       const s = await getViewStatus(created.status_url, signal);
       throwIfAborted(signal);
       if (s.status === "error") throw new ApiRequestError(s.error?.code ?? "ERROR", s.error?.message ?? "Could not build this view. Try again.");
-      onProgress({ stage: s.status, done: s.progress?.done, total: s.progress?.total });
+      report({ stage: s.status, done: s.progress?.done, total: s.progress?.total, path: "build" });
       if (s.status === "ready") manifestUrl = s.manifest_url;
     }
+    report({ stage: "fetch", path: "prepared" });
     const manifest = (await (await fetchAsset(manifestUrl, signal)).json()) as Manifest;
     const arrays = await loadArrays(manifest, dirOf(manifestUrl), signal);
     registerMeasurementRender(created.view_id, manifest.render_key);

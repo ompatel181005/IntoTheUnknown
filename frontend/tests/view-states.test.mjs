@@ -7,10 +7,24 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const server = await createServer({ server: { middlewareMode: true }, appType: "custom" });
 after(() => server.close());
-const { sourcePresentation, utcTime, astrometricScatter, savedRecovery, savedPresetLink, viewErrorCopy, centeredPreset, differenceLabel } = await server.ssrLoadModule("/src/lib/viewPresentation.ts");
+const { sourcePresentation, loadingPresentation, utcTime, astrometricScatter, savedRecovery, savedPresetLink, viewErrorCopy, centeredPreset, differenceLabel } = await server.ssrLoadModule("/src/lib/viewPresentation.ts");
 const { parseUrl } = await server.ssrLoadModule("/src/lib/url.ts");
 const { PRESETS } = await server.ssrLoadModule("/src/lib/targets.ts");
 const { Drawer } = await server.ssrLoadModule("/src/components/Drawer/Drawer.tsx");
+
+test("loading distinguishes prepared files, archive waits, attempted cutouts and long-wait recovery", () => {
+  const prepared = loadingPresentation({ stage: "fetch", path: "prepared" }, 35);
+  assert.equal(prepared.title, "Loading prepared images");
+  assert.match(prepared.detail, /does not check current archive availability/);
+  assert.match(prepared.waiting, /another target/);
+  const query = loadingPresentation({ stage: "query", path: "build" }, 15);
+  assert.match(query.detail, /several minutes/);
+  assert.equal(query.waiting, null);
+  const fetch = loadingPresentation({ stage: "fetch", path: "build", done: 2, total: 4 }, 35);
+  assert.match(fetch.detail, /unsuccessful attempts\. 2 \/ 4 completed/);
+  assert.match(fetch.waiting, /shared server work may continue/);
+  assert.doesNotMatch(fetch.detail, /percent|%|estimated|remaining/i);
+});
 
 test("saved snapshots, cached archive data and fresh saved renders are distinct", () => {
   const view = { fromCache: true, cacheLayer: "snapshot", manifest: { source: "golden", origin: { kind: "saved" } } };

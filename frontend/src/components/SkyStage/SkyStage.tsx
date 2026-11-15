@@ -6,7 +6,7 @@ import { formatDec, formatRa } from "../../lib/format";
 import { ARROW_GAIN, gaiaMarks } from "../../lib/gaia";
 import { renderDifference, renderEpoch, tokenRgb } from "../../lib/stretch";
 import type { Preset } from "../../lib/targets";
-import { differenceLabel, savedPresetLink, savedRecovery, sourcePresentation, viewErrorCopy } from "../../lib/viewPresentation";
+import { differenceLabel, loadingPresentation, savedPresetLink, savedRecovery, sourcePresentation, viewErrorCopy } from "../../lib/viewPresentation";
 import type { Overlays, StretchKind, ViewMode } from "../../lib/url";
 import type { CatalogObject, FovArcmin, GaiaResult } from "../../types";
 import { Orrery } from "../Orrery/Orrery";
@@ -65,10 +65,9 @@ export function SkyStage(props: SkyStageProps) {
         {load.kind === "error" && <ErrorCard code={load.code} recovery={savedRecovery(props.ra, props.dec)} message={load.message} onRetry={props.onRetry} />}
         {empty && <NoCoverage onRetry={props.onRetry} />}
         {(home || load.kind === "loading" || (load.kind === "ready" && !empty)) && (
-          <Eyepiece {...props} view={load.kind === "ready" ? load.view : null}>
-            {load.kind === "loading" && <Loading load={load} />}
-          </Eyepiece>
+          <Eyepiece {...props} view={load.kind === "ready" ? load.view : null} />
         )}
+        {load.kind === "loading" && <Loading load={load} recovery={savedRecovery(props.ra, props.dec)} />}
       </section>
     </>
   );
@@ -635,14 +634,25 @@ function ScaleBar({ side, fovArcmin }: { side: number; fovArcmin: number }) {
   );
 }
 
-function Loading({ load }: { load: Extract<LoadState, { kind: "loading" }> }) {
-  const p = load.progress;
-  const line = p ? `${p.stage.toUpperCase()}${p.done !== undefined && p.total ? ` ${p.done} / ${p.total}` : ""}` : "Loading";
+function Loading({ load, recovery }: { load: Extract<LoadState, { kind: "loading" }>; recovery?: Preset }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const elapsed = Math.max(0, Math.floor((now - (load.progress?.startedAtMs ?? now)) / 1000));
+  const copy = loadingPresentation(load.progress, elapsed);
   return (
-    <div className={s.loading} role="status" aria-live="polite" aria-label={`Loading sky image: ${line.toLowerCase()}`}>
-      <div className={s.skeleton} />
-      <span className={`${s.progress} mono`}>{line}</span>
-    </div>
+    <GlassPanel strong className={s.loading}>
+      <div className={s.progress}>
+        <strong role="status" aria-live="polite">{copy.title}</strong>
+        <p>{copy.detail}</p>
+        <span className="mono" aria-live="off">{elapsed}s elapsed</span>
+        {copy.waiting && <p>{copy.waiting}</p>}
+        {elapsed >= 30 && (recovery ? <a href={savedPresetLink(recovery)}>Open saved default: {recovery.name}</a>
+          : <a href="/learn.html">Explore saved examples</a>)}
+      </div>
+    </GlassPanel>
   );
 }
 

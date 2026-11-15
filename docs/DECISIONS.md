@@ -261,6 +261,62 @@ Owner: user-confirmed naming; recorded by Codex for the documentation update.
 Formal track roles, decision owners, chat channel and feature-freeze time remain
 explicitly pending human confirmation.
 
+## 2026-11-15: bounded metadata and honest live loading (#83)
+
+Metadata requests now use PyVO's documented custom requests session with 5 s
+connect / 20 s socket-read timeouts and a separate 30 s wall-clock caller budget
+per SIA or TAP operation (including parsing). SIA then TAP therefore consumes at
+most two caller budgets; cold imports and the later cutout/render pipeline are
+outside that bound. Collection discovery refreshes off the request path, retaining
+the existing DR1/QR3 fallback. At most four daemon metadata workers are admitted,
+with no work queue; retries fail promptly if abandoned underlying calls still
+occupy those slots. A Python thread inside a third-party parser cannot be killed
+safely; socket timeouts normally release it, and the admission cap prevents
+unbounded thread growth. No ThreadPoolExecutor context waits for timed-out work.
+
+The installed astroquery implementation forwards SIA/TAP to PyVO without setting
+an HTTP timeout. The collection SQL and selected column match its implementation.
+Official references checked before the change:
+[IRSA cutout tutorial](https://caltech-ipac.github.io/irsa-tutorials/spherex-cutouts/),
+[IRSA cloud access](https://irsa.ipac.caltech.edu/cloud_access/#spherex),
+[PyVO custom sessions](https://pyvo.readthedocs.io/en/latest/api/pyvo.dal.SIA2Service.html),
+[Requests timeout semantics](https://requests.readthedocs.io/en/latest/user/quickstart/#timeouts),
+and [Astropy remote sections](https://docs.astropy.org/en/stable/io/fits/usage/cloud.html).
+Live checks from this machine returned HTTP502 for both SIA capabilities and
+TAP collection discovery in 0.56 s; this is an upstream failure, not a successful
+metadata query or proof of archive availability.
+
+Review caught that constructing a fresh SIA2Service with its default
+check_baseurl=True adds a capabilities request, unlike astroquery's cached
+singleton. Irsa.sia_url is already the configured SIA query endpoint. Use PyVO's
+documented check_baseurl=False to avoid that extra network dependency; the
+constructor test fixes this behavior explicitly.
+The corrected direct SIA query was then exercised against Barnard's Star: it
+stopped at the configured 20 s socket-read timeout (20.27 s measured) and returned
+DALFormatError wrapping ReadTimeout. Metadata success is still unverified during
+this upstream incident; the real request did demonstrate bounded return.
+
+The browser distinguishes prepared-file loading from server build stages, shows
+actual completed-attempt counts and elapsed time, and offers saved-default
+recovery after a long wait. A 200 ms pre-submission debounce avoids jobs for rapid
+control changes; changing target aborts only that browser's request/polling.
+Server jobs are shared by query key, so disconnecting one visitor must not cancel
+a job needed by another. Server-side cancellation remains deferred until subscriber
+ownership/lifetime is represented explicitly; the public API is unchanged.
+
+Cutout timings now separate S3 header opening, window WCS, metadata/spectral WCS,
+array reads and local science extraction. Header/WCS timings can include lazy
+remote reads; only science_extract is limited to already-loaded arrays.
+`scripts/profile_cutout.py --target barnard --repeat 1` fetched one real 79x85
+cutout using .section and the unchanged 256 KiB block size. On this local machine:
+S3.cutout 7.456 s; open_headers 5.671 s; window_wcs 0.066 s;
+metadata_wcs 0.772 s; array_read 0.946 s; science_extract 0.000060 s.
+The top-level timing includes the nested operations and must not be added to them.
+This is not an Azure measurement or a production speedup claim. No read-block,
+worker-count, resampling, wavelength, mask, or subtraction tuning was applied.
+
+Owner: ompatel181005 (Codex)
+
 ## 2026-11-15: preserve exact measurement inputs across restarts (#82)
 
 Persist lossless aligned per-frame arrays, variance, flags and frame/WCS metadata

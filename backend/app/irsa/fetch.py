@@ -36,10 +36,9 @@ logging.getLogger("astropy").setLevel(logging.ERROR)
 warnings.filterwarnings("ignore", module="astropy.stats.sigma_clipping")
 
 
-def _extract(hdul, ra, dec, window=None) -> dict:
-    """Pull science arrays + metadata. window=(y0,y1,x0,x1) when reading a full frame from S3."""
-    sl = (slice(window[0], window[1]), slice(window[2], window[3])) if window else (slice(None),) * 2
-    get = (lambda name: hdul[name].section[sl]) if window else (lambda name: hdul[name].data)
+@operation("FITS", "metadata_wcs", internal=True)
+def _metadata(hdul, ra, dec, sl, window):
+    """WCS/metadata access can itself read remote lookup-table bytes; not pure CPU time."""
     hdr = hdul["IMAGE"].header
     wcs = WCS(hdr)
     x, y = wcs.world_to_pixel(SkyCoord(ra, dec, unit="deg"))
@@ -48,22 +47,45 @@ def _extract(hdul, ra, dec, window=None) -> dict:
     lam, bw = swcs.pixel_to_world(x, y)
     fh = hdul["FLAGS"].header
     out_wcs = wcs.slice(sl) if window else wcs
-    names = {h.name for h in hdul}
-    image = np.asarray(get("IMAGE"), dtype="f4")
-    if "ZODI" in names and not hdr.get("ZODISUB"):
-        image = image - np.asarray(get("ZODI"), dtype="f4")  # zodi is NOT pre-subtracted in IRSA Level 2
-    var = np.asarray(get("VARIANCE"), dtype="f4") if "VARIANCE" in names else None
     return {
-        "image": image,
-        "var": var,
-        "flags": np.asarray(get("FLAGS"), dtype="i4"),
-        "flag_names": {fh[k]: int(k[4:]) for k in fh["MSKN*"]},  # bit numbers from header, never hard-coded
+        "flag_names": {fh[k]: int(k[4:]) for k in fh["MSKN*"]},
         "wcs_header": out_wcs.to_header(relax=True),
         "detector": int(hdr.get("DETECTOR", 0)),
         "lam_um": float(lam.to_value(u.um)),
         "bw_um": float(bw.to_value(u.um)),
         "version": hdul[0].header.get("VERSION", ""),
     }
+
+
+@operation("FITS", "array_read", internal=True)
+def _read_arrays(hdul, sl, window):
+    get = (lambda name: hdul[name].section[sl]) if window else (lambda name: hdul[name].data)
+    names = {h.name for h in hdul}
+    # Materialize exactly the same arrays as before. S3 must use .section, never .data.
+    return {
+        "image": np.asarray(get("IMAGE"), dtype="f4"),
+        "zodi": np.asarray(get("ZODI"), dtype="f4")
+        if "ZODI" in names and not hdul["IMAGE"].header.get("ZODISUB")
+        else None,
+        "var": np.asarray(get("VARIANCE"), dtype="f4") if "VARIANCE" in names else None,
+        "flags": np.asarray(get("FLAGS"), dtype="i4"),
+    }
+
+
+@operation("FITS", "science_extract", internal=True)
+def _science_arrays(arrays):
+    image, zodi = arrays["image"], arrays["zodi"]
+    if zodi is not None:
+        image = image - zodi  # zodi is NOT pre-subtracted in IRSA Level 2
+    return {"image": image, "var": arrays["var"], "flags": arrays["flags"]}
+
+
+def _extract(hdul, ra, dec, window=None) -> dict:
+    """Pull science arrays + metadata. window=(y0,y1,x0,x1) for S3 range reads."""
+    sl = (slice(window[0], window[1]), slice(window[2], window[3])) if window else (slice(None),) * 2
+    metadata = _metadata(hdul, ra, dec, sl, window)
+    arrays = _read_arrays(hdul, sl, window)
+    return {**metadata, **_science_arrays(arrays)}
 
 
 @operation("IRSA", "cutout", none_is_failure=True)
@@ -90,8 +112,26 @@ def fetch_irsa(frame, ra, dec, size_deg, retries=3):
                 return None
         except TRANSIENT:
             pass
-        time.sleep(2 * (attempt + 1))
+        if attempt + 1 < retries:
+            time.sleep(2 * (attempt + 1))
     return None
+
+
+@operation("S3", "open_headers")
+def _open_s3(key):
+    return fits.open(
+        f"s3://nasa-irsa-spherex/{key}",
+        use_fsspec=True,
+        fsspec_kwargs={"anon": True, "default_block_size": 256 * 1024},
+    )
+
+
+@operation("FITS", "window_wcs", internal=True)
+def _s3_window(hdul, ra, dec, size_deg):
+    x, y = WCS(hdul["IMAGE"].header).world_to_pixel(SkyCoord(ra, dec, unit="deg"))
+    h = int(np.ceil(size_deg * 3600 / PIX_ARCSEC / 2)) + 2
+    y0, x0 = max(int(y) - h, 0), max(int(x) - h, 0)
+    return y0, int(y) + h + 1, x0, int(x) + h + 1
 
 
 @operation("S3", "cutout", none_is_failure=True)
@@ -99,15 +139,9 @@ def fetch_s3(frame, ra, dec, size_deg):
     """Same file on the AWS mirror (identical path layout, verified); range-reads only the window."""
     try:
         key = frame["url"].split("/ibe/data/spherex/", 1)[1]  # inside the try: an odd URL must fall back to IRSA
-        with fits.open(
-            f"s3://nasa-irsa-spherex/{key}",
-            use_fsspec=True,
-            fsspec_kwargs={"anon": True, "default_block_size": 256 * 1024},
-        ) as hdul:
-            x, y = WCS(hdul["IMAGE"].header).world_to_pixel(SkyCoord(ra, dec, unit="deg"))
-            h = int(np.ceil(size_deg * 3600 / PIX_ARCSEC / 2)) + 2
-            y0, x0 = max(int(y) - h, 0), max(int(x) - h, 0)
-            return {**frame, **_extract(hdul, ra, dec, (y0, int(y) + h + 1, x0, int(x) + h + 1)), "source": "s3"}
+        with _open_s3(key) as hdul:
+            window = _s3_window(hdul, ra, dec, size_deg)
+            return {**frame, **_extract(hdul, ra, dec, window), "source": "s3"}
     except Exception:
         return None
 

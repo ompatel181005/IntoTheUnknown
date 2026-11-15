@@ -1,7 +1,27 @@
-import type { LoadedView } from "../data/source";
+import type { LoadProgress, LoadedView } from "../data/source";
 import { PRESETS, type Preset } from "./targets";
 
 export interface SourcePresentation { label: string; cache: string; note: string }
+
+export function loadingPresentation(progress: LoadProgress | null, elapsedSeconds: number) {
+  if (progress?.path === "prepared") return {
+    title: "Loading prepared images",
+    detail: "Reading saved image files. This does not check current archive availability.",
+    waiting: elapsedSeconds >= 30 ? "Image files are taking longer to arrive. You can choose another target while waiting." : null,
+  };
+  const stage = progress?.stage;
+  const titles = { queued: "Waiting for a render slot", query: "Asking the SPHEREx archive", fetch: "Preparing observation cutouts",
+    stack: "Aligning and stacking observations", render: "Finishing images", ready: "Loading prepared images", error: "Checking view status" };
+  const count = progress?.done !== undefined && progress.total ? ` ${progress.done} / ${progress.total} completed.` : "";
+  return {
+    title: stage ? titles[stage] : "Preparing your view",
+    detail: stage === "query" ? "An uncached archive request can take several minutes to prepare. If the archive does not answer, we will show an error."
+      : stage === "queued" ? "Checking saved data and the render cache, then waiting for server capacity."
+      : stage === "fetch" ? `Reading cutouts; the counter includes unsuccessful attempts.${count}`
+      : "Preparing the requested images from SPHEREx observations.",
+    waiting: elapsedSeconds >= 30 ? "Still waiting. You can choose another target; shared server work may continue for other visitors." : null,
+  };
+}
 
 /** Origin describes the data, not current archive health or a per-pixel transport. */
 export function sourcePresentation(view: LoadedView): SourcePresentation {
