@@ -14,6 +14,7 @@ import { buildGrid } from "./grid";
 import s from "./SkyStage.module.css";
 
 interface SkyStageProps {
+  visibleIds?: ReadonlySet<string> | null;
   load: LoadState;
   target: Preset | null;
   ra: number | null;
@@ -59,7 +60,7 @@ export function SkyStage(props: SkyStageProps) {
   return (
     <>
       <div className={s.homeLayer} data-home={home}>
-        <Home active={home} targets={catalog.catalog?.objects ?? NO_TARGETS} onPick={props.onOpenFromHome} onFlightStart={props.onFlightStart} onFlightEnd={props.onFlightEnd} onTour={props.onTour} flying={props.flying} onFullscreen={props.onFullscreen} />
+        <Home visibleIds={props.visibleIds ?? null} active={home} targets={catalog.catalog?.objects ?? NO_TARGETS} onPick={props.onOpenFromHome} onFlightStart={props.onFlightStart} onFlightEnd={props.onFlightEnd} onTour={props.onTour} flying={props.flying} onFullscreen={props.onFullscreen} />
       </div>
       {!home && <section className={s.stage} aria-label="Sky view">
         {load.kind === "error" && <ErrorCard message={load.message} onRetry={props.onRetry} />}
@@ -78,6 +79,7 @@ export function SkyStage(props: SkyStageProps) {
 function Home({
   active,
   targets,
+  visibleIds,
   onPick,
   onFlightStart,
   onFlightEnd,
@@ -86,6 +88,7 @@ function Home({
 }: {
   active: boolean;
   targets: readonly CatalogObject[];
+  visibleIds: ReadonlySet<string> | null;
   onPick: (p: Preset, from: { x: number; y: number } | null) => void;
   onFlightStart: (p: Preset) => void;
   onFlightEnd: () => void;
@@ -118,6 +121,7 @@ function Home({
         <Orrery
           active={active}
           targets={targets}
+          visibleIds={visibleIds}
           onPick={(object, from) => {
             const preset = PRESETS.find((candidate) => candidate.id === object.preset_id);
             if (preset) onPick(preset, from);
