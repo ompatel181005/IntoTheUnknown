@@ -1,5 +1,5 @@
 // Client for the backend contract in docs/PLAN.md section 4.3. No mock data here.
-import type { Catalog, Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus } from "./types";
+import type { Catalog, GaiaResult, GaiaSelection, Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus } from "./types";
 import { validateCatalog } from "./lib/catalog";
 
 export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
@@ -117,6 +117,13 @@ export async function getLightCurve(viewId: string, x: number, y: number, signal
   viewId = await measurementViewId(viewId, signal);
   const q = new URLSearchParams({ x: String(x), y: String(y) });
   return request(`/api/views/${viewId}/lightcurve?${q}`, { signal }).then((r) => json<LightCurve>(r));
+}
+
+/** "Gaia match" label of the source at one grid position in one pass (null when the view has no label). */
+export async function getGaiaMatch(viewId: string, x: number, y: number, epoch: number, signal?: AbortSignal): Promise<GaiaSelection | null> {
+  viewId = await measurementViewId(viewId, signal);
+  const q = new URLSearchParams({ x: String(x), y: String(y), epoch: String(epoch) });
+  return request(`/api/views/${viewId}/gaia?${q}`, { signal }).then((r) => json<GaiaResult>(r)).then((g) => g.selection ?? null);
 }
 
 export function createView(body: ViewRequest, signal?: AbortSignal): Promise<ViewCreated> {

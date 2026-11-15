@@ -314,3 +314,23 @@ test("exact default presets prefer golden snapshots before an unavailable prebui
   assert.equal(result.cacheLayer, "snapshot");
   assert.deepEqual(calls, ["/golden/preset/manifest.json"]);
 });
+
+
+test("Gaia abort rejects promptly while an image request is still pending", async () => {
+  const gaia = deferred();
+  const image = deferred();
+  const source = await loadApiSource({
+    fetchAsset: async (url) => {
+      if (url.endsWith("manifest.json")) return { json: async () => ({ render_key: "r", extras: { gaia: "gaia.json" }, epochs: [{ image: "e.f32" }] }) };
+      if (url.endsWith("gaia.json")) return gaia.promise;
+      return image.promise;
+    },
+  });
+  const load = source.load(query(), () => {}, new AbortController().signal);
+  const rejected = assert.rejects(load, { name: "AbortError" });
+  await new Promise((resolve) => setImmediate(resolve));
+  gaia.reject(new DOMException("aborted", "AbortError"));
+  // No image resolution is needed for a failed/aborted Gaia request to reject.
+  await rejected;
+  image.resolve(responseForArrayBuffer(new Float32Array([1]).buffer));
+});

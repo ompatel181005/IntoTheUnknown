@@ -10,6 +10,8 @@ CACHE_DIR = Path(os.environ.get("CACHE_DIR", ROOT / "backend" / ".cache"))  # us
 STORAGE_ACCOUNT_URL = os.environ.get("STORAGE_ACCOUNT_URL", "").rstrip("/")
 FRAMES_CONTAINER = os.environ.get("FRAMES_CONTAINER", "frames")
 FRAMES_PUBLIC_BASE = os.environ.get("FRAMES_PUBLIC_BASE", "").rstrip("/")  # default {STORAGE_ACCOUNT_URL}/{container}
+# Shared secret the new-data watcher sends as X-Refresh-Key. Unset -> POST /internal/refresh answers 503.
+REFRESH_KEY = os.environ.get("REFRESH_KEY", "")
 IRSA_TIMEOUT_S = int(os.environ.get("IRSA_TIMEOUT_S", "120"))
 CUTOUT_MAX_WORKERS = int(os.environ.get("CUTOUT_MAX_WORKERS", "10"))
 MAX_RENDER_JOBS = int(os.environ.get("MAX_RENDER_JOBS", "2"))

@@ -7,7 +7,7 @@ import type { RaDec } from "../../lib/sky";
 import { PRESETS, type Preset } from "../../lib/targets";
 import { astrometricScatter, sourcePresentation, utcTime } from "../../lib/viewPresentation";
 import type { Panel } from "../../lib/url";
-import type { CatalogObject, LightCurve, Spectrum } from "../../types";
+import type { CatalogObject, GaiaSelection, LightCurve, Spectrum } from "../../types";
 import { AllSkyMap } from "../AllSkyMap/AllSkyMap";
 import { Scatter } from "../Charts/Scatter";
 import { GlassButton, GlassPanel, Tabs, Term } from "../glass";
@@ -26,6 +26,8 @@ interface DrawerProps {
   sel: [number, number] | null;
   spectrum: AsyncState<Spectrum>;
   lightcurve: AsyncState<LightCurve>;
+  /** Gaia match label of the measured source in this pass; idle when the view has no Gaia data. */
+  gaiaMatch: AsyncState<GaiaSelection | null>;
   onSelectEpoch: (i: number) => void;
 }
 
@@ -257,7 +259,22 @@ function Status({ state, what }: { state: AsyncState<unknown>; what: string }) {
   return null;
 }
 
-function ColoursTab({ view, index, sel, spectrum }: DrawerProps) {
+/** "Gaia match" or "no Gaia match" for the measured source. Silent while loading or when Gaia data is missing. */
+function GaiaMatch({ state, index }: { state: AsyncState<GaiaSelection | null>; index: number }) {
+  if (state.kind !== "ready" || !state.data) return null;
+  const m = state.data;
+  if (m.label === "match")
+    return (
+      <p className={`${s.note} ${s.gaiaMatch}`}>
+        Gaia match: a Gaia DR3 star is predicted {m.sep_px?.toFixed(2)} px from this source in pass {index + 1}.
+      </p>
+    );
+  if (m.label === "no_match")
+    return <p className={`${s.note} ${s.gaiaNone}`}>No Gaia match: no Gaia DR3 star is predicted within 1 px of this source in pass {index + 1}.</p>;
+  return <p className={s.note}>No source bright enough to compare with Gaia here in pass {index + 1}.</p>;
+}
+
+function ColoursTab({ view, index, sel, spectrum, gaiaMatch }: DrawerProps) {
   if (!view) return <Empty>Load a target first.</Empty>;
   return (
     <section className={s.section} aria-labelledby="d-spec">
@@ -267,6 +284,7 @@ function ColoursTab({ view, index, sel, spectrum }: DrawerProps) {
       <p className={s.hint}>
         Brightness of {where(sel)} by wavelength (<Term term="MJy/sr">MJy/sr</Term>). Click the image to change it.
       </p>
+      <GaiaMatch state={gaiaMatch} index={index} />
       <Status state={spectrum} what="the spectrum" />
       {spectrum.kind === "ready" &&
         (spectrum.data.points.some((pt) => pt.flux_mjysr !== null) ? (
@@ -299,9 +317,16 @@ function Saturated() {
   return <div className={s.slot}>This pixel is saturated. Pick a fainter star.</div>;
 }
 
-function BrightnessTab({ view, sel, lightcurve, index }: DrawerProps) {
+function BrightnessTab({ view, sel, lightcurve, index, gaiaMatch }: DrawerProps) {
   if (!view) return <Empty>Load a target first.</Empty>;
   const epochs = view.manifest.epochs;
+  const lc = lightcurve.kind === "ready" ? lightcurve.data : null;
+  const lams = lc?.points.map((pt) => pt.lambda_um) ?? [];
+  const [lam0, lam1] = [Math.min(...lams), Math.max(...lams)];
+  // Calibration floor (#32): the comparison stars' scatter, drawn around this source's median flux.
+  const good = lc?.points.filter((pt) => !pt.flagged).map((pt) => pt.flux_ujy).sort((a, b) => a - b) ?? [];
+  const median = good.length ? (good[(good.length - 1) >> 1] + good[good.length >> 1]) / 2 : null;
+  const floor = lc?.comparison && median !== null && median > 0 ? lc.comparison : null;
   return (
     <section className={s.section} aria-labelledby="d-lc">
       <h3 id="d-lc" className={`micro ${s.sectionTitle}`}>
@@ -310,27 +335,45 @@ function BrightnessTab({ view, sel, lightcurve, index }: DrawerProps) {
       <p className={s.hint}>
         Brightness of {where(sel)} in <Term term="uJy">µJy</Term>. Hollow points are flagged.
       </p>
+      <GaiaMatch state={gaiaMatch} index={index} />
       <Status state={lightcurve} what="the light curve" />
       {lightcurve.kind === "ready" &&
         (lightcurve.data.points.length > 0 && lightcurve.data.points.some((pt) => !pt.flagged) ? (
-          <Scatter
-            summary={`Light curve with ${lightcurve.data.points.length} points`}
-            xLabel="Date"
-            yLabel="Flux (µJy)"
-            formatX={(v) => mjdToDate(v).slice(0, 7)}
-            formatY={(v) => (Math.abs(v) >= 1e4 ? v.toExponential(1) : v.toFixed(0))}
-            points={lightcurve.data.points.map((pt) => {
-              const ep = epochs.findIndex((e) => Math.abs(e.t_mean_mjd - pt.t_mjd) < 25);
-              return {
-                x: pt.t_mjd,
-                y: pt.flux_ujy,
-                yerr: pt.err,
-                hollow: pt.flagged,
-                active: ep === index,
-                title: `${mjdToDate(pt.t_mjd)} · ${pt.lambda_um.toFixed(2)} µm`,
-              };
-            })}
-          />
+          <>
+            <Scatter
+              summary={`Light curve with ${lightcurve.data.points.length} points`}
+              xLabel="Date"
+              yLabel="Flux (µJy)"
+              formatX={(v) => mjdToDate(v).slice(0, 7)}
+              formatY={(v) => (Math.abs(v) >= 1e4 ? v.toExponential(1) : v.toFixed(0))}
+              band={floor && median !== null ? [median * (1 - floor.rms_frac), median * (1 + floor.rms_frac)] : undefined}
+              points={lightcurve.data.points.map((pt) => {
+                const ep = epochs.findIndex((e) => Math.abs(e.t_mean_mjd - pt.t_mjd) < 25);
+                return {
+                  x: pt.t_mjd,
+                  y: pt.flux_ujy,
+                  yerr: pt.err,
+                  hollow: pt.flagged,
+                  active: ep === index,
+                  // Theme tokens only: accent at the shortest wavelength, mover amber at the longest.
+                  color: `color-mix(in oklab, var(--mover) ${lam1 > lam0 ? Math.round(((pt.lambda_um - lam0) / (lam1 - lam0)) * 100) : 0}%, var(--accent))`,
+                  title: `${mjdToDate(pt.t_mjd)} · ${pt.lambda_um.toFixed(2)} µm`,
+                };
+              })}
+            />
+            <p className={s.note}>
+              Colour: blue {lam0.toFixed(2)} µm to amber {lam1.toFixed(2)} µm. Each frame is at a different wavelength, so compare points of
+              the same colour. Outlined points are the pass on screen.
+            </p>
+            {floor ? (
+              <p className={s.note}>
+                Green band: ±{(floor.rms_frac * 100).toFixed(1)}% around the median, the scatter of {floor.n_stars} steady stars in this field.
+                Changes inside it may be calibration noise.
+              </p>
+            ) : (
+              <p className={s.note}>No calibration band: too few steady comparison stars in this field.</p>
+            )}
+          </>
         ) : (
           <Saturated />
         ))}

@@ -96,6 +96,13 @@
 }
 
 .sourceBadge { color: var(--accent); font-size: 12px; line-height: 1.6; margin: 10px 0 0; }
+.gaiaMatch {
+  color: var(--match);
+}
+
+.gaiaNone {
+  color: var(--mover);
+}
 
 .grid {
   display: grid;

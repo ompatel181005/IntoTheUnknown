@@ -149,19 +149,32 @@ export interface Manifest {
 }
 
 export interface GaiaStar {
-  source_id: number;
-  g: number;
-  pmra: number;
-  pmdec: number;
-  plx: number;
+  /** null for demo-pack catalogues, which carry no Gaia source_id. */
+  source_id: number | null;
+  g: number | null;
+  pmra: number | null;
+  pmdec: number | null;
+  plx: number | null;
+  /** Predicted grid pixel per pass, FITS orientation, 0-based. */
   track_px: [number, number][];
+  /** Per pass: a source was measured within 1 px of the track. */
   matched: boolean[];
+}
+
+export interface GaiaSelection {
+  epoch: number;
+  centroid_px: [number, number] | null;
+  label: "match" | "no_match" | "unmeasured";
+  source_id: number | null;
+  sep_px: number | null;
 }
 
 export interface GaiaResult {
   epochs_mjd: number[];
   stars: GaiaStar[];
   unexplained: { x: number; y: number; shift_px: number }[];
+  /** Only with ?x=&y=&epoch=: the Gaia match label of the source there. */
+  selection?: GaiaSelection | null;
 }
 
 export interface SpectrumPoint {
