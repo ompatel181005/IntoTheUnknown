@@ -1,11 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { LoadedView } from "../../data/source";
-import { useCatalog } from "../../hooks/useCatalog";
 import type { ViewState as LoadState } from "../../hooks/useView";
 import { flightIsActive, getFlightStartPose, markFlight, setDomeDestination, subscribeFlight, type FlightPose } from "../../lib/flight";
 import { formatDec, formatRa } from "../../lib/format";
 import { renderDifference, renderEpoch, tokenRgb } from "../../lib/stretch";
-import { PRESETS, type Preset } from "../../lib/targets";
+import { type Preset } from "../../lib/targets";
 import type { Overlays, StretchKind, ViewMode } from "../../lib/url";
 import type { CatalogObject, FovArcmin } from "../../types";
 import { Orrery } from "../Orrery/Orrery";
@@ -15,6 +14,8 @@ import s from "./SkyStage.module.css";
 
 interface SkyStageProps {
   visibleIds?: ReadonlySet<string> | null;
+  catalogObjects: readonly CatalogObject[];
+  point: CatalogObject | null;
   load: LoadState;
   target: Preset | null;
   ra: number | null;
@@ -38,20 +39,16 @@ interface SkyStageProps {
   onSelect: (xy: [number, number] | null) => void;
   onRetry: () => void;
   onPreset: (p: Preset) => void;
-  onOpenFromHome: (p: Preset, from: { x: number; y: number } | null) => void;
-  onFlightStart: (p: Preset) => void;
+  onOpenFromHome: (p: CatalogObject, from: { x: number; y: number } | null) => void;
+  onFlightStart: (p: CatalogObject) => void;
   onFlightEnd: () => void;
   /** Move the measuring cursor without opening the drawer (keyboard). */
   onCursor: (xy: [number, number]) => void;
   onTour: () => void;
 }
 
-const NO_TARGETS: readonly CatalogObject[] = [];
-
 export function SkyStage(props: SkyStageProps) {
   const { load } = props;
-  // Keep the catalog alive across the dome so a return does not rebuild an empty home first.
-  const catalog = useCatalog();
   useEffect(() => {
     if (load.kind === "ready") markFlight("data-ready");
   }, [load.kind]);
@@ -60,7 +57,7 @@ export function SkyStage(props: SkyStageProps) {
   return (
     <>
       <div className={s.homeLayer} data-home={home}>
-        <Home visibleIds={props.visibleIds ?? null} active={home} targets={catalog.catalog?.objects ?? NO_TARGETS} onPick={props.onOpenFromHome} onFlightStart={props.onFlightStart} onFlightEnd={props.onFlightEnd} onTour={props.onTour} flying={props.flying} onFullscreen={props.onFullscreen} />
+        <Home visibleIds={props.visibleIds ?? null} active={home} targets={props.catalogObjects} onPick={props.onOpenFromHome} onFlightStart={props.onFlightStart} onFlightEnd={props.onFlightEnd} onTour={props.onTour} flying={props.flying} onFullscreen={props.onFullscreen} />
       </div>
       {!home && <section className={s.stage} aria-label="Sky view">
         {load.kind === "error" && <ErrorCard message={load.message} onRetry={props.onRetry} />}
@@ -89,8 +86,8 @@ function Home({
   active: boolean;
   targets: readonly CatalogObject[];
   visibleIds: ReadonlySet<string> | null;
-  onPick: (p: Preset, from: { x: number; y: number } | null) => void;
-  onFlightStart: (p: Preset) => void;
+  onPick: (p: CatalogObject, from: { x: number; y: number } | null) => void;
+  onFlightStart: (p: CatalogObject) => void;
   onFlightEnd: () => void;
   onTour: () => void;
   flying: boolean;
@@ -122,14 +119,8 @@ function Home({
           active={active}
           targets={targets}
           visibleIds={visibleIds}
-          onPick={(object, from) => {
-            const preset = PRESETS.find((candidate) => candidate.id === object.preset_id);
-            if (preset) onPick(preset, from);
-          }}
-          onFlightStart={(object) => {
-            const preset = PRESETS.find((candidate) => candidate.id === object.preset_id);
-            if (preset) onFlightStart(preset);
-          }}
+          onPick={onPick}
+          onFlightStart={onFlightStart}
           onFlightEnd={onFlightEnd}
         />
       </div>
@@ -304,6 +295,10 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
       )}
 
       <div className={s.imageColumn}>
+        {!showLabel && props.showLabel && props.point && !props.target && <div className={s.pointHeading}>
+          <span className="display">{props.point.name}</span>
+          <span className="micro">{props.point.kind.replaceAll("_", " ")}</span>
+        </div>}
         <div className={`${s.topRow} mono`}>
           <ScaleBar side={box?.side ?? 0} fovArcmin={fovArcmin} />
           {diff ? (
@@ -393,10 +388,10 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
           left={box.left + box.side / 2 + (box.side / 2 + 36) * 0.7071 + 60}
           top={box.top + box.side / 2 - (box.side / 2 + 36) * 0.7071 - 20}
           maxWidth={Math.min(280, labelRoom)}
-          name={props.target?.name ?? "Custom position"}
+          name={props.target?.name ?? props.point?.name ?? "Custom position"}
           ra={ra}
           dec={dec}
-          sub={props.target?.watch ?? null}
+          sub={props.target?.watch ?? props.point?.kind.replaceAll("_", " ") ?? null}
           fixture={view?.label ?? null}
           provenance={view?.manifest.origin ? `SPHEREx Level 2 · ${view.manifest.origin.kind === "saved" ? "Saved cutouts" : "Live archive"} · North up · East left` : null}
         />

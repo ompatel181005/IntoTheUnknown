@@ -1,8 +1,59 @@
-import type { CatalogObject } from "../types";
+import { BAND_OPTIONS, FOV_OPTIONS, type Band, type Catalog, type CatalogObject, type FovArcmin } from "../types";
 
 const DEG_TO_RAD = Math.PI / 180;
 const MAS_TO_DEG = 1 / 3_600_000;
 const J2000_OBLIQUITY_RAD = 23.43928 * DEG_TO_RAD;
+
+const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+const nonempty = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+export const isWebUrl = (value: unknown): value is string => {
+  if (!nonempty(value)) return false;
+  try { return ["http:", "https:"].includes(new URL(value).protocol); } catch { return false; }
+};
+
+/** Validate the full shared schema before any coordinates reach the canvas or view loader. */
+export function validateCatalog(value: unknown): Catalog {
+  if (!record(value) || !nonempty(value.version) || !nonempty(value.generated_at)
+    || !record(value.source) || !["local", "azure_blob"].includes(String(value.source.kind))
+    || !nonempty(value.source.uri) || !Array.isArray(value.objects)) throw new Error("Invalid catalog");
+  const ids = new Set<string>();
+  for (const object of value.objects) {
+    if (!record(object) || !nonempty(object.id) || ids.has(object.id)
+      || !nonempty(object.name) || !nonempty(object.kind)
+      || !finite(object.ra_deg) || object.ra_deg < 0 || object.ra_deg >= 360
+      || !finite(object.dec_deg) || Math.abs(object.dec_deg) > 90 || !finite(object.ref_epoch)
+      || !["parallax_mas", "parallax_err_mas", "distance_pc", "pmra_mas_yr", "pmdec_mas_yr"]
+        .every((key) => object[key] === null || finite(object[key]))
+      || !(object.preset_id === null || nonempty(object.preset_id))
+      || !record(object.provenance) || !nonempty(object.provenance.catalog) || !nonempty(object.provenance.ref)) throw new Error("Invalid catalog point");
+    ids.add(object.id);
+    if (object.view !== undefined) {
+      const view = object.view;
+      if (!record(view) || !isWebUrl(view.manifest_url) || !nonempty(view.built_at)
+        || (view.catalog_version !== undefined && !nonempty(view.catalog_version))
+        || (view.passes !== undefined && (!finite(view.passes) || !Number.isInteger(view.passes) || view.passes < 0))
+        || !record(view.query) || !finite(view.query.ra) || view.query.ra < 0 || view.query.ra >= 360
+        || !finite(view.query.dec) || Math.abs(view.query.dec) > 90
+        || !finite(view.query.fov_arcmin) || view.query.fov_arcmin <= 0
+        || !nonempty(view.query.band) || !nonempty(view.query.mode)) throw new Error("Invalid catalog view");
+    }
+  }
+  return value as unknown as Catalog;
+}
+
+export function pointPosition(object: CatalogObject, now = new Date()) {
+  const start = Date.UTC(now.getUTCFullYear(), 0, 1);
+  const end = Date.UTC(now.getUTCFullYear() + 1, 0, 1);
+  const current = propagate(object, now.getUTCFullYear() + (now.getTime() - start) / (end - start));
+  const query = object.view?.query;
+  return {
+    ra: query?.ra ?? current.ra_deg,
+    dec: query?.dec ?? current.dec_deg,
+    fov: query && FOV_OPTIONS.includes(query.fov_arcmin as FovArcmin) ? query.fov_arcmin as FovArcmin : 6 as const,
+    band: query && BAND_OPTIONS.includes(query.band as Band) ? query.band as Band : "auto" as const,
+  };
+}
 
 export type CatalogDirection = [number, number, number];
 

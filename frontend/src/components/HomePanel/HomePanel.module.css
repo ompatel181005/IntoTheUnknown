@@ -5,7 +5,7 @@
   z-index: 15;
   left: var(--gutter);
   top: var(--gutter);
-  bottom: var(--gutter);
+  bottom: 64px;
   width: 284px;
   max-width: calc(100vw - calc(var(--gutter) * 2));
   display: flex;
@@ -438,15 +438,11 @@
 
 @media (max-width: 768px) {
   .panel {
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 100%;
-    max-width: 100%;
-    border-radius: 0;
-    border-left: 0;
-    border-top: 0;
-    border-bottom: 0;
+    left: 8px;
+    top: 72px;
+    bottom: 76px;
+    width: min(320px, calc(100% - 80px));
+    max-width: calc(100% - 80px);
     z-index: 30;
   }
 

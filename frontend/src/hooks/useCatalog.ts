@@ -11,7 +11,7 @@ export interface CatalogState {
 }
 
 /** Load one catalog set once per set name. */
-export function useCatalog(setName = "targets"): CatalogState {
+export function useCatalog(setName = "points"): CatalogState {
   const state = useAsync(`catalog:${setName}`, (signal) => getCatalog(setName, signal));
   if (state.kind === "ready") return { status: "ready", catalog: state.data, error: null };
   if (state.kind === "error") return { status: "error", catalog: null, error: state.message };

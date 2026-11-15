@@ -1,5 +1,6 @@
 // Client for the backend contract in docs/PLAN.md section 4.3. No mock data here.
 import type { Catalog, Health, LightCurve, Spectrum, Target, ViewCreated, ViewRequest, ViewStatus } from "./types";
+import { validateCatalog } from "./lib/catalog";
 
 export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
@@ -72,9 +73,35 @@ export function getTargets(signal?: AbortSignal): Promise<Target[]> {
   return request("/api/targets", { signal }).then((r) => json<Target[]>(r));
 }
 
-/** Static file in frontend/public/catalog, like /golden: the home sky needs no backend route. */
-export function getCatalog(setName = "targets", signal?: AbortSignal): Promise<Catalog> {
-  return request(`/catalog/${encodeURIComponent(setName)}.json`, { signal }).then((r) => json<Catalog>(r));
+const catalogLoads = new Map<string, Promise<Catalog>>();
+const POINTS_URL = (import.meta.env.VITE_POINTS_URL as string | undefined)
+  ?? "https://stplanetxitu7q4.blob.core.windows.net/frames/catalog/points.json";
+
+/** Shared independently of component lifetimes, including StrictMode's first cleanup. */
+export function getCatalog(setName = "points", signal?: AbortSignal): Promise<Catalog> {
+  let pending = catalogLoads.get(setName);
+  if (!pending) {
+    const urls = setName === "points"
+      ? [POINTS_URL, "/catalog/points.json", "/catalog/targets.json"]
+      : [`/catalog/${encodeURIComponent(setName)}.json`];
+    pending = (async () => {
+      for (const url of urls) {
+        try {
+          const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+          if (!response.ok) continue;
+          return validateCatalog(await response.json());
+        } catch {
+          // Missing, malformed, or unreachable catalogs fall through to the bundled set.
+        }
+      }
+      throw new ApiRequestError("CATALOG", "Could not load the target list. Reload to try again.");
+    })();
+    catalogLoads.set(setName, pending);
+  }
+  return pending.then((catalog) => {
+    signal?.throwIfAborted();
+    return catalog;
+  });
 }
 
 /** Per-frame values at one grid pixel for one epoch (x, y in FITS orientation, row 0 = south). */

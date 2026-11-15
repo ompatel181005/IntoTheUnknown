@@ -81,6 +81,15 @@ button:disabled {
   border: 0;
 }
 
+.home-catalog-status {
+  position: absolute;
+  left: var(--gutter);
+  bottom: var(--gutter);
+  max-width: calc(100% - 80px);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

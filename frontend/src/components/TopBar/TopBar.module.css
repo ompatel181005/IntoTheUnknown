@@ -223,3 +223,8 @@
     min-height: 44px;
   }
 }
+.homeGuide {
+  position: absolute;
+  top: 0;
+  right: 0;
+}

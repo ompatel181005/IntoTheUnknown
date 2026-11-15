@@ -69,7 +69,6 @@ export function HomePanel({
   open,
   onOpenChange,
   brand,
-  onGuide,
 }: HomePanelProps) {
   const tabRef = useRef<HTMLButtonElement>(null);
   const collapseBtnRef = useRef<HTMLButtonElement>(null);
@@ -94,7 +93,8 @@ export function HomePanel({
       (item) =>
         item.name.toLowerCase().includes(q) ||
         item.id.toLowerCase().includes(q) ||
-        item.kind.toLowerCase().includes(q)
+        item.kind.toLowerCase().includes(q) ||
+        item.kind.replaceAll("_", " ").toLowerCase().includes(q)
     );
   }, [items, query]);
 
@@ -105,6 +105,9 @@ export function HomePanel({
     } else if (e.key === "Enter" && coordsHint && onGoToCoords) {
       e.preventDefault();
       onGoToCoords();
+    } else if (e.key === "Enter" && filteredItems.length === 1 && checked.has(filteredItems[0].id) && filteredItems[0].clickable) {
+      e.preventDefault();
+      onFly(filteredItems[0].id);
     }
   };
 
@@ -138,6 +141,8 @@ export function HomePanel({
         className={s.panel}
         role="region"
         aria-label="Targets"
+        data-tour="targets"
+        data-flight-hide
         data-open={open}
         inert={!open ? true : undefined}
         onKeyDown={handlePanelKeyDown}
@@ -148,15 +153,6 @@ export function HomePanel({
             <span className={s.brandName}>{brand}</span>
           </div>
           <div className={s.headActions}>
-            <button
-              type="button"
-              className={s.actionBtn}
-              aria-label="Guide"
-              title="Guide"
-              onClick={onGuide}
-            >
-              <Icon name="help" size={16} />
-            </button>
             <button
               ref={collapseBtnRef}
               type="button"
@@ -254,7 +250,7 @@ export function HomePanel({
                   />
                   <label htmlFor={inputId} className={s.itemLabel}>
                     <span className={s.itemName}>{item.name}</span>
-                    <span className={s.itemKind}>{item.kind}</span>
+                    <span className={s.itemKind}>{item.kind.replaceAll("_", " ")}</span>
                     {item.detail && <span className={s.itemDetail}>{item.detail}</span>}
                   </label>
                   <button

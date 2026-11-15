@@ -2,10 +2,11 @@ import { useEffect, useRef } from "react";
 import type { LoadedView } from "../../data/source";
 import type { AsyncState } from "../../hooks/useAsync";
 import { formatDec, formatRa, mjdToDate } from "../../lib/format";
+import { isWebUrl } from "../../lib/catalog";
 import type { RaDec } from "../../lib/sky";
 import { PRESETS, type Preset } from "../../lib/targets";
 import type { Panel } from "../../lib/url";
-import type { LightCurve, Spectrum } from "../../types";
+import type { CatalogObject, LightCurve, Spectrum } from "../../types";
 import { AllSkyMap } from "../AllSkyMap/AllSkyMap";
 import { Scatter } from "../Charts/Scatter";
 import { GlassButton, GlassPanel, Tabs } from "../glass";
@@ -18,6 +19,7 @@ interface DrawerProps {
   view: LoadedView | null;
   index: number;
   target: Preset | null;
+  point?: CatalogObject | null;
   position: RaDec | null;
   /** Selected grid pixel (FITS orientation) or null for the target at the centre. */
   sel: [number, number] | null;
@@ -84,7 +86,7 @@ function where(sel: [number, number] | null) {
   );
 }
 
-function PassTab({ view, index, target, position }: DrawerProps) {
+function PassTab({ view, index, target, point, position }: DrawerProps) {
   if (!view || view.manifest.epochs.length === 0) return <Empty>Pick a target to see pass details.</Empty>;
   const m = view.manifest;
   const e = m.epochs[index] ?? m.epochs[0];
@@ -94,9 +96,9 @@ function PassTab({ view, index, target, position }: DrawerProps) {
     <>
       <section className={s.section} aria-labelledby="d-target">
         <h3 id="d-target" className={`micro ${s.sectionTitle}`}>
-          {target ? (target.kind === "motion" ? "Moving target" : "Variable target") : "Position"}
+          {target ? (target.kind === "motion" ? "Moving target" : "Variable target") : point?.kind.replaceAll("_", " ") ?? "Position"}
         </h3>
-        <p className={`display ${s.name}`}>{target?.name ?? "Custom position"}</p>
+        <p className={`display ${s.name}`}>{target?.name ?? point?.name ?? "Custom position"}</p>
         {target && <p className={s.hint}>{target.what}</p>}
         <div className={s.grid}>
           {position && (
@@ -114,7 +116,20 @@ function PassTab({ view, index, target, position }: DrawerProps) {
               full={arr.length % 2 === 1 && i === arr.length - 1}
             />
           ))}
+          {!target && point && <>
+            <Tile label="Parallax" value={point.parallax_mas === null ? "Not available" : `${point.parallax_mas} mas`} />
+            <Tile label="Reference epoch" value={String(point.ref_epoch)} />
+            <Tile label="Proper motion RA" value={point.pmra_mas_yr === null ? "Not available" : `${point.pmra_mas_yr} mas/yr`} />
+            <Tile label="Proper motion Dec" value={point.pmdec_mas_yr === null ? "Not available" : `${point.pmdec_mas_yr} mas/yr`} />
+            <Tile label="Catalog RA" value={formatRa(point.ra_deg)} />
+            <Tile label="Catalog Dec" value={formatDec(point.dec_deg)} />
+          </>}
         </div>
+        {!target && point && <p className={s.note}>
+          {isWebUrl(point.provenance.ref)
+            ? <a href={point.provenance.ref} target="_blank" rel="noreferrer">{point.provenance.catalog}</a>
+            : point.provenance.catalog}
+        </p>}
         {target && <p className={s.note}>Gaia DR3; (lit.) marks literature values.</p>}
       </section>
       <section className={s.section} aria-labelledby="d-epoch">

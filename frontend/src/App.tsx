@@ -12,19 +12,28 @@ import { SkyStage } from "./components/SkyStage/SkyStage";
 import { StepGuide } from "./components/StepGuide/StepGuide";
 import { Toast } from "./components/Toast/Toast";
 import { Toolbar } from "./components/Toolbar/Toolbar";
-import { TopBar } from "./components/TopBar/TopBar";
+import { HomeGuideButton, TopBar } from "./components/TopBar/TopBar";
+import { HomePanel } from "./components/HomePanel";
+import { useCatalog } from "./hooks/useCatalog";
+import { useCatalogSelection } from "./hooks/useCatalogSelection";
+import { APP_NAME } from "./lib/brand";
+import { pointPosition } from "./lib/catalog";
+import { formatDec, formatRa, parseCoords } from "./lib/format";
+import type { CatalogObject } from "./types";
 import type { ViewQuery, ViewSource } from "./data/source";
 import { useAsync } from "./hooks/useAsync";
 import { useIdle } from "./hooks/useIdle";
 import { useMediaQuery } from "./hooks/useMediaQuery";
 import { usePlayback } from "./hooks/usePlayback";
 import { useView } from "./hooks/useView";
-import { markFlight, prepareReturnFlight, requestTargetFlight } from "./lib/flight";
+import { markFlight, prepareReturnFlight, requestCoordinateFlight, requestTargetFlight } from "./lib/flight";
 import { readFlag, writeFlag } from "./lib/storage";
 import { findPreset, PRESETS, type Preset } from "./lib/targets";
 import { DEFAULTS, parseUrl, toSearch, type Panel, type ViewMode, type ViewState } from "./lib/url";
 
 const GUIDE_KEY = "spherex-blink.guide-dismissed";
+const HOME_PANEL_KEY = "spherex-blink.home-panel-hidden";
+const NO_OBJECTS: readonly CatalogObject[] = [];
 const CUSTOMIZE_KEY = "spherex-blink.customize-hidden";
 const GUTTER = 16;
 const RAIL_W = 52;
@@ -44,7 +53,8 @@ function ownsKeys(el: EventTarget | null) {
 }
 
 export default function App({ source }: { source: ViewSource }) {
-  const [url, setUrl] = useState<ViewState>(() => parseUrl(window.location.search));
+  const [storedUrl, setUrl] = useState<ViewState>(() => parseUrl(window.location.search));
+  const [initialParams] = useState(() => new URLSearchParams(window.location.search));
   const [attempt, setAttempt] = useState(0);
   const [guideHidden, setGuideHidden] = useState(() => readFlag(GUIDE_KEY));
   const [customizeHidden, setCustomizeHidden] = useState(() => readFlag(CUSTOMIZE_KEY));
@@ -55,15 +65,42 @@ export default function App({ source }: { source: ViewSource }) {
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const mobile = useMediaQuery("(max-width: 768px)");
 
-  const update = useCallback((patch: Partial<ViewState>) => setUrl((u) => ({ ...u, ...patch })), []);
+  const catalog = useCatalog();
+  const objects = catalog.catalog?.objects ?? NO_OBJECTS;
+  const point = objects.find((object) => object.id === storedUrl.point) ?? null;
+  const pointDefaults = useMemo(() => point ? pointPosition(point) : null, [point]);
+  const pointLinkDefaults = useMemo(() => pointDefaults ? {
+    ...pointDefaults,
+    fov: initialParams.has("fov") ? storedUrl.fov : pointDefaults.fov,
+    band: initialParams.has("band") ? storedUrl.band : pointDefaults.band,
+  } : null, [pointDefaults, initialParams, storedUrl.fov, storedUrl.band]);
+  const url = useMemo(() => storedUrl.point && storedUrl.ra === null && pointLinkDefaults
+    ? { ...storedUrl, ...pointLinkDefaults } : storedUrl, [storedUrl, pointLinkDefaults]);
+  const selection = useCatalogSelection(catalog.catalog);
+  const [homeQuery, setHomeQuery] = useState("");
+  const homeCoords = parseCoords(homeQuery);
+  const [homePanelOpen, setHomePanelOpen] = useState(() => {
+    try {
+      const saved = localStorage.getItem(HOME_PANEL_KEY);
+      if (saved !== null) return saved !== "1";
+    } catch { /* Use the viewport default when storage is unavailable. */ }
+    return !window.matchMedia("(max-width: 768px)").matches;
+  });
+  const setHomePanel = (open: boolean) => {
+    setHomePanelOpen(open);
+    try { localStorage.setItem(HOME_PANEL_KEY, open ? "0" : "1"); } catch { /* Storage is optional. */ }
+  };
 
-  const query = useMemo<ViewQuery | null>(
-    () =>
-      url.ra === null || url.dec === null
-        ? null
-        : { ra: url.ra, dec: url.dec, fov_arcmin: url.fov, band: url.band, mode: "stack", source: url.source, presetId: url.target },
-    [url.ra, url.dec, url.fov, url.band, url.source, url.target],
-  );
+  const update = useCallback((patch: Partial<ViewState>) => setUrl((u) => ({ ...u, ...(u.ra === null && u.point ? pointLinkDefaults : {}), ...patch })), [pointLinkDefaults]);
+
+  const query = useMemo<ViewQuery | null>(() => {
+    if (url.ra === null || url.dec === null || (url.point && !point && catalog.status === "loading")) return null;
+    const rendered = point?.view;
+    const useRendered = rendered && url.source !== "live" && Math.abs(url.ra - rendered.query.ra) < 0.0000051 && Math.abs(url.dec - rendered.query.dec) < 0.0000051
+      && url.fov === rendered.query.fov_arcmin && url.band === rendered.query.band;
+    return { ra: url.ra, dec: url.dec, fov_arcmin: url.fov, band: url.band, mode: "stack", source: url.source,
+      presetId: url.target, ...(useRendered ? { manifestUrl: rendered.manifest_url } : {}) };
+  }, [url.ra, url.dec, url.fov, url.band, url.source, url.target, url.point, point, catalog.status]);
   const load = useView(source, query, attempt);
   const view = load.kind === "ready" ? load.view : null;
   const epochs = useMemo(() => view?.manifest.epochs ?? [], [view]);
@@ -105,7 +142,7 @@ export default function App({ source }: { source: ViewSource }) {
   const customizeOpen = mobile ? sheetOpen : !customizeHidden;
   const idle = useIdle(pb.playing && !drawerOpen && !guideOpen && !tourOn && !reducedMotion && !(mobile && sheetOpen));
 
-  const pickPreset = (p: Preset) => update({ ra: p.ra, dec: p.dec, fov: p.fov, band: p.band, target: p.id, epoch: 0, sel: null, ref: 0 });
+  const pickPreset = (p: Preset) => update({ ra: p.ra, dec: p.dec, fov: p.fov, band: p.band, target: p.id, point: null, epoch: 0, sel: null, ref: 0 });
   // Starfield jump starts the instant a flight starts, before the target is committed.
   const [flightActive, setFlightActive] = useState(false);
   // Prepare controls after first paint, rather than mounting them at landing.
@@ -120,13 +157,23 @@ export default function App({ source }: { source: ViewSource }) {
     markFlight("chrome-reveal");
     setFlightActive(false);
   }, []);
-  const openFromHome = (p: Preset) => {
+  const openFromHome = (object: CatalogObject) => {
     markFlight("target-mount");
-    pickPreset(p);
+    const challenge = findPreset(object.preset_id);
+    if (challenge) pickPreset(challenge);
+    else update({ ...pointPosition(object), target: null, point: object.id, epoch: 0, sel: null, ref: 0 });
+  };
+  const flyToPoint = (id: string) => {
+    if (flightActive || !selection.checked.has(id)) return;
+    requestTargetFlight(id);
   };
   const pickCoords = (ra: number, dec: number) => {
     if (flightActive) return;
-    update({ ra, dec, target: null, epoch: 0, sel: null, ref: 0 });
+    if (url.ra === null) {
+      setFlightActive(true);
+      void requestCoordinateFlight(ra, dec).then(finishFlight);
+    }
+    update({ ra, dec, target: null, point: null, epoch: 0, sel: null, ref: 0 });
   };
   const pickFromBar = (p: Preset) => {
     if (flightActive) return;
@@ -141,8 +188,8 @@ export default function App({ source }: { source: ViewSource }) {
     setFlightActive(true);
     const r = document.querySelector('[data-tour="dome"]')?.getBoundingClientRect();
     const dome = r ? { x: r.left + r.width / 2, y: r.top + r.height / 2, side: r.width } : null;
-    void prepareReturnFlight({ id: preset?.id ?? null, ra: url.ra, dec: url.dec }, dome).then(() => {
-      update({ ra: null, dec: null, target: null, epoch: 0, panel: null, mode: "all", sel: null });
+    void prepareReturnFlight({ id: preset?.id ?? point?.id ?? null, ra: url.ra, dec: url.dec }, dome).then(() => {
+      update({ ra: null, dec: null, target: null, point: null, epoch: 0, panel: null, mode: "all", sel: null });
       finishFlight();
     });
   };
@@ -207,8 +254,8 @@ export default function App({ source }: { source: ViewSource }) {
   };
   const resetCustomize = () =>
     update({
-      fov: preset?.fov ?? DEFAULTS.fov,
-      band: preset?.band ?? DEFAULTS.band,
+      fov: preset?.fov ?? pointDefaults?.fov ?? DEFAULTS.fov,
+      band: preset?.band ?? pointDefaults?.band ?? DEFAULTS.band,
       speed: DEFAULTS.speed,
       stretch: DEFAULTS.stretch,
       invert: DEFAULTS.invert,
@@ -292,8 +339,8 @@ export default function App({ source }: { source: ViewSource }) {
       }
       top={
         <>
-          <TopBar
-            crumb={url.ra === null ? null : (preset?.name ?? "Custom position")}
+          {url.ra === null ? <HomeGuideButton onGuide={() => setGuideOpen(true)} /> : <TopBar
+            crumb={url.ra === null ? null : (preset?.name ?? point?.name ?? "Custom position")}
             onHome={goHome}
             homeDisabled={flightActive}
             onPreset={pickFromBar}
@@ -302,7 +349,7 @@ export default function App({ source }: { source: ViewSource }) {
             shareDisabled={!query}
             onGuide={() => setGuideOpen(true)}
             onTour={startTour}
-          />
+          />}
           {showGuide && (
             <StepGuide
               done={guideDone}
@@ -317,6 +364,9 @@ export default function App({ source }: { source: ViewSource }) {
       stage={
         <SkyStage
           load={load}
+          catalogObjects={objects}
+          point={point}
+          visibleIds={selection.checked}
           target={preset ?? null}
           ra={url.ra}
           dec={url.dec}
@@ -371,6 +421,24 @@ export default function App({ source }: { source: ViewSource }) {
       }
       overlays={
         <>
+          {url.ra === null && <div aria-hidden={flightActive} inert={flightActive}>
+            <HomePanel
+              items={objects.map((object) => ({ id: object.id, name: object.name, kind: object.kind, clickable: true }))}
+              checked={selection.checked}
+              onToggle={selection.toggle}
+              onSetAll={selection.setAll}
+              query={homeQuery}
+              onQuery={setHomeQuery}
+              coordsHint={homeCoords ? `Go to RA ${formatRa(homeCoords.ra)}, Dec ${formatDec(homeCoords.dec)}` : null}
+              onGoToCoords={homeCoords ? () => pickCoords(homeCoords.ra, homeCoords.dec) : undefined}
+              onFly={flyToPoint}
+              open={homePanelOpen}
+              onOpenChange={setHomePanel}
+              brand={APP_NAME}
+              onGuide={() => setGuideOpen(true)}
+            />
+            {catalog.status !== "ready" && <span className="home-catalog-status" role="status">{catalog.error ?? "Loading target list…"}</span>}
+          </div>}
           <div data-flight-chrome="panels" aria-hidden={chromeHidden} inert={chromeHidden}>
             {chromeReady && (!mobile || sheetOpen) && (
               <CustomizePanel
@@ -412,6 +480,7 @@ export default function App({ source }: { source: ViewSource }) {
                 view={view}
                 index={pb.index}
                 target={preset ?? null}
+                point={point}
                 position={url.ra !== null && url.dec !== null ? { ra: url.ra, dec: url.dec } : null}
                 sel={url.sel}
                 spectrum={spectrum}

@@ -729,8 +729,8 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
           edgeAngle = Math.atan2(dy, dx);
         }
         const flight = getFlightSample();
-        const chosen = flightIsActive() && flight && target.object.preset_id
-          && target.object.preset_id === flight.targetId;
+        const chosen = flightIsActive() && flight
+          && (target.object.preset_id ?? target.object.id) === flight.targetId;
         if (chosen) {
           markerX = flight.pose.x;
           markerY = flight.pose.y;
@@ -918,7 +918,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
           rect.top = Math.min(rect.top, label.y - label.height / 2 * labelScale);
           rect.bottom = Math.max(rect.bottom, label.y + label.height / 2 * labelScale);
         }
-        if (scene.targets[index].object.preset_id && !label.chosen) hitGrid.insert(index);
+        if (!label.chosen) hitGrid.insert(index);
       }
       if (!dragging) setHovered(pointerOnCanvas ? hitTest(pointerX, pointerY) : -1);
       context.globalAlpha = 1;
@@ -939,13 +939,13 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
     });
     const unregisterNavigation = registerHomeNavigation({
       pick: (id) => {
-        const index = visibleTargets.findIndex((target) => target.preset_id === id);
+        const index = visibleTargets.findIndex((target) => (target.id === id || target.preset_id === id));
         if (index < 0) return false;
         pickRef.current(index);
         return true;
       },
       locate: (id) => {
-        const target = scene.targets.find((target) => target.object.preset_id === id);
+        const target = scene.targets.find((target) => (target.object.id === id || target.object.preset_id === id));
         if (!target) return null;
         const projected = projectTarget(target, getHomeCamera());
         return { x: projected.x, y: projected.y, side: 20 };
@@ -954,7 +954,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
 
     pickRef.current = (index) => {
       const target = scene.targets[index];
-      if (!activeRef.current || flightIsActive() || !target?.object.preset_id) return;
+      if (!activeRef.current || flightIsActive() || !target) return;
       const camera = cam.current;
       const point = targetProjection[index];
       const x = point.x, y = point.y;
@@ -964,7 +964,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       while (camera.yaw - yaw > Math.PI) yaw += 2 * Math.PI;
       const pitch = Math.atan2(-direction[2], Math.hypot(direction[0], direction[1]));
       onFlightStartRef.current?.(target.object);
-      const flight = startTargetFlight(target.object.preset_id, flightCamera(camera), { yaw, pitch }, { x, y, side: 20 * markerScale });
+      const flight = startTargetFlight(target.object.preset_id ?? target.object.id, flightCamera(camera), { yaw, pitch }, { x, y, side: 20 * markerScale });
       markFlight("commit");
       onPickRef.current(target.object, { x, y });
       setHovered(-1);
@@ -1140,7 +1140,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       <div ref={wrapRef} className={s.orrery} data-active={active} aria-hidden={!active} inert={!active} aria-label="Solar system and sky targets">
         <canvas ref={canvasRef} className={s.canvas} aria-hidden="true" />
         <ul className={s.accessibleTargets} aria-label="Sky targets">
-          {visibleTargets.map((target, index) => target.preset_id && (
+          {visibleTargets.map((target, index) => (
             <li key={target.id}>
               <button
                 type="button"
