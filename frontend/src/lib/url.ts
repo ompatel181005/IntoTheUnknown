@@ -20,6 +20,7 @@ export interface ViewState {
   source: DataSource;
   /** Preset id when the view came from a target chip. */
   target: string | null;
+  point: string | null;
   mode: ViewMode;
   /** Zero-based epoch index (written 1-based in the URL). */
   epoch: number;
@@ -38,7 +39,7 @@ export interface ViewState {
   overlays: Overlays;
 }
 
-export const DEFAULTS: Omit<ViewState, "ra" | "dec" | "target"> = {
+export const DEFAULTS: Omit<ViewState, "ra" | "dec" | "target" | "point"> = {
   fov: 6,
   band: "auto",
   source: "auto",
@@ -88,6 +89,7 @@ export function parseUrl(search: string): ViewState {
     ra: hasCoords ? ra : null,
     dec: hasCoords ? dec : null,
     target: hasCoords ? p.get("target") : null,
+    point: p.get("point") || null,
     fov: FOV_OPTIONS.includes(fov as FovArcmin) ? (fov as FovArcmin) : DEFAULTS.fov,
     band: BAND_OPTIONS.includes(band as Band) ? (band as Band) : DEFAULTS.band,
     source: (["auto", "saved", "live"] as const).find((v) => v === p.get("src")) ?? DEFAULTS.source,
@@ -115,6 +117,7 @@ export function toSearch(s: ViewState): string {
   set("dec", s.dec === null ? null : s.dec.toFixed(5));
   set("fov", String(s.fov));
   set("target", s.target);
+  set("point", s.point);
   set("band", s.band === DEFAULTS.band ? null : s.band);
   set("src", s.source === DEFAULTS.source ? null : s.source);
   set("mode", s.mode === DEFAULTS.mode ? null : s.mode);

@@ -1,15 +1,16 @@
 import { useEffect, useRef } from "react";
 import type { LoadedView } from "../../data/source";
 import type { AsyncState } from "../../hooks/useAsync";
-import { formatDec, formatRa, mjdToDate } from "../../lib/format";
+import { formatDec, formatParallaxDistance, formatProperMotionMoon, formatRa, mjdToDate } from "../../lib/format";
+import { isWebUrl } from "../../lib/catalog";
 import type { RaDec } from "../../lib/sky";
 import { PRESETS, type Preset } from "../../lib/targets";
 import { astrometricScatter, sourcePresentation, utcTime } from "../../lib/viewPresentation";
 import type { Panel } from "../../lib/url";
-import type { LightCurve, Spectrum } from "../../types";
+import type { CatalogObject, LightCurve, Spectrum } from "../../types";
 import { AllSkyMap } from "../AllSkyMap/AllSkyMap";
 import { Scatter } from "../Charts/Scatter";
-import { GlassButton, GlassPanel, Tabs } from "../glass";
+import { GlassButton, GlassPanel, Tabs, Term } from "../glass";
 import s from "./Drawer.module.css";
 
 interface DrawerProps {
@@ -19,6 +20,7 @@ interface DrawerProps {
   view: LoadedView | null;
   index: number;
   target: Preset | null;
+  point?: CatalogObject | null;
   position: RaDec | null;
   /** Selected grid pixel (FITS orientation) or null for the target at the centre. */
   sel: [number, number] | null;
@@ -85,7 +87,7 @@ function where(sel: [number, number] | null) {
   );
 }
 
-function PassTab({ view, index, target, position }: DrawerProps) {
+function PassTab({ view, index, target, point, position }: DrawerProps) {
   if (!view) return <Empty>Load a view to see pass details.</Empty>;
   if (view.manifest.epochs.length === 0) return <Empty>This selection produced no usable passes.</Empty>;
   const m = view.manifest;
@@ -96,28 +98,96 @@ function PassTab({ view, index, target, position }: DrawerProps) {
     <>
       <section className={s.section} aria-labelledby="d-target">
         <h3 id="d-target" className={`micro ${s.sectionTitle}`}>
-          {target ? (target.kind === "motion" ? "Moving target" : "Variable target") : "Position"}
+          {target ? (target.kind === "motion" ? "Moving target" : "Variable target") : point?.kind.replaceAll("_", " ") ?? "Position"}
         </h3>
-        <p className={`display ${s.name}`}>{target?.name ?? "Custom position"}</p>
+        <p className={`display ${s.name}`}>{target?.name ?? point?.name ?? "Custom position"}</p>
         {target && <p className={s.hint}>{target.what}</p>}
         <div className={s.grid}>
           {position && (
             <>
-              <Tile label="RA" value={formatRa(position.ra)} mono />
-              <Tile label="Dec" value={formatDec(position.dec)} mono />
+              <Tile label={<Term term="RA">RA</Term>} value={formatRa(position.ra)} mono />
+              <Tile label={<Term term="Dec">Dec</Term>} value={formatDec(position.dec)} mono />
             </>
           )}
-          {target?.facts.map((f, i, arr) => (
-            <Tile
-              key={f.label}
-              label={f.label}
-              value={f.value}
-              mono
-              full={arr.length % 2 === 1 && i === arr.length - 1}
-            />
-          ))}
+          {target?.facts.map((f, i, arr) => {
+            let labelNode: React.ReactNode = f.label;
+            let secondaryNode: React.ReactNode = null;
+            let valueNode: React.ReactNode = f.value;
+
+            if (f.label === "Motion") {
+              labelNode = <Term term="Proper motion">Motion</Term>;
+              secondaryNode = formatProperMotionMoon(f.value);
+            } else if (f.label === "Parallax") {
+              labelNode = <Term term="Parallax">Parallax</Term>;
+              secondaryNode = formatParallaxDistance(f.value);
+            } else if (f.label === "Gaia G" || f.label === "Gaia") {
+              labelNode = <Term term="Gaia G">{f.label}</Term>;
+            }
+
+            if (typeof f.value === "string" && f.value.includes("(lit.)")) {
+              const parts = f.value.split("(lit.)");
+              valueNode = (
+                <>
+                  {parts[0]}
+                  <Term term="(lit.)">(lit.)</Term>
+                  {parts.slice(1).join("(lit.)")}
+                </>
+              );
+            }
+
+            return (
+              <Tile
+                key={f.label}
+                label={labelNode}
+                value={valueNode}
+                secondary={secondaryNode}
+                mono
+                full={arr.length % 2 === 1 && i === arr.length - 1}
+              />
+            );
+          })}
+          {!target && point && (
+            <>
+              <Tile
+                label={<Term term="Parallax">Parallax</Term>}
+                value={point.parallax_mas === null ? "Not available" : `${point.parallax_mas} mas`}
+                secondary={formatParallaxDistance(point.parallax_mas)}
+              />
+              <Tile label="Reference epoch" value={String(point.ref_epoch)} />
+              <Tile
+                label={<Term term="Proper motion">Proper motion RA</Term>}
+                value={point.pmra_mas_yr === null ? "Not available" : `${point.pmra_mas_yr} mas/yr`}
+              />
+              <Tile
+                label={<Term term="Proper motion">Proper motion Dec</Term>}
+                value={point.pmdec_mas_yr === null ? "Not available" : `${point.pmdec_mas_yr} mas/yr`}
+                secondary={
+                  point.pmra_mas_yr !== null && point.pmdec_mas_yr !== null
+                    ? formatProperMotionMoon(Math.hypot(point.pmra_mas_yr, point.pmdec_mas_yr) / 1000)
+                    : null
+                }
+              />
+              <Tile label={<Term term="RA">Catalog RA</Term>} value={formatRa(point.ra_deg)} />
+              <Tile label={<Term term="Dec">Catalog Dec</Term>} value={formatDec(point.dec_deg)} />
+            </>
+          )}
         </div>
-        {target && <p className={s.note}>Gaia DR3; (lit.) marks literature values.</p>}
+        {!target && point && (
+          <p className={s.note}>
+            {isWebUrl(point.provenance.ref) ? (
+              <a href={point.provenance.ref} target="_blank" rel="noreferrer">
+                {point.provenance.catalog}
+              </a>
+            ) : (
+              point.provenance.catalog
+            )}
+          </p>
+        )}
+        {target && (
+          <p className={s.note}>
+            Gaia DR3; <Term term="(lit.)">(lit.)</Term> marks literature values.
+          </p>
+        )}
         <p className={s.sourceBadge}>{provenance.label} · {provenance.cache}</p>
       </section>
       <section className={s.section} aria-labelledby="d-epoch">
@@ -133,18 +203,23 @@ function PassTab({ view, index, target, position }: DrawerProps) {
           <Tile label="Frames" value={`${e.n_frames} frames`} mono />
           <Tile label="Start (UTC)" value={utcTime(e.t_start)} mono />
           <Tile label="End (UTC)" value={utcTime(e.t_end)} mono />
-          <Tile label="Detectors" value={e.detectors.map((d) => `D${d}`).join(" ")} mono />
+          <Tile label={<Term term="Detectors">Detectors</Term>} value={e.detectors.map((d) => `D${d}`).join(" ")} mono />
           <Tile label="Wavelength" value={`λ ${e.lambda_um[0].toFixed(2)}-${e.lambda_um[1].toFixed(2)} µm`} mono />
-          <Tile label="Collections" value={m.catalog.collections.join(" + ") || "Not reported"} mono />
+          <Tile label={<Term term="Release">Collections</Term>} value={m.catalog.collections.join(" + ") || "Not reported"} mono />
           <Tile label="Alignment scatter" value={astrometricScatter(e.astrom_resid_px)} full />
           <div className={s.tile}>
             <span className={s.tileLabel}>Input flag counts</span>
             <span className={`${s.tileValue} mono`}>
-              {flagged.length > 0 ? <span className={s.flagList}>{flagged.map(([k, n]) => `${k} ${n}`).join(" · ")}</span> : "None reported"}
+              {flagged.length > 0 ? <span className={s.flagList}>{flagged.map(([k, n]) => <span key={k}><Term term={k}>{k}</Term> {n}{" "}</span>)}</span> : "None reported"}
             </span>
           </div>
           {m.bandpass_matched === false && (
-            <Tile label="Colours" value="Not matched across passes" mono={false} />
+            <Tile
+              label={<Term term="Colours">Colours</Term>}
+              value={<Term term="Colours not matched">Not matched across passes</Term>}
+              mono={false}
+              full
+            />
           )}
         </div>
         <p className={s.note}>Alignment scatter is the per-axis centroid scatter of reference stars, not a target-position uncertainty. “Not measured” means no usable alignment measurement was reported.</p>
@@ -154,11 +229,24 @@ function PassTab({ view, index, target, position }: DrawerProps) {
   );
 }
 
-function Tile({ label, value, mono = true, full = false }: { label: string; value: React.ReactNode; mono?: boolean; full?: boolean }) {
+function Tile({
+  label,
+  value,
+  secondary,
+  mono = true,
+  full = false,
+}: {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  secondary?: React.ReactNode;
+  mono?: boolean;
+  full?: boolean;
+}) {
   return (
     <div className={`${s.tile}${full ? ` ${s.tileFull}` : ""}`}>
       <span className={s.tileLabel}>{label}</span>
       <span className={`${s.tileValue}${mono ? " mono" : ""}`}>{value}</span>
+      {secondary && <span className={`${s.tileSecondary} mono`}>{secondary}</span>}
     </div>
   );
 }
@@ -176,7 +264,9 @@ function ColoursTab({ view, index, sel, spectrum }: DrawerProps) {
       <h3 id="d-spec" className={`micro ${s.sectionTitle}`}>
         Spectrum · pass {index + 1}
       </h3>
-      <p className={s.hint}>Brightness of {where(sel)} by wavelength. Click the image to change it.</p>
+      <p className={s.hint}>
+        Brightness of {where(sel)} by wavelength (<Term term="MJy/sr">MJy/sr</Term>). Click the image to change it.
+      </p>
       <Status state={spectrum} what="the spectrum" />
       {spectrum.kind === "ready" &&
         (spectrum.data.points.some((pt) => pt.flux_mjysr !== null) ? (
@@ -217,7 +307,9 @@ function BrightnessTab({ view, sel, lightcurve, index }: DrawerProps) {
       <h3 id="d-lc" className={`micro ${s.sectionTitle}`}>
         Brightness over time
       </h3>
-      <p className={s.hint}>Brightness of {where(sel)}. Hollow points are flagged.</p>
+      <p className={s.hint}>
+        Brightness of {where(sel)} in <Term term="uJy">µJy</Term>. Hollow points are flagged.
+      </p>
       <Status state={lightcurve} what="the light curve" />
       {lightcurve.kind === "ready" &&
         (lightcurve.data.points.length > 0 && lightcurve.data.points.some((pt) => !pt.flagged) ? (
@@ -260,7 +352,7 @@ function FilesTab({ view, index, onSelectEpoch }: { view: LoadedView | null; ind
             <tr>
               <th scope="col">Pass</th>
               <th scope="col">Date</th>
-              <th scope="col">Det</th>
+              <th scope="col"><Term term="Detectors">Det</Term></th>
               <th scope="col">λ µm</th>
             </tr>
           </thead>

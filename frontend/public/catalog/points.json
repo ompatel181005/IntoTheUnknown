@@ -1,0 +1,1467 @@
+{
+ "version": "2026-11-15.r1",
+ "generated_at": "2026-11-15T07:11:22Z",
+ "source": {
+  "kind": "azure_blob",
+  "uri": "https://stplanetxitu7q4.blob.core.windows.net/frames/catalog/points.json"
+ },
+ "objects": [
+  {
+   "id": "barnard",
+   "name": "Barnard's Star",
+   "kind": "star",
+   "ra_deg": 269.45208,
+   "dec_deg": 4.69336,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 546.9759,
+   "parallax_err_mas": null,
+   "distance_pc": null,
+   "pmra_mas_yr": -801.551,
+   "pmdec_mas_yr": 10362.394,
+   "preset_id": "barnard",
+   "provenance": {
+    "catalog": "Gaia DR3",
+    "ref": "https://measuredcosmos.com/stars/barnards-star"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/8955fe655c3e0dd80b3b4c21/manifest.json",
+    "query": {
+     "ra": 269.446077,
+     "dec": 4.77071,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:11Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "eps-ind-b",
+   "name": "Epsilon Indi Ba/Bb",
+   "kind": "brown_dwarf",
+   "ra_deg": 331.044,
+   "dec_deg": -56.783,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 274.99,
+   "parallax_err_mas": 0.43,
+   "distance_pc": null,
+   "pmra_mas_yr": 3987.41,
+   "pmdec_mas_yr": -2505.35,
+   "preset_id": "eps-ind-b",
+   "provenance": {
+    "catalog": "Chen et al. 2022 astrometric solution",
+    "ref": "https://www.pure.ed.ac.uk/ws/portalfiles/portal/372528683/2205.08077v1.pdf"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/7228801a427650c9aede88d5/manifest.json",
+    "query": {
+     "ra": 331.098332,
+     "dec": -56.801701,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:11Z",
+    "passes": 4
+   }
+  },
+  {
+   "id": "wise-0855",
+   "name": "WISE 0855-0714",
+   "kind": "brown_dwarf",
+   "ra_deg": 133.79513,
+   "dec_deg": -7.24515,
+   "ref_epoch": 2010.33,
+   "parallax_mas": 439.0,
+   "parallax_err_mas": 2.4,
+   "distance_pc": null,
+   "pmra_mas_yr": -8123.7,
+   "pmdec_mas_yr": 673.2,
+   "preset_id": "wise-0855",
+   "provenance": {
+    "catalog": "WISE and Spitzer astrometry literature",
+    "ref": "https://en.wikipedia.org/wiki/WISE_0855%E2%88%920714"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/d38e5f47bc8b66a4a3650486/manifest.json",
+    "query": {
+     "ra": 133.757501,
+     "dec": -7.242057,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:12Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "rw-aur",
+   "name": "RW Aur A",
+   "kind": "variable",
+   "ra_deg": 76.95667,
+   "dec_deg": 30.40139,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 5.4541,
+   "parallax_err_mas": 0.3324,
+   "distance_pc": null,
+   "pmra_mas_yr": 4.906,
+   "pmdec_mas_yr": -24.578,
+   "preset_id": "rw-aur",
+   "provenance": {
+    "catalog": "Gaia DR3",
+    "ref": "https://onlinelibrary.wiley.com/doi/full/10.1002/asna.20230118"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/759efeeb24a6a5efdaf0993b/manifest.json",
+    "query": {
+     "ra": 76.956712,
+     "dec": 30.401207,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:12Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "r-dra",
+   "name": "R Dra",
+   "kind": "variable",
+   "ra_deg": 248.16761,
+   "dec_deg": 66.75498,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 1.2509,
+   "parallax_err_mas": 0.0648,
+   "distance_pc": null,
+   "pmra_mas_yr": -20.643,
+   "pmdec_mas_yr": 6.149,
+   "preset_id": "r-dra",
+   "provenance": {
+    "catalog": "Gaia DR3 via SIMBAD",
+    "ref": "https://simbad.u-strasbg.fr/simbad/sim-id?Ident=R+Dra"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/d6154ebc60a2a8d5f61d8cb6/manifest.json",
+    "query": {
+     "ra": 248.16722,
+     "dec": 66.755026,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:12Z",
+    "passes": 9
+   }
+  },
+  {
+   "id": "proxima-cen",
+   "name": "Proxima Centauri",
+   "kind": "star",
+   "ra_deg": 217.428942,
+   "dec_deg": -62.67949,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 768.0665,
+   "parallax_err_mas": 0.0499,
+   "distance_pc": null,
+   "pmra_mas_yr": -3781.741,
+   "pmdec_mas_yr": 769.465,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Proxima+Cen"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/3c35ae39851ccd373b134b7e/manifest.json",
+    "query": {
+     "ra": 217.367437,
+     "dec": -62.673746,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:12Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "kapteyn",
+   "name": "Kapteyn's Star",
+   "kind": "star",
+   "ra_deg": 77.91901,
+   "dec_deg": -45.018388,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 254.2259,
+   "parallax_err_mas": 0.0278,
+   "distance_pc": null,
+   "pmra_mas_yr": 6505.08,
+   "pmdec_mas_yr": -5682.47,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+33793"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/a65a48029690639749a4e54a/manifest.json",
+    "query": {
+     "ra": 77.987702,
+     "dec": -45.060805,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:13Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "groombridge-1830",
+   "name": "Groombridge 1830",
+   "kind": "star",
+   "ra_deg": 178.245582,
+   "dec_deg": 37.718635,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 108.9734,
+   "parallax_err_mas": 0.0425,
+   "distance_pc": null,
+   "pmra_mas_yr": 4004.298,
+   "pmdec_mas_yr": -5813.568,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+103095"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/9bb167c822cb5a88aec602e5/manifest.json",
+    "query": {
+     "ra": 178.283368,
+     "dec": 37.67524,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:13Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "lacaille-9352",
+   "name": "Lacaille 9352",
+   "kind": "star",
+   "ra_deg": 346.466827,
+   "dec_deg": -35.853066,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 304.1485,
+   "parallax_err_mas": 0.0267,
+   "distance_pc": null,
+   "pmra_mas_yr": 6767.262,
+   "pmdec_mas_yr": 1326.657,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+217987"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/1b61b8c7a699d4f4f80c2a18/manifest.json",
+    "query": {
+     "ra": 346.52915,
+     "dec": -35.843163,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:13Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "van-maanen",
+   "name": "Van Maanen's Star",
+   "kind": "star",
+   "ra_deg": 12.296556,
+   "dec_deg": 5.387295,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 231.836,
+   "parallax_err_mas": 0.0426,
+   "distance_pc": null,
+   "pmra_mas_yr": 1234.331,
+   "pmdec_mas_yr": -2710.985,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Wolf+28"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/97c347c92889cf6297797045/manifest.json",
+    "query": {
+     "ra": 12.30581,
+     "dec": 5.367059,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:13Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "wolf-359",
+   "name": "Wolf 359",
+   "kind": "star",
+   "ra_deg": 164.120274,
+   "dec_deg": 7.014655,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 415.1614,
+   "parallax_err_mas": 0.0984,
+   "distance_pc": null,
+   "pmra_mas_yr": -3841.67,
+   "pmdec_mas_yr": -2724.89,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Wolf+359"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/22fa5b760d7dd08aa70c478d/manifest.json",
+    "query": {
+     "ra": 164.091382,
+     "dec": 6.994315,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:14Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "ross-128",
+   "name": "Ross 128",
+   "kind": "star",
+   "ra_deg": 176.935081,
+   "dec_deg": 0.804543,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 296.3079,
+   "parallax_err_mas": 0.0426,
+   "distance_pc": null,
+   "pmra_mas_yr": 608.204,
+   "pmdec_mas_yr": -1222.955,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Ross+128"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/d46bf6d06463472eb663ef51/manifest.json",
+    "query": {
+     "ra": 176.939621,
+     "dec": 0.795414,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:14Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "luyten-star",
+   "name": "Luyten's Star",
+   "kind": "star",
+   "ra_deg": 111.852083,
+   "dec_deg": 5.224993,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 264.128,
+   "parallax_err_mas": 0.0253,
+   "distance_pc": null,
+   "pmra_mas_yr": 574.653,
+   "pmdec_mas_yr": -3691.076,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=GJ+273"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/1fe7e079bcce2b5a38f2c7da/manifest.json",
+    "query": {
+     "ra": 111.85639,
+     "dec": 5.197441,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:14Z",
+    "passes": 2
+   }
+  },
+  {
+   "id": "teegarden",
+   "name": "Teegarden's Star",
+   "kind": "star",
+   "ra_deg": 43.253716,
+   "dec_deg": 16.881287,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 261.011,
+   "parallax_err_mas": 0.081,
+   "distance_pc": null,
+   "pmra_mas_yr": 3429.083,
+   "pmdec_mas_yr": -3805.541,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=NAME+Teegarden%27s+Star"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/ee7cdf1244e04bf8173c5351/manifest.json",
+    "query": {
+     "ra": 43.280465,
+     "dec": 16.852881,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:14Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "lalande-21185",
+   "name": "Lalande 21185",
+   "kind": "star",
+   "ra_deg": 165.834125,
+   "dec_deg": 35.969878,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 392.7529,
+   "parallax_err_mas": 0.0264,
+   "distance_pc": null,
+   "pmra_mas_yr": -580.089,
+   "pmdec_mas_yr": -4776.666,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+95735"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/e15a292c852a5865cd301acd/manifest.json",
+    "query": {
+     "ra": 165.828775,
+     "dec": 35.934223,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:15Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "gliese-1",
+   "name": "Gliese 1",
+   "kind": "star",
+   "ra_deg": 1.309995,
+   "dec_deg": -37.352467,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 230.1293,
+   "parallax_err_mas": 0.0243,
+   "distance_pc": null,
+   "pmra_mas_yr": 5634.024,
+   "pmdec_mas_yr": -2337.525,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=GJ+1"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/bfcc3666391018c05eb5f7cf/manifest.json",
+    "query": {
+     "ra": 1.3629,
+     "dec": -37.369915,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:15Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "struve-2398-a",
+   "name": "Struve 2398 A",
+   "kind": "star",
+   "ra_deg": 280.707767,
+   "dec_deg": 59.629393,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 283.7719,
+   "parallax_err_mas": 0.0152,
+   "distance_pc": null,
+   "pmra_mas_yr": -345.968,
+   "pmdec_mas_yr": 2193.896,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+173739"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/65916e10f797786872515094/manifest.json",
+    "query": {
+     "ra": 280.702659,
+     "dec": 59.645769,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:15Z",
+    "passes": 5
+   }
+  },
+  {
+   "id": "struve-2398-b",
+   "name": "Struve 2398 B",
+   "kind": "star",
+   "ra_deg": 280.720816,
+   "dec_deg": 59.626297,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 283.8188,
+   "parallax_err_mas": 0.0163,
+   "distance_pc": null,
+   "pmra_mas_yr": -374.398,
+   "pmdec_mas_yr": 2299.982,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=HD+173740"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/1c282165fbd69182fff6ecd3/manifest.json",
+    "query": {
+     "ra": 280.715289,
+     "dec": 59.643465,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:15Z",
+    "passes": 5
+   }
+  },
+  {
+   "id": "ross-248",
+   "name": "Ross 248",
+   "kind": "star",
+   "ra_deg": 355.476483,
+   "dec_deg": 44.177265,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 316.484,
+   "parallax_err_mas": 0.0396,
+   "distance_pc": null,
+   "pmra_mas_yr": 110.871,
+   "pmdec_mas_yr": -1591.737,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Ross+248"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/df0832bd150c64b2fcaf69cd/manifest.json",
+    "query": {
+     "ra": 355.477637,
+     "dec": 44.165384,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:16Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "luhman-16",
+   "name": "Luhman 16",
+   "kind": "brown_dwarf",
+   "ra_deg": 162.328814,
+   "dec_deg": -53.319466,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 501.557,
+   "parallax_err_mas": 0.082,
+   "distance_pc": null,
+   "pmra_mas_yr": -2767.502,
+   "pmdec_mas_yr": 356.856,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (2MASS / Cutri et al. 2003)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Luhman+16"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/234cfed205dd449798f8201a/manifest.json",
+    "query": {
+     "ra": 162.294232,
+     "dec": -53.316802,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:16Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "ugps-0722",
+   "name": "UGPS J0722-0540",
+   "kind": "brown_dwarf",
+   "ra_deg": 110.616275,
+   "dec_deg": -5.674972,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 242.8,
+   "parallax_err_mas": 2.4,
+   "distance_pc": null,
+   "pmra_mas_yr": -903.6,
+   "pmdec_mas_yr": 351.808,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Dupuy & Liu 2012)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J072227.27-054029.9"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/23f33cbea610d4c57de4235d/manifest.json",
+    "query": {
+     "ra": 110.609497,
+     "dec": -5.672346,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:16Z",
+    "passes": 2
+   }
+  },
+  {
+   "id": "wise-1828",
+   "name": "WISE J1828+2650",
+   "kind": "brown_dwarf",
+   "ra_deg": 277.126287,
+   "dec_deg": 26.843793,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 100.3,
+   "parallax_err_mas": 2.0,
+   "distance_pc": null,
+   "pmra_mas_yr": 1016.5,
+   "pmdec_mas_yr": 169.3,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J182831.08%2B265037.7"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/50e0cd107b6b26ee74459068/manifest.json",
+    "query": {
+     "ra": 277.134791,
+     "dec": 26.845057,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:16Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "wise-0350",
+   "name": "WISE J0350-5658",
+   "kind": "brown_dwarf",
+   "ra_deg": 57.500913,
+   "dec_deg": -56.97495,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 176.4,
+   "parallax_err_mas": 4.3,
+   "distance_pc": null,
+   "pmra_mas_yr": 377.1,
+   "pmdec_mas_yr": 481.1,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J035000.32-565830.2"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/efe7c7fb806ec90dc30b52d3/manifest.json",
+    "query": {
+     "ra": 57.506078,
+     "dec": -56.971359,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:17Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "wise-1541",
+   "name": "WISE J1541-2250",
+   "kind": "brown_dwarf",
+   "ra_deg": 235.467871,
+   "dec_deg": -22.84025,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 166.9,
+   "parallax_err_mas": 3.2,
+   "distance_pc": null,
+   "pmra_mas_yr": -902.8,
+   "pmdec_mas_yr": -91.4,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J154151.65-225024.9"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/c541f81b896137440872a4e2/manifest.json",
+    "query": {
+     "ra": 235.460559,
+     "dec": -22.840932,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:16Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "gliese-229-b",
+   "name": "Gliese 229 B",
+   "kind": "brown_dwarf",
+   "ra_deg": 92.659858,
+   "dec_deg": -21.758416,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 173.195,
+   "parallax_err_mas": 0.046,
+   "distance_pc": null,
+   "pmra_mas_yr": -135.5,
+   "pmdec_mas_yr": -714.4,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=GJ+229+B"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/860c000eca224b7b6deedbe6/manifest.json",
+    "query": {
+     "ra": 92.658769,
+     "dec": -21.763749,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:17Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "wise-1534",
+   "name": "WISE J1534-1043 (The Accident)",
+   "kind": "brown_dwarf",
+   "ra_deg": 233.628188,
+   "dec_deg": -10.718042,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 47.8,
+   "parallax_err_mas": 3.4,
+   "distance_pc": null,
+   "pmra_mas_yr": 1334.3,
+   "pmdec_mas_yr": -2435.9,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISEA+J153429.75-104303.3"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/324bbc4e699708d7928268ab/manifest.json",
+    "query": {
+     "ra": 233.638325,
+     "dec": -10.736225,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:17Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "wise-0830",
+   "name": "WISEA J0830+2837",
+   "kind": "brown_dwarf",
+   "ra_deg": 127.549887,
+   "dec_deg": 28.621045,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 90.6,
+   "parallax_err_mas": 6.7,
+   "distance_pc": null,
+   "pmra_mas_yr": -196.2,
+   "pmdec_mas_yr": -2044.7,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISEA+J083011.95%2B283716.0"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/7a377c45da748476d99a7614/manifest.json",
+    "query": {
+     "ra": 127.548219,
+     "dec": 28.605782,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:18Z",
+    "passes": 2
+   }
+  },
+  {
+   "id": "cwise-1249",
+   "name": "CWISE J1249+3621",
+   "kind": "brown_dwarf",
+   "ra_deg": 192.287654,
+   "dec_deg": 36.356236,
+   "ref_epoch": 2000.0,
+   "parallax_mas": null,
+   "parallax_err_mas": null,
+   "distance_pc": null,
+   "pmra_mas_yr": -344.0,
+   "pmdec_mas_yr": -814.0,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Marocco et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J124908.94%2B362122.4"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/94376b333970492e77f37afa/manifest.json",
+    "query": {
+     "ra": 192.284466,
+     "dec": 36.35016,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:18Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "gliese-570-d",
+   "name": "Gliese 570 D",
+   "kind": "brown_dwarf",
+   "ra_deg": 224.260833,
+   "dec_deg": -20.999444,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 169.293,
+   "parallax_err_mas": 0.088,
+   "distance_pc": null,
+   "pmra_mas_yr": 1032.5,
+   "pmdec_mas_yr": -1680.5,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=GJ+570+D"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/edabb8af5465a7deea2c290c/manifest.json",
+    "query": {
+     "ra": 224.269088,
+     "dec": -21.011988,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:18Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "scr-1845-b",
+   "name": "SCR J1845-6357 B",
+   "kind": "brown_dwarf",
+   "ra_deg": 281.272083,
+   "dec_deg": -63.963056,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 259.4,
+   "parallax_err_mas": 11.1,
+   "distance_pc": null,
+   "pmra_mas_yr": -2472.0,
+   "pmdec_mas_yr": 589.0,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kasper et al. 2006)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=SCR+J1845-6357B"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/79709e71dc3ac3b14e38c54d/manifest.json",
+    "query": {
+     "ra": 281.230046,
+     "dec": -63.958659,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:18Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "wise-0535",
+   "name": "WISE J0535-7500",
+   "kind": "brown_dwarf",
+   "ra_deg": 83.821278,
+   "dec_deg": -75.006886,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 68.7,
+   "parallax_err_mas": 4.0,
+   "distance_pc": null,
+   "pmra_mas_yr": 120.1,
+   "pmdec_mas_yr": 23.6,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J053516.80-750024.9"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/1b758f4eedacc57785c437d6/manifest.json",
+    "query": {
+     "ra": 83.824743,
+     "dec": -75.00671,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:18Z",
+    "passes": 6
+   }
+  },
+  {
+   "id": "wise-2056",
+   "name": "WISE J2056+1459",
+   "kind": "brown_dwarf",
+   "ra_deg": 314.117961,
+   "dec_deg": 14.998492,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 140.8,
+   "parallax_err_mas": 3.4,
+   "distance_pc": null,
+   "pmra_mas_yr": 825.1,
+   "pmdec_mas_yr": 528.8,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Kirkpatrick et al. 2021)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=WISE+J205628.91%2B145953.2"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/6caf8e681f8a2e79960f3f41/manifest.json",
+    "query": {
+     "ra": 314.124337,
+     "dec": 15.002439,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:19Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "wolf-940-b",
+   "name": "Wolf 940 B",
+   "kind": "brown_dwarf",
+   "ra_deg": 324.896667,
+   "dec_deg": -0.219167,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 79.8,
+   "parallax_err_mas": 2.0,
+   "distance_pc": null,
+   "pmra_mas_yr": -904.0,
+   "pmdec_mas_yr": -165.0,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Burningham et al. 2009)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Wolf+940B"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/d870c6584291fedab841b60b/manifest.json",
+    "query": {
+     "ra": 324.889919,
+     "dec": -0.220399,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:19Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "t-tau",
+   "name": "T Tauri",
+   "kind": "variable",
+   "ra_deg": 65.497633,
+   "dec_deg": 19.53512,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 6.8901,
+   "parallax_err_mas": 0.0377,
+   "distance_pc": null,
+   "pmra_mas_yr": 11.682,
+   "pmdec_mas_yr": -14.341,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=T+Tau"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/04312d0562c5f3606150cfc1/manifest.json",
+    "query": {
+     "ra": 65.497726,
+     "dec": 19.535013,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:19Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "fu-ori",
+   "name": "FU Orionis",
+   "kind": "variable",
+   "ra_deg": 86.343187,
+   "dec_deg": 9.070081,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 2.4538,
+   "parallax_err_mas": 0.0179,
+   "distance_pc": null,
+   "pmra_mas_yr": 2.441,
+   "pmdec_mas_yr": -2.507,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=FU+Ori"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/ee84d3dece6d17e1e5b9b651/manifest.json",
+    "query": {
+     "ra": 86.343205,
+     "dec": 9.070062,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:19Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "v1647-ori",
+   "name": "V1647 Ori",
+   "kind": "variable",
+   "ra_deg": 86.581517,
+   "dec_deg": -0.101186,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 2.3789,
+   "parallax_err_mas": 0.2825,
+   "distance_pc": null,
+   "pmra_mas_yr": 0.999,
+   "pmdec_mas_yr": -1.026,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V%2A+V1647+Ori"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/abf8bdee9dc9f5b6ccb3427c/manifest.json",
+    "query": {
+     "ra": 86.581524,
+     "dec": -0.101194,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:20Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "chi-cyg",
+   "name": "Chi Cygni",
+   "kind": "variable",
+   "ra_deg": 296.904838,
+   "dec_deg": 32.914275,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 6.2891,
+   "parallax_err_mas": 0.3541,
+   "distance_pc": null,
+   "pmra_mas_yr": 6.273,
+   "pmdec_mas_yr": -47.387,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=chi+Cyg"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/07f7464dea9442eca375efe2/manifest.json",
+    "query": {
+     "ra": 296.904894,
+     "dec": 32.913921,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:20Z",
+    "passes": 4
+   }
+  },
+  {
+   "id": "r-leo",
+   "name": "R Leonis",
+   "kind": "variable",
+   "ra_deg": 146.777088,
+   "dec_deg": 11.428519,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 14.1166,
+   "parallax_err_mas": 0.7073,
+   "distance_pc": null,
+   "pmra_mas_yr": -49.623,
+   "pmdec_mas_yr": 19.682,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=R+Leo"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/e95bcf89b8896a8447d730f9/manifest.json",
+    "query": {
+     "ra": 146.77671,
+     "dec": 11.428666,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:20Z",
+    "passes": 2
+   }
+  },
+  {
+   "id": "cw-leo",
+   "name": "IRC +10216 (CW Leo)",
+   "kind": "variable",
+   "ra_deg": 146.989193,
+   "dec_deg": 13.278768,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 10.79,
+   "parallax_err_mas": 4.6,
+   "distance_pc": null,
+   "pmra_mas_yr": 33.84,
+   "pmdec_mas_yr": 10.0,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (2MASS / Cutri et al. 2003)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=IRC+%2B10216"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/74474276e96870d6ce7b48a1/manifest.json",
+    "query": {
+     "ra": 146.989453,
+     "dec": 13.278843,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:20Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "v1057-cyg",
+   "name": "V1057 Cyg",
+   "kind": "variable",
+   "ra_deg": 314.654271,
+   "dec_deg": 44.249492,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 1.1091,
+   "parallax_err_mas": 0.0211,
+   "distance_pc": null,
+   "pmra_mas_yr": -2.628,
+   "pmdec_mas_yr": -4.137,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V1057+Cyg"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/0b0d148951d01ee6520ee4e5/manifest.json",
+    "query": {
+     "ra": 314.654244,
+     "dec": 44.249461,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:20Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "v1515-cyg",
+   "name": "V1515 Cyg",
+   "kind": "variable",
+   "ra_deg": 305.938883,
+   "dec_deg": 51.841381,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 1.0504,
+   "parallax_err_mas": 0.0163,
+   "distance_pc": null,
+   "pmra_mas_yr": -3.856,
+   "pmdec_mas_yr": -4.897,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V1515+Cyg"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/91f1fbc294ca52a037a0fb3a/manifest.json",
+    "query": {
+     "ra": 305.938836,
+     "dec": 51.841344,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:21Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "ex-lup",
+   "name": "EX Lupi",
+   "kind": "variable",
+   "ra_deg": 242.067333,
+   "dec_deg": -40.312953,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 6.4673,
+   "parallax_err_mas": 0.0266,
+   "distance_pc": null,
+   "pmra_mas_yr": -11.968,
+   "pmdec_mas_yr": -21.613,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=EX+Lup"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/0ebe992d7fc5e405d93a089a/manifest.json",
+    "query": {
+     "ra": 242.067216,
+     "dec": -40.313114,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:21Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "v346-nor",
+   "name": "V346 Nor",
+   "kind": "variable",
+   "ra_deg": 248.064583,
+   "dec_deg": -44.757778,
+   "ref_epoch": 2000.0,
+   "parallax_mas": null,
+   "parallax_err_mas": null,
+   "distance_pc": null,
+   "pmra_mas_yr": 0.0,
+   "pmdec_mas_yr": 0.0,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (2MASS / Cutri et al. 2003)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V346+Nor"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/0cc44532009cd43760ea424d/manifest.json",
+    "query": {
+     "ra": 248.064583,
+     "dec": -44.757778,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:21Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "z-cma",
+   "name": "Z CMa",
+   "kind": "variable",
+   "ra_deg": 105.908333,
+   "dec_deg": -11.554444,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 2.01,
+   "parallax_err_mas": 0.5,
+   "distance_pc": null,
+   "pmra_mas_yr": -4.6,
+   "pmdec_mas_yr": 4.2,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Hipparcos)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=Z+CMa"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/b5bcb20b065751092b138e26/manifest.json",
+    "query": {
+     "ra": 105.908298,
+     "dec": -11.554413,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:21Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "v883-ori",
+   "name": "V883 Ori",
+   "kind": "variable",
+   "ra_deg": 84.588746,
+   "dec_deg": -7.039644,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 1.5126,
+   "parallax_err_mas": 0.0384,
+   "distance_pc": null,
+   "pmra_mas_yr": 0.449,
+   "pmdec_mas_yr": -1.716,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=V883+Ori"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/e3fb44be84708d26a4242d4b/manifest.json",
+    "query": {
+     "ra": 84.588749,
+     "dec": -7.039657,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:22Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "pv-cep",
+   "name": "PV Cephei",
+   "kind": "variable",
+   "ra_deg": 313.238217,
+   "dec_deg": 67.962294,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 2.8252,
+   "parallax_err_mas": 0.0463,
+   "distance_pc": null,
+   "pmra_mas_yr": 4.091,
+   "pmdec_mas_yr": 7.377,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Gaia DR3)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=PV+Cep"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/8e5b15c9b437995543d6190d/manifest.json",
+    "query": {
+     "ra": 313.238298,
+     "dec": 67.962349,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:22Z",
+    "passes": 3
+   }
+  },
+  {
+   "id": "dg-tau",
+   "name": "DG Tauri",
+   "kind": "variable",
+   "ra_deg": 66.772583,
+   "dec_deg": 26.027583,
+   "ref_epoch": 2000.0,
+   "parallax_mas": 8.04,
+   "parallax_err_mas": 0.7,
+   "distance_pc": null,
+   "pmra_mas_yr": 7.3,
+   "pmdec_mas_yr": -19.9,
+   "preset_id": null,
+   "provenance": {
+    "catalog": "SIMBAD (Hipparcos)",
+    "ref": "https://simbad.cds.unistra.fr/simbad/sim-id?Ident=DG+Tau"
+   },
+   "view": {
+    "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/df7e665b6679cefc621bee28/manifest.json",
+    "query": {
+     "ra": 66.772644,
+     "dec": 26.027434,
+     "fov_arcmin": 6,
+     "band": "auto",
+     "mode": "stack",
+     "source": "auto"
+    },
+    "built_at": "2026-11-15T07:11:22Z",
+    "passes": 3
+   }
+  }
+ ]
+}

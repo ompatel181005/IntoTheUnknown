@@ -40,3 +40,16 @@ local production preview on port 5191 and a Python environment with Playwright.
 For example, `python tests/view_states_browser.py` after starting
 `npm run preview -- --host 127.0.0.1 --port 5191`. Its screenshots/results go under
 ignored `frontend/screenshots/view-states/`.
+
+Catalog integration: direct coordinate/preset URLs load the bundled catalog without
+an external request; home and point links retain Blob-first catalog loading with a
+local fallback. Bare challenge point links use the validated preset defaults.
+Golden snapshots are tried before prebuilt manifests. Only Auto can reuse a
+catalog prebuilt view; Saved and Live keep their respective source constraints.
+Before prebuilt image/mask requests, the fetched manifest must match the requested
+coordinates (within five-decimal URL rounding), FOV and band; a mismatch is an
+explicit error without a fallback build or wrong-field display.
+The loading tests cover those guards, stripped frontend-only request fields and
+catalog cache isolation. Browser QA also checks the 47-point home list, all five
+bare challenge point links during a Blob outage and no remote requests on the
+five direct canonical preset URLs.

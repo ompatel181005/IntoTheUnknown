@@ -6,6 +6,11 @@
   container-type: size;
 }
 
+.stage[data-preparing="true"] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* Local overlay follows the exact image transform, including the overscanned sky grid. */
 .sky {
   position: absolute;
@@ -88,6 +93,18 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.pointHeading {
+  position: absolute;
+  bottom: 100%;
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding-bottom: 8px;
+  text-align: center;
+  font-size: 20px;
+}
+
 .topRow {
   display: flex;
   align-items: center;
@@ -156,6 +173,13 @@
   display: inline-flex;
   align-items: center;
   gap: 12px;
+}
+
+.legendTerm {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  cursor: help;
 }
 
 .swatchNeg,
@@ -229,7 +253,7 @@
   grid-template-rows: auto minmax(0, 1fr);
   justify-items: center;
   gap: var(--gutter);
-  overflow: clip;
+  overflow: visible;
   cursor: grab;
   touch-action: none;
 }
@@ -349,6 +373,13 @@
 }
 
 @media (max-width: 768px) {
+  .pointHeading {
+    top: calc(var(--row) + var(--side) + 12px);
+    bottom: auto;
+    padding: 0;
+    font-size: 18px;
+  }
+
   .hintText {
     display: none;
   }

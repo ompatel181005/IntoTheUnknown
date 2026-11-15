@@ -44,6 +44,7 @@ let active: { start: number; direction: 1 | -1; reduced: boolean; resolve: () =>
 let sample: FlightSample | null = null;
 let frame = 0;
 const listeners = new Set<(sample: FlightSample) => void>();
+let measureDome: (() => void) | null = null;
 const smooth = (t: number) => t * t * (3 - 2 * t);
 const mix = (a: number, b: number, u: number) => a + (b - a) * u;
 export const mixLog = (a: number, b: number, u: number) => Math.exp(mix(Math.log(a), Math.log(b), u));
@@ -55,15 +56,22 @@ export function saveHomeCamera(camera: OrreryCameraState) {
 export function getFlightSample() { return sample; }
 export function getFlightStartPose() { return route ? { ...(active?.direction === -1 ? route.dome : route.marker) } : null; }
 export function flightIsActive() { return active !== null; }
+export function getFlightDirection() { return active?.direction; }
 export function subscribeFlight(listener: (sample: FlightSample) => void) {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
+}
+
+export function registerDomeLayout(measure: () => void) {
+  measureDome = measure;
+  return () => { if (measureDome === measure) measureDome = null; };
 }
 
 function tick(now: number) {
   frame = 0;
   if (!active || !route) return;
   if (active.start < 0) {
+    measureDome?.();
     active.start = now;
     markFlight(active.direction === 1 ? "forward-start" : "return-start");
   }
@@ -128,17 +136,27 @@ export function registerHomeNavigation(navigation: NonNullable<typeof homeNaviga
 }
 export function requestTargetFlight(id: string) { return homeNavigation?.pick(id) ?? false; }
 
+/** Coordinates share the same flight curve, starting at the centre of the home map. */
+export function requestCoordinateFlight(ra: number, dec: number) {
+  const facing = skyFacing(ra, dec);
+  return startTargetFlight("coordinates", homeCamera, facing, { x: innerWidth / 2, y: innerHeight / 2, side: 20 });
+}
+
+function skyFacing(ra: number, dec: number) {
+  const a = ra * Math.PI / 180, d = dec * Math.PI / 180, eps = 23.4393 * Math.PI / 180;
+  const x = Math.cos(d) * Math.cos(a), y = Math.cos(d) * Math.sin(a) * Math.cos(eps) + Math.sin(d) * Math.sin(eps);
+  const z = -Math.cos(d) * Math.sin(a) * Math.sin(eps) + Math.sin(d) * Math.cos(eps);
+  let yaw = Math.atan2(x, y);
+  while (yaw - homeCamera.yaw > Math.PI) yaw -= 2 * Math.PI;
+  while (homeCamera.yaw - yaw > Math.PI) yaw += 2 * Math.PI;
+  return { yaw, pitch: Math.atan2(-z, Math.hypot(x, y)) };
+}
+
 /** The home renderer is already present at the forward route's near camera. */
 export function prepareReturnFlight(target: { id: string | null; ra: number; dec: number }, dome: FlightPose | null) {
   if (!route || route.targetId !== target.id) {
     const marker = homeNavigation?.locate(target.id) ?? { x: window.innerWidth / 2, y: window.innerHeight / 2, side: 20 };
-    const a = target.ra * Math.PI / 180, d = target.dec * Math.PI / 180, eps = 23.4393 * Math.PI / 180;
-    const x = Math.cos(d) * Math.cos(a), y = Math.cos(d) * Math.sin(a) * Math.cos(eps) + Math.sin(d) * Math.sin(eps);
-    const z = -Math.cos(d) * Math.sin(a) * Math.sin(eps) + Math.sin(d) * Math.cos(eps);
-    let yaw = Math.atan2(x, y);
-    while (yaw - homeCamera.yaw > Math.PI) yaw -= 2 * Math.PI;
-    while (homeCamera.yaw - yaw > Math.PI) yaw += 2 * Math.PI;
-    route = { targetId: target.id, home: { ...homeCamera }, near: { ...homeCamera, yaw, pitch: Math.atan2(-z, Math.hypot(x, y)), fade: 0 }, marker, dome: dome ?? marker };
+    route = { targetId: target.id, home: { ...homeCamera }, near: { ...homeCamera, ...skyFacing(target.ra, target.dec), fade: 0 }, marker, dome: dome ?? marker };
   }
   if (dome) setDomeDestination(dome);
   return begin(-1);

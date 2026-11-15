@@ -22,131 +22,16 @@
   pointer-events: auto;
 }
 
-.target {
-  position: fixed;
-  left: 0;
-  top: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: var(--target-min);
-  margin: -22px 0 0 -22px;
-  padding: 0 10px 0 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-1);
-  text-align: left;
-  cursor: pointer;
-  pointer-events: auto;
-  will-change: transform;
-  transform-origin: 22px 22px;
-  transition: opacity 150ms linear;
-}
-
-.targetStatic {
-  pointer-events: none;
-}
-
-.target[data-behind="true"] {
-  z-index: 0;
-}
-
-.ring {
-  position: relative;
-  flex: none;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-}
-
-.ring::before {
-  content: "";
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 1px solid var(--text-1);
-  box-shadow: 0 0 6px var(--glass-highlight);
-  opacity: 0.85;
-  transition: scale 250ms ease-out;
-}
-
-.ring::after {
-  content: "";
+.accessibleTargets {
   position: absolute;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--text-1);
-  opacity: 0.85;
-}
-
-.target[data-edge="true"] .ring::before {
-  border-color: var(--accent);
-}
-
-.target[data-edge="true"] .ring::after {
-  width: 8px;
+  width: 1px;
   height: 1px;
-  border-radius: 0;
-  background: var(--accent);
-  translate: 10px 0;
-  rotate: var(--edge-angle);
-  transform-origin: -8px 50%;
-}
-
-.target:hover .ring::before,
-.target:focus-visible .ring::before {
-  opacity: 1;
-}
-
-.target[data-label-left="true"] .label {
-  text-align: right;
-}
-
-.target[data-label-hidden="true"] .label {
-  opacity: 0;
-}
-
-.label {
-  position: absolute;
-  left: var(--label-offset, 54px);
-  top: var(--label-top, 22px);
-  translate: 0 -50%;
-  width: max-content;
-  max-width: min(240px, 60vw);
-  transition: opacity 150ms linear;
-  display: grid;
-  gap: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
   white-space: nowrap;
-}
-
-/* Eyes label style: uppercase, wide tracking, dimmed until hovered. */
-.name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  opacity: 0.75;
-  text-shadow: 0 0 10px var(--space-0);
-  transition: opacity 250ms ease-out;
-}
-
-.target:hover .name,
-.target:focus-visible .name {
-  opacity: 1;
-}
-
-.kind {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--text-2);
+  list-style: none;
 }
 
 .hud {
@@ -163,6 +48,10 @@
   letter-spacing: 0.14em;
   color: var(--text-2);
   pointer-events: none;
+  /* The fixed-width UTC readout must not relayout the catalog on every simulation tick. */
+  contain: strict;
+  width: calc(27ch + 3.78em);
+  height: 1.45em;
 }
 
 @media (max-width: 768px) {
@@ -171,40 +60,53 @@
     translate: 0;
     font-size: 10px;
   }
+}
 
-  .kind {
-  overflow: hidden;
-  text-overflow: ellipsis;
-    display: none;
-  }
+.orrery[data-active="false"] .canvas {
+  pointer-events: none;
+}
 
-  .name {
-    font-size: 14px;
-  }
+/* Earth's info card: follows Earth, never takes pointer input, hidden at rest. */
+.earthCard {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: min(260px, calc(100vw - 24px));
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-chip);
+  background: var(--glass-bg-strong);
+  box-shadow: var(--shadow-float);
+  color: var(--text-1);
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 120ms var(--ease-ui), visibility 0s linear 120ms;
+}
+
+.earthCard[data-open="true"] {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 120ms var(--ease-ui);
+}
+
+.earthTitle {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.earthBody {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ring::before,
-  .name,
-  .label {
+  .earthCard,
+  .earthCard[data-open="true"] {
     transition: none;
   }
-
-  .target[data-picked="true"] .ring::before {
-    animation: none;
-  }
-
-  .target {
-    transition: none;
-  }
-}
-
-.orrery[data-active="false"] .canvas,
-.orrery[data-active="false"] .target {
-  pointer-events: none !important;
-}
-
-:global([data-app-shell][data-flying="true"]) .target[data-flight-target="true"] .ring,
-:global([data-app-shell][data-flying="true"]) .target[data-flight-target="true"] .label {
-  visibility: hidden;
 }

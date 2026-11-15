@@ -26,7 +26,7 @@ function responseForArrayBuffer(buffer) {
 async function loadTypescriptModule(relativePath, exports, imports = {}, globals = {}) {
   const file = path.join(root, relativePath);
   const source = await readFile(file, "utf8");
-  const javascript = ts.transpileModule(source, {
+  const javascript = ts.transpileModule(source.replaceAll("import.meta.env", "({})"), {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const context = vm.createContext({ AbortController, DOMException, Float32Array, Uint8Array, setTimeout, clearTimeout, ...globals });
@@ -51,9 +51,9 @@ async function loadApiSource(api, globals = {}) {
       createView: api.createView ?? (async () => ({ status: "ready", manifest_url: "/r/v/manifest.json", view_id: "v" })),
       fetchAsset: api.fetchAsset ?? (async () => { throw new Error("unexpected asset request"); }),
       getViewStatus: api.getViewStatus ?? (async () => { throw new Error("unexpected status request"); }),
-      registerGoldenView: () => {},
+      registerGoldenView: api.registerGoldenView ?? (() => {}),
     },
-    "../lib/targets": { findPreset: () => null },
+    "../lib/targets": { findPreset: api.findPreset ?? (() => null) },
   }, globals);
   return namespace.apiSource;
 }
@@ -215,4 +215,102 @@ test("ignores late progress and completion from a source that ignores abort", as
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(render(5).kind, "error");
   assert.equal(render(5).code, "ERROR");
+});
+
+
+test("prebuilt manifest rejects malformed and mismatched queries before asset reads or registration", async () => {
+  const requested = { ...query(), source: "auto", manifestUrl: "https://storage.invalid/a/manifest.json" };
+  for (const actual of [undefined, null, {}, { ...requested, ra: 11 }, { ...requested, dec: 21 },
+    { ...requested, ra: NaN }, { ...requested, fov_arcmin: 6 }, { ...requested, band: "B6" },
+    { ...requested, ra: "10" }]) {
+    const urls = [];
+    let registered = false;
+    const source = await loadApiSource({
+      fetchAsset: async (url) => { urls.push(url); return { json: async () => ({ query: actual, epochs: [{ image: "wrong.f32" }] }) }; },
+      createView: async () => { throw new Error("must not fall back to a build"); },
+      registerGoldenView: () => { registered = true; },
+    });
+    await assert.rejects(source.load(requested, () => {}, new AbortController().signal), { code: "BAD_RESPONSE" });
+    assert.deepEqual(urls, [requested.manifestUrl]);
+    assert.equal(registered, false);
+  }
+});
+
+test("matching prebuilt manifest accepts URL rounding and strips frontend-only measurement fields", async () => {
+  let registered;
+  const requested = { ...query(), source: "auto", manifestUrl: "https://storage.invalid/a/manifest.json" };
+  const urls = [];
+  const source = await loadApiSource({
+    fetchAsset: async (url) => {
+      urls.push(url);
+      if (url.endsWith("manifest.json")) return { json: async () => ({ render_key: "prebuilt", query: { ...requested, ra: 10.000005 }, epochs: [{ image: "e.f32" }] }) };
+      return responseForArrayBuffer(new Float32Array([4]).buffer);
+    },
+    createView: async () => { throw new Error("must not build a matching prebuilt view"); },
+    registerGoldenView: (id, q) => { registered = { id, q }; },
+  });
+  const view = await source.load(requested, () => {}, new AbortController().signal);
+  assert.equal(view.fromCache, true);
+  assert.deepEqual([...view.images[0]], [4]);
+  assert.deepEqual(urls, [requested.manifestUrl, "https://storage.invalid/a/e.f32"]);
+  assert.equal(registered.id, "prebuilt");
+  assert.equal("manifestUrl" in registered.q, false);
+  assert.equal("presetId" in registered.q, false);
+});
+
+test("Saved and Live requests bypass an injected live prebuilt URL and strip it from backend requests", async () => {
+  for (const mode of ["saved", "live"]) {
+    const urls = [];
+    let posted;
+    const source = await loadApiSource({
+      createView: async (q) => { posted = q; return { status: "ready", manifest_url: "/actual/manifest.json", view_id: "actual" }; },
+      fetchAsset: async (url) => { urls.push(url); return { json: async () => ({ epochs: [] }) }; },
+    });
+    await source.load({ ...query(), source: mode, manifestUrl: "https://storage.invalid/live/manifest.json" }, () => {}, new AbortController().signal);
+    assert.deepEqual(urls, ["/actual/manifest.json"]);
+    assert.equal(posted.source, mode);
+    assert.equal("manifestUrl" in posted, false);
+    assert.equal("presetId" in posted, false);
+  }
+});
+
+async function loadCatalogApi(fetch) {
+  const { namespace } = await loadTypescriptModule("src/api.ts", {}, {
+    "./lib/catalog": { validateCatalog: (value) => value },
+  }, { fetch, AbortSignal });
+  return namespace;
+}
+
+test("direct coordinate catalog loading stays bundled while home remains Blob first with fallback", async () => {
+  const calls = [];
+  const api = await loadCatalogApi(async (url) => {
+    calls.push(url);
+    if (url.startsWith("https:")) return { ok: false };
+    return { ok: true, json: async () => ({ version: "local" }) };
+  });
+  await api.getCatalog("points", undefined, false);
+  assert.deepEqual(calls, ["/catalog/points.json"]);
+  calls.length = 0;
+  await api.getCatalog("points", undefined, true);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0], /^https:/);
+  assert.equal(calls[1], "/catalog/points.json");
+});
+
+
+test("exact default presets prefer golden snapshots before an unavailable prebuilt Blob URL", async () => {
+  const requested = { ...query(), mode: "stack", source: "auto", presetId: "preset", manifestUrl: "https://storage.invalid/unavailable/manifest.json" };
+  const preset = { id: "preset", ra: requested.ra, dec: requested.dec, fov: requested.fov_arcmin, band: requested.band };
+  const calls = [];
+  const source = await loadApiSource({
+    findPreset: () => preset,
+    createView: async () => { throw new Error("must not build"); },
+    fetchAsset: async () => { throw new Error("must not fetch Blob"); },
+  }, { fetch: async (url) => {
+    calls.push(url);
+    return { ok: true, headers: { get: () => "application/json" }, json: async () => ({ render_key: "golden", epochs: [] }) };
+  } });
+  const result = await source.load(requested, () => {}, new AbortController().signal);
+  assert.equal(result.cacheLayer, "snapshot");
+  assert.deepEqual(calls, ["/golden/preset/manifest.json"]);
 });

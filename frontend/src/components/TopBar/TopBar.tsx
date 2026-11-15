@@ -18,6 +18,12 @@ interface TopBarProps {
   onTour: () => void;
 }
 
+export function HomeGuideButton({ onGuide }: { onGuide: () => void }) {
+  return <GlassPanel pill className={s.homeGuide} data-tour="help">
+    <GlassButton variant="ghost" icon="help" label="Guide" onClick={onGuide} />
+  </GlassPanel>;
+}
+
 export function TopBar(props: TopBarProps) {
   return (
     <header className={s.bar}>

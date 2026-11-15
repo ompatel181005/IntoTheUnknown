@@ -55,8 +55,19 @@ async def run(base, chrome):
         browser = await playwright.chromium.launch(executable_path=chrome, headless=True)
         page = await browser.new_page(viewport={"width": 1440, "height": 1000}, reduced_motion="reduce")
         await page.add_init_script("localStorage.setItem('spherex-blink.guide-dismissed','1')")
-        errors, api_calls = [], []
+        errors, api_calls, remote_calls = [], [], []
         page.on("pageerror", lambda error: errors.append(str(error)))
+        page.on(
+            "request",
+            lambda request: (
+                remote_calls.append(request.url)
+                if urlsplit(request.url).scheme in ("http", "https")
+                and urlsplit(request.url).netloc != urlsplit(base).netloc
+                else None
+            ),
+        )
+        # Network-independent QA: home falls back when the public catalog is absent.
+        await page.route("https://**", lambda route: route.fulfill(status=404, body="not published"))
         page.on("request", lambda request: api_calls.append(request.url) if "/api/" in request.url else None)
 
         async def deny_api(route):
@@ -65,12 +76,29 @@ async def run(base, chrome):
         await page.route("**/api/**", deny_api)
         for target, manifest in manifests.items():
             api_calls.clear()
+            remote_calls.clear()
             await page.goto(base + "/?" + query(target, manifest))
             await page.wait_for_function(PAINTED)
             assert not api_calls, api_calls
+            assert not remote_calls, remote_calls
             assert await page.get_by_text("Saved SPHEREx cutouts · Saved snapshot · cached", exact=True).is_visible()
             await page.screenshot(path=str(screenshots / f"saved-{target}.png"))
-            evidence.append({"target": target, "api_calls": 0, "painted": True})
+            evidence.append({"target": target, "api_calls": 0, "remote_calls": 0, "painted": True})
+
+        remote_calls.clear()
+        await page.goto(base + "/")
+        await page.get_by_role("list", name="Target list").get_by_role("listitem").last.wait_for()
+        assert await page.get_by_role("list", name="Target list").get_by_role("listitem").count() == 47
+        assert remote_calls and "blob.core.windows.net" in remote_calls[0]
+        await page.screenshot(path=str(screenshots / "home-catalog.png"))
+        evidence.append({"home_points": 47, "blob_first_local_fallback": True})
+        for target in manifests:
+            api_calls.clear()
+            await page.goto(base + "/?" + urlencode({"point": target, "src": "auto"}))
+            await page.wait_for_function(PAINTED)
+            assert not api_calls, api_calls
+            assert await page.get_by_text("Saved SPHEREx cutouts · Saved snapshot · cached", exact=True).is_visible()
+            evidence.append({"point_default": target, "golden_first": True, "api_calls": 0})
 
         manifest = manifests["barnard"]
         await page.unroute("**/api/**", deny_api)

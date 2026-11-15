@@ -1,9 +1,7 @@
 import { useEffect, useRef } from "react";
 import { flightIsActive, getHomeCamera, markFlight, subscribeFlight } from "../../lib/flight";
-import { drawStarfield, loadStarfield, type Starfield } from "../../lib/starfield";
+import { loadStarfield, mountStarfield } from "../../lib/starfield";
 import s from "./SkyBackdrop.module.css";
-
-const NEAR = 0.04;
 
 /**
  * BSC5 catalogue directions, visual magnitudes and B-V colours behind the science dome.
@@ -12,7 +10,7 @@ const NEAR = 0.04;
  */
 export function SkyBackdrop({ dim }: { dim: boolean }) {
   const backdropRef = useRef<HTMLDivElement>(null);
-  const ref = useRef<HTMLCanvasElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const prepare = useRef<() => void>(() => {});
   const draw = useRef<(streak: number, travel?: number) => void>(() => {});
   const settle = useRef<(travel: number) => void>(() => {});
@@ -23,11 +21,10 @@ export function SkyBackdrop({ dim }: { dim: boolean }) {
   useEffect(() => {
     const cv = ref.current;
     if (!cv) return;
-    const ctx = cv.getContext("2d");
-    if (!ctx) return;
-    let field: Starfield | null = null;
-    let geometry = new Float32Array(0);
-    let projected = new Float32Array(0);
+    const starfield = mountStarfield(cv);
+    let camera = getHomeCamera();
+    let needsPrepare = true;
+    let settledTravel = 0;
     let disposed = false;
     let w = 0;
     let h = 0;
@@ -49,68 +46,33 @@ export function SkyBackdrop({ dim }: { dim: boolean }) {
       pixelWidth = nextPixelWidth;
       pixelHeight = nextPixelHeight;
       bitmapDpr = dpr;
-      if (cv.width !== pixelWidth) cv.width = pixelWidth;
-      if (cv.height !== pixelHeight) cv.height = pixelHeight;
+      starfield.paint({ width: w, height: h, dpr });
       cv.style.width = `${w}px`;
       cv.style.height = `${h}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       draw.current(0);
     };
-    // Catalogue directions are real; the warp's depth and travel are cinematic, not distances.
     prepare.current = () => {
-      if (!field) return;
-      const camera = getHomeCamera();
-      const cy = Math.cos(camera.yaw), sy = Math.sin(camera.yaw);
-      const cp = Math.cos(camera.pitch), sp = Math.sin(camera.pitch);
-      for (let i = 0; i < field.xyz.length; i += 3) {
-        const xyz = field.xyz;
-        const x = xyz[i] * cy - xyz[i + 1] * sy;
-        const y = xyz[i] * sy + xyz[i + 1] * cy;
-        const depth = y * cp - xyz[i + 2] * sp;
-        const z = NEAR + Math.max(0, depth) * (1 - NEAR);
-        geometry[i] = x * z / depth;
-        geometry[i + 1] = -(y * sp + xyz[i + 2] * cp) * z / depth;
-        geometry[i + 2] = depth > 0.04 ? z : -1;
-      }
+      camera = getHomeCamera();
+      needsPrepare = true;
+      settledTravel = 0;
     };
-    draw.current = (streak: number, travel = 0) => {
-      ctx.setTransform(cv.width / w, 0, 0, cv.height / h, 0, 0);
-      ctx.clearRect(0, 0, w, h);
-      if (!field) return;
-      const cx = Number.isFinite(focus.current.x) ? focus.current.x : w / 2;
-      const cy = Number.isFinite(focus.current.y) ? focus.current.y : h / 2;
-      const f = Math.max(w, h) * 0.5;
-      const moving = Math.abs(streak) > 1e-4;
-      const range = 1 - NEAR;
-      for (let i = 0; i < geometry.length; i += 3) {
-        const j = i / 3 * 4;
-        if (geometry[i + 2] < 0) {
-          projected[j] = NaN;
-          continue;
-        }
-        const z = NEAR + ((geometry[i + 2] - travel - NEAR) % range + range) % range;
-        projected[j] = cx + geometry[i] / z * f;
-        projected[j + 1] = cy + geometry[i + 1] / z * f;
-        const z0 = Math.min(1.2, Math.max(NEAR, z + streak));
-        projected[j + 2] = cx + geometry[i] / z0 * f;
-        projected[j + 3] = cy + geometry[i + 1] / z0 * f;
-      }
-      ctx.lineCap = "round";
-      drawStarfield(ctx, field, projected, 4, w, h, 1, moving);
-      ctx.globalAlpha = 1;
+    draw.current = (streak: number, travel = settledTravel) => {
+      starfield.paint({
+        ...camera,
+        x: Number.isFinite(focus.current.x) ? focus.current.x : w / 2,
+        y: Number.isFinite(focus.current.y) ? focus.current.y : h / 2,
+        focal: Math.max(w, h) * 0.5,
+        fade: 1, streak, travel, prepare: needsPrepare,
+      });
+      needsPrepare = false;
     };
     settle.current = (travel) => {
-      const range = 1 - NEAR;
-      for (let i = 2; i < geometry.length; i += 3) {
-        if (geometry[i] >= 0) geometry[i] = NEAR + ((geometry[i] - travel - NEAR) % range + range) % range;
-      }
+      settledTravel = travel;
       draw.current(0);
     };
-    void loadStarfield().then((catalogue) => {
-      if (disposed || !catalogue) return;
-      field = catalogue;
-      geometry = new Float32Array(field.xyz.length);
-      projected = new Float32Array(field.xyz.length / 3 * 4);
+    void loadStarfield().then((field) => {
+      if (disposed || !field) return;
+      starfield.paint({ field });
       prepare.current();
       draw.current(0);
     });
@@ -123,6 +85,7 @@ export function SkyBackdrop({ dim }: { dim: boolean }) {
     ro.observe(document.documentElement);
     return () => {
       disposed = true;
+      starfield.dispose();
       prepare.current = () => {};
       draw.current = () => {};
       settle.current = () => {};
@@ -192,7 +155,7 @@ export function SkyBackdrop({ dim }: { dim: boolean }) {
 
   return (
     <div ref={backdropRef} className={s.backdrop} data-dim={dim} data-home={!dim} aria-hidden="true">
-      <canvas ref={ref} className={s.canvas} />
+      <div ref={ref} className={s.canvas} />
       <div className={s.vignette} />
     </div>
   );

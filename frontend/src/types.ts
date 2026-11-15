@@ -52,6 +52,14 @@ export interface CatalogObject {
   pmdec_mas_yr: number | null;
   preset_id: string | null;
   provenance: CatalogProvenance;
+  /** Frontend catalog metadata for an already rendered Blob view. */
+  view?: {
+    manifest_url: string;
+    query: { ra: number; dec: number; fov_arcmin: number; band: string; mode: string };
+    built_at: string;
+    catalog_version?: string;
+    passes?: number;
+  };
 }
 
 export interface Catalog {
