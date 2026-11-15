@@ -1,0 +1,36 @@
+{
+  "mocked_api": true,
+  "results": [
+    {
+      "stage": "queued",
+      "width": 1440,
+      "posts": 1
+    },
+    {
+      "stage": "query",
+      "width": 320
+    },
+    {
+      "stage": "fetch",
+      "width": 320,
+      "done": 2,
+      "total": 8,
+      "elapsed_recovery": true,
+      "horizontal_overflow": false
+    },
+    {
+      "rapid_fov_changes": [
+        2,
+        4
+      ],
+      "new_posts": 1,
+      "submitted_fov": 4
+    },
+    {
+      "stage": "prepared",
+      "width": 1440,
+      "new_posts": 0
+    }
+  ],
+  "page_errors": []
+}

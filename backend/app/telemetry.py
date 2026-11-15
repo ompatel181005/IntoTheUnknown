@@ -3,9 +3,13 @@
 import functools
 import logging
 import os
+import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 _tracer = None
 log = logging.getLogger(__name__)
+_profile = ContextVar("operation_profile", default=None)
 # Newer FastAPI releases also trace natively when a global provider is configured.
 FASTAPI_TELEMETRY = {"tracing": False, "metrics": False, "logs": False, "auto_configure": False}
 _INSTRUMENTATIONS = (
@@ -115,12 +119,38 @@ def record_cache_hit(hit: bool, layer: str) -> None:
         trace.get_current_span().set_attributes({"cache.hit": hit, "cache.layer": layer})
 
 
+@contextmanager
+def profile_operations():
+    """Opt-in in-memory timings for the diagnostic CLI; no payloads or global log capture."""
+    rows = []
+    token = _profile.set(rows)
+    try:
+        yield rows
+    finally:
+        _profile.reset(token)
+
+
 def operation(service: str, name: str, *, none_is_failure=False, internal=False):
     """Trace a logical archive operation, including failures caught by the fallback caller."""
 
     def decorate(function):
         @functools.wraps(function)
         def wrapped(*args, **kwargs):
+            rows = _profile.get()
+            if rows is None:
+                return traced(*args, **kwargs)
+            started = time.perf_counter()
+            success = False
+            try:
+                result = traced(*args, **kwargs)
+                success = not (none_is_failure and result is None)
+                return result
+            finally:
+                rows.append(
+                    {"operation": f"{service}.{name}", "seconds": time.perf_counter() - started, "success": success}
+                )
+
+        def traced(*args, **kwargs):
             if _tracer is None:
                 return function(*args, **kwargs)
             from opentelemetry.trace import SpanKind, StatusCode

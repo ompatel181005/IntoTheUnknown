@@ -187,13 +187,70 @@ def test_collection_lookup_is_cached_and_falls_back(monkeypatch):
     from app.irsa import query
 
     calls = []
+    called = threading.Event()
 
     def lookup():
         calls.append(1)
+        called.set()
         raise TimeoutError
 
     monkeypatch.setattr(query, "discover_collections", lookup)
     monkeypatch.setattr(query, "_collections", {"at": 0.0, "names": []})
     assert query.collections() == query.FALLBACK_COLLECTIONS
     assert query.collections() == query.FALLBACK_COLLECTIONS
+    assert called.wait(1)
     assert len(calls) == 1
+
+
+def test_profile_records_read_metadata_and_local_extraction_without_changing_science():
+    from app.telemetry import profile_operations
+
+    folder = config.DEMO_DIR / "barnard"
+    manifest = json.loads((folder / "manifest.json").read_text())
+    meta = manifest["files"][0]
+    ra, dec = manifest["center"]
+    with fits.open(folder / meta["file"], memmap=False) as hdul:
+        expected = fetch._extract(hdul, ra, dec)
+        with profile_operations() as rows:
+            actual = fetch._extract(hdul, ra, dec)
+    assert [row["operation"] for row in rows] == ["FITS.metadata_wcs", "FITS.array_read", "FITS.science_extract"]
+    assert all(row["success"] and row["seconds"] >= 0 for row in rows)
+    for key in ("image", "var", "flags"):
+        np.testing.assert_array_equal(actual[key], expected[key])
+
+
+def test_s3_uses_only_window_sections_and_preserves_local_cutout_values():
+    # Use a real saved FITS file behind a guard that forbids image .data access.
+    folder = config.DEMO_DIR / "barnard"
+    manifest = json.loads((folder / "manifest.json").read_text())
+    meta = manifest["files"][0]
+    ra, dec = manifest["center"]
+    with fits.open(folder / meta["file"], memmap=False) as hdul:
+        expected = fetch._extract(hdul, ra, dec)
+    with fits.open(folder / meta["file"], memmap=False) as hdul:
+
+        class SectionOnly:
+            def __init__(self, hdu):
+                self.hdu = hdu
+
+            def __getattr__(self, name):
+                if name == "data":
+                    raise AssertionError("S3 image arrays must use sections")
+                return getattr(self.hdu, name)
+
+        class Guarded:
+            def __getitem__(self, key):
+                hdu = hdul[key]
+                return SectionOnly(hdu) if hdu.name in {"IMAGE", "ZODI", "VARIANCE", "FLAGS"} else hdu
+
+            def __iter__(self):
+                return iter(hdul)
+
+        # Exercise array retrieval through the guard; spectral WCS needs the original HDUList.
+        sl = (slice(0, 4), slice(1, 5))
+        actual = fetch._science_arrays(fetch._read_arrays(Guarded(), sl, True))
+        for key in ("image", "var", "flags"):
+            if expected[key] is None:
+                assert actual[key] is None
+            else:
+                np.testing.assert_array_equal(actual[key], expected[key][sl])

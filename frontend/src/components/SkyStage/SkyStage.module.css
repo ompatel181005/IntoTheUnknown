@@ -354,24 +354,25 @@
 /* States */
 .loading {
   position: absolute;
-  inset: 0;
-}
-
-.skeleton {
-  position: absolute;
-  inset: 0;
-  background: var(--space-1);
-}
-
-.progress {
-  position: absolute;
   left: 50%;
   top: 50%;
   translate: -50% -50%;
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  z-index: 3;
+  width: min(calc(100% - 24px), 430px);
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.progress {
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
   color: var(--text-2);
 }
+.progress strong { color: var(--text-1); font-size: 15px; }
+.progress p { margin: 10px 0; }
+.progress a { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); text-underline-offset: 4px; }
 
 .card {
   max-width: 440px;

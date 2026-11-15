@@ -140,6 +140,22 @@ def test_concurrent_identical_cache_misses_submit_only_one_job(harness):
     assert_capacity_released(h)
 
 
+def test_departed_browser_does_not_cancel_shared_job(harness):
+    h = harness(workers=1)
+    with TestClient(app) as departing:
+        first = departing.post("/api/views", json=request().model_dump()).json()
+        h.started.get(timeout=2)
+    # The first browser no longer polls; another browser still reuses the same job.
+    with TestClient(app) as remaining:
+        second = remaining.post("/api/views", json=request().model_dump()).json()
+        assert second["view_id"] == first["view_id"]
+        assert len(h.futures) == 1 and not h.futures[0].cancelled()
+        h.gate.set()
+        h.futures[0].result(timeout=3)
+        assert remaining.get(second["status_url"]).json()["status"] == "ready"
+    assert_capacity_released(h)
+
+
 def test_slow_lookup_does_not_block_unrelated_admission_or_memory_hits(harness):
     entered, release = threading.Event(), threading.Event()
     slow = request(10)
