@@ -11,7 +11,7 @@ import pytest
 
 SPEC = importlib.util.spec_from_file_location(
     "recover_prepared_analysis",
-    Path(__file__).resolve().parents[1] / "recover_prepared_analysis.py",
+    Path(__file__).resolve().parents[2] / "tools" / "recover_prepared_analysis.py",
 )
 recovery = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(recovery)
@@ -23,9 +23,7 @@ KEY = f"{PREFIX}{VERSION}/4/{OBS}_spx_{VERSION}.fits"
 
 
 def xml(folders=(), keys=(), truncated=False):
-    body = "".join(
-        f"<CommonPrefixes><Prefix>{p}</Prefix></CommonPrefixes>" for p in folders
-    )
+    body = "".join(f"<CommonPrefixes><Prefix>{p}</Prefix></CommonPrefixes>" for p in folders)
     body += "".join(f"<Contents><Key>{k}</Key></Contents>" for k in keys)
     return (
         '<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
@@ -65,9 +63,7 @@ def test_multiple_processing_versions_fail_closed():
         resolver.resolve(FRAME)
 
 
-@pytest.mark.parametrize(
-    "change", [{"detector": 3}, {"collection": "spherex_qr2"}, {"obs": "../bad"}]
-)
+@pytest.mark.parametrize("change", [{"detector": 3}, {"collection": "spherex_qr2"}, {"obs": "../bad"}])
 def test_invalid_identity_fails_before_listing(change):
     resolver = recovery.Resolver(reader=lambda *args: pytest.fail("unexpected network"))
     with pytest.raises(recovery.RecoveryError):
@@ -78,9 +74,7 @@ def test_truncated_listing_and_request_budget_abort():
     resolver = recovery.Resolver(reader=lambda *args: xml(truncated=True))
     with pytest.raises(recovery.RecoveryError, match="truncated"):
         resolver.resolve(FRAME)
-    resolver = recovery.Resolver(
-        max_requests=0, reader=lambda *args: pytest.fail("network")
-    )
+    resolver = recovery.Resolver(max_requests=0, reader=lambda *args: pytest.fail("network"))
     with pytest.raises(recovery.RecoveryError, match="budget"):
         resolver.resolve(FRAME)
 
@@ -116,9 +110,7 @@ def test_native_science_extraction_uses_sections_not_full_data():
         def __getitem__(self, key):
             return Hdu()
 
-    arrays = recovery.fetch._read_arrays(
-        Hdus([Hdu()]), (slice(1, 3), slice(2, 5)), True
-    )
+    arrays = recovery.fetch._read_arrays(Hdus([Hdu()]), (slice(1, 3), slice(2, 5)), True)
     assert arrays["image"].shape == (2, 3)
 
 
@@ -129,17 +121,13 @@ def rebuild_fixture(monkeypatch):
         {**FRAME, "epoch": 0},
         {**FRAME, "obs": OBS.replace("0147", "0148"), "t_mjd": 61000.0, "epoch": 1},
     ]
-    rk = recovery.render_key(
-        3, recovery.views.query_key(req), [f["obs"] for f in frames]
-    )
+    rk = recovery.render_key(3, recovery.views.query_key(req), [f["obs"] for f in frames])
     manifest = {
         "schema": 1,
         "render_key": rk,
         "source": "irsa",
         "pipeline_version": 3,
-        "query": {
-            key: getattr(req, key) for key in ("ra", "dec", "fov_arcmin", "band")
-        },
+        "query": {key: getattr(req, key) for key in ("ra", "dec", "fov_arcmin", "band")},
         "frames": frames,
         "epochs": [
             {"n_frames": 1, "image": "e0.f32"},
@@ -162,22 +150,14 @@ def rebuild_fixture(monkeypatch):
         "fetch_s3",
         lambda row, *args: next(f for f in native if f["obs"] == row["obs"]),
     )
-    monkeypatch.setattr(
-        recovery.stack, "to_grid", lambda *args: (np.ones((2, 2)), np.ones((2, 2)))
-    )
-    monkeypatch.setattr(
-        recovery.views, "_render", lambda *args: (copy.deepcopy(manifest), files)
-    )
+    monkeypatch.setattr(recovery.stack, "to_grid", lambda *args: (np.ones((2, 2)), np.ones((2, 2))))
+    monkeypatch.setattr(recovery.views, "_render", lambda *args: (copy.deepcopy(manifest), files))
     encoded = []
-    monkeypatch.setattr(
-        recovery.analysis_cache, "encode", lambda *args: encoded.append(args) or b"npz"
-    )
+    monkeypatch.setattr(recovery.analysis_cache, "encode", lambda *args: encoded.append(args) or b"npz")
     monkeypatch.setattr(recovery.analysis_cache, "decode", lambda *args: None)
 
     def read(key, name):
-        return (
-            json.dumps(manifest).encode() if name == "manifest.json" else files[name][0]
-        )
+        return json.dumps(manifest).encode() if name == "manifest.json" else files[name][0]
 
     cache = SimpleNamespace(read=read)
     return req, manifest, frames, files, rk, cache, encoded
@@ -193,9 +173,7 @@ def test_exact_images_pass_before_npz_is_encoded(rebuild_fixture):
 def test_second_image_mismatch_aborts_before_npz_or_upload(rebuild_fixture):
     req, manifest, rows, _, rk, cache, encoded = rebuild_fixture
     original_read = cache.read
-    cache.read = lambda key, name: (
-        b"DIFFERENT" if name == "e1.f32" else original_read(key, name)
-    )
+    cache.read = lambda key, name: b"DIFFERENT" if name == "e1.f32" else original_read(key, name)
     with pytest.raises(recovery.views.ViewError, match="differs"):
         recovery.rebuild(manifest, req, rows, cache, rk)
     assert encoded == []
@@ -222,9 +200,7 @@ def test_private_upload_never_overwrites_or_uses_public_client():
         "https://example.blob.core.windows.net",
         "frames",
         container_client=object(),
-        analysis_client=SimpleNamespace(
-            upload_blob=lambda *a, **kw: calls.append((a, kw))
-        ),
+        analysis_client=SimpleNamespace(upload_blob=lambda *a, **kw: calls.append((a, kw))),
     )
     recovery.write_private(cache, "a" * 24, b"npz")
     assert calls[0][0] == (f"analysis/v1/{'a' * 24}.npz", b"npz")
@@ -247,9 +223,7 @@ def test_known_frame_count_validation(rebuild_fixture):
         recovery.validate_manifest(manifest, target, rk)
 
 
-def test_existing_sidecar_skips_discovery_pixels_and_writes(
-    monkeypatch, tmp_path, rebuild_fixture
-):
+def test_existing_sidecar_skips_discovery_pixels_and_writes(monkeypatch, tmp_path, rebuild_fixture):
     req, manifest, _, _, rk, _, _ = rebuild_fixture
     url = f"https://example.blob.core.windows.net/frames/r/{rk}/manifest.json"
     catalog = tmp_path / "catalog.json"
@@ -265,23 +239,15 @@ def test_existing_sidecar_skips_discovery_pixels_and_writes(
             }
         )
     )
-    monkeypatch.setattr(
-        recovery, "read_public", lambda *args: json.dumps(manifest).encode()
-    )
+    monkeypatch.setattr(recovery, "read_public", lambda *args: json.dumps(manifest).encode())
     monkeypatch.setattr(
         recovery,
         "private_cache",
         lambda *args: SimpleNamespace(read_analysis=lambda key: b"existing"),
     )
-    monkeypatch.setattr(
-        recovery.Resolver, "resolve", lambda *args: pytest.fail("must not discover")
-    )
-    monkeypatch.setattr(
-        recovery, "rebuild", lambda *args: pytest.fail("must not fetch pixels")
-    )
-    monkeypatch.setattr(
-        recovery, "write_private", lambda *args: pytest.fail("must not overwrite")
-    )
+    monkeypatch.setattr(recovery.Resolver, "resolve", lambda *args: pytest.fail("must not discover"))
+    monkeypatch.setattr(recovery, "rebuild", lambda *args: pytest.fail("must not fetch pixels"))
+    monkeypatch.setattr(recovery, "write_private", lambda *args: pytest.fail("must not overwrite"))
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -304,7 +270,6 @@ def test_existing_sidecar_skips_discovery_pixels_and_writes(
 
 def test_apply_destination_guard_runs_before_blob_credentials(monkeypatch):
     import azure.identity
-
     import infra.azure_arm
 
     calls = []
@@ -317,11 +282,7 @@ def test_apply_destination_guard_runs_before_blob_credentials(monkeypatch):
             return "/student/storage"
 
         def request(self, *args):
-            return {
-                "properties": {
-                    "primaryEndpoints": {"blob": "https://other.blob.core.windows.net/"}
-                }
-            }
+            return {"properties": {"primaryEndpoints": {"blob": "https://other.blob.core.windows.net/"}}}
 
     monkeypatch.setattr(infra.azure_arm, "Arm", Arm)
     monkeypatch.setattr(
@@ -329,9 +290,7 @@ def test_apply_destination_guard_runs_before_blob_credentials(monkeypatch):
         "AzureCliCredential",
         lambda **kwargs: pytest.fail("must fail before credential creation"),
     )
-    args = SimpleNamespace(
-        subscription="student", tenant="tenant", resource_group="group"
-    )
+    args = SimpleNamespace(subscription="student", tenant="tenant", resource_group="group")
     with pytest.raises(recovery.RecoveryError, match="Student subscription"):
         recovery.private_cache(args, "https://example.blob.core.windows.net/frames")
     assert calls == [("student", "tenant")]
