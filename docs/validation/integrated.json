@@ -1,8 +1,17 @@
 {
   "pipeline": "React + FastAPI channel-matched stacks",
-  "pipeline_version": 2,
+  "pipeline_version": 3,
+  "browser_verified": true,
+  "catalogue_sha256": {
+    "demo\\barnard\\gaia.csv": "de9df8a68ce9ee9f2f88d6c9a387c28d7a968ed61445bef399206f7b96064f29",
+    "demo\\epsindib\\gaia.csv": "4dbcdeff1e614f09f57249646b04f96687f03a25a0b1deaffd0d092982135d0a",
+    "demo\\rdra\\gaia.csv": "b43b5b05ee605d20fb8e0fbc73475324c041af4785c658152e430f37e9c13144",
+    "demo\\rwaur\\gaia.csv": "b8cd6f9180b408f57bc27e48abc555019caf65ea7dfdea9a332837deca15416f",
+    "demo\\wise0855\\gaia.csv": "8f641c2d994ddc35430efadaf07262ae03a82ea2197ec5db561413c1e341d513"
+  },
+  "assessment_sha256": "38cb54b679e6b221c09e339817afa9a56f6eedb48103f94d22ea767cecd607d0",
   "stack_sha256": "b10a5f4df87e15d3f0f68433dc329ae1ab619a24e801d4751e5c02e99c956614",
-  "views_sha256": "9dfd5a91f3067149d992b2e55f816f6f4833ced7651725b85742ce176d363c21",
+  "views_sha256": "40bc7c36af7bbd1d77ae0154ebe7a6fd8bbd7f466e662d364da2857dda224fa5",
   "reports": {
     "barnard": {
       "epochs": [
@@ -10,54 +19,126 @@
           "mjd": 60915.637365189206,
           "n_frames": 37,
           "finite_fraction": 1.0,
+          "predicted_radec": [
+            269.4462055028503,
+            4.7672471505422935
+          ],
+          "predicted_px": [
+            29.03762381880513,
+            28.442234465485416
+          ],
+          "wavelength_um": [
+            0.75,
+            1.629
+          ],
+          "forced_aperture_sum_mjysr_pixels": 7025.51904296875,
+          "blank_apertures": 71,
+          "empirical_aperture_noise_mjysr_pixels": 0.8412698308339498,
+          "diagnostic_snr": 8351.088777312223,
+          "aperture_complete": true,
           "centroid_px": [
             28.900904745295147,
             28.478629785222243
           ],
           "residual_px": 0.14148047342362835,
           "aperture_sum_mjysr": 7025.2021484375,
-          "predicted_px": [
-            29.03762381880513,
-            28.442234465485416
-          ]
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
           "mjd": 61113.31201402778,
           "n_frames": 36,
           "finite_fraction": 1.0,
+          "predicted_radec": [
+            269.446375453987,
+            4.7687665644745385
+          ],
+          "predicted_px": [
+            28.938484523115875,
+            29.33164750201303
+          ],
+          "wavelength_um": [
+            0.745,
+            1.629
+          ],
+          "forced_aperture_sum_mjysr_pixels": 7624.48828125,
+          "blank_apertures": 71,
+          "empirical_aperture_noise_mjysr_pixels": 0.8378377736429333,
+          "diagnostic_snr": 9100.196387778737,
+          "aperture_complete": true,
           "centroid_px": [
             29.00197330573786,
             29.181285764448162
           ],
           "residual_px": 0.16321604590954852,
           "aperture_sum_mjysr": 7655.53076171875,
-          "predicted_px": [
-            28.938484523115875,
-            29.33164750201303
-          ]
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
           "mjd": 61275.607683833325,
           "n_frames": 42,
           "finite_fraction": 0.9997127262280954,
+          "predicted_radec": [
+            269.4459909366661,
+            4.770089757610649
+          ],
+          "predicted_px": [
+            29.162788354348145,
+            30.10619961032791
+          ],
+          "wavelength_um": [
+            0.741,
+            1.661
+          ],
+          "forced_aperture_sum_mjysr_pixels": null,
+          "blank_apertures": 71,
+          "empirical_aperture_noise_mjysr_pixels": 0.8491618635045473,
+          "diagnostic_snr": null,
+          "aperture_complete": false,
           "centroid_px": [
             28.992805804207947,
             30.118548811564082
           ],
           "residual_px": 0.17043054339916963,
           "aperture_sum_mjysr": 7085.779296875,
-          "predicted_px": [
-            29.162788354348145,
-            30.10619961032791
-          ]
+          "centroid_role": "diagnostic fit; not an independent detection"
         }
       ],
       "bandpass_matched": true,
       "frames": 115,
+      "render_key": "da90bb2ec65116bff6aacb7d",
+      "reference": {
+        "parameters": [
+          269.448503,
+          4.73942,
+          -801.6,
+          10362.4,
+          546.98
+        ],
+        "source_id": "4472832130942575872",
+        "epoch": "J2016.0 TCB",
+        "provenance": "Pinned Gaia DR3; docs/TARGETS.md and bundled Gaia CSV",
+        "radial_velocity_kms": 0,
+        "predictor": "Independent validation implementation; offline builtin Earth ephemeris"
+      },
       "science_status": "PASS",
+      "gates": {
+        "at_least_two_epochs": true,
+        "reference_verified": true,
+        "centroids_available": true,
+        "finite_astrometry_every_epoch": true,
+        "vector_error_within_limit": true,
+        "maximum_position_residual_below_0_3_px": true,
+        "matched_wavelength_channels": true
+      },
+      "failed_gates": [],
+      "vector_error_px": 0.04104478885895575,
+      "maximum_residual_px": 0.17043054339916963,
+      "diagnostic_snr_5_epochs": 2,
+      "not_established_by_this_assessment": [],
       "measured_shift_px": 1.6424920753499122,
       "predicted_shift_px": 1.6686659834156135,
-      "vector_error_px": 0.04104478885895575,
+      "manifest_sha256": "c9bdc78310676d05bdfcaaa16fa4bf5887b3bbfdec9124b8e3308b669d5cd01c",
+      "assessment_complete": true,
       "array_sha256": {
         "e0.f32": "96f82afffd5aca6318683dd7107801af29665a5e0b02ae0fec72216e4356e7ad",
         "e0.mask.u8": "27a97881f8772d7d51776fead2285a4914d9168fb2bb895fd727192a92544290",
@@ -74,37 +155,167 @@
     "eps-ind-b": {
       "epochs": [
         {
-          "mjd": 60795.594419125,
-          "n_frames": 16,
-          "finite_fraction": 1.0
+          "mjd": 60794.26092636667,
+          "n_frames": 30,
+          "finite_fraction": 0.9994254524561907,
+          "predicted_radec": [
+            331.0954112051523,
+            -56.8001639447879
+          ],
+          "predicted_px": [
+            29.397062751630912,
+            29.290370190916693
+          ],
+          "wavelength_um": [
+            0.756,
+            4.976
+          ],
+          "forced_aperture_sum_mjysr_pixels": 18.792428970336914,
+          "blank_apertures": 70,
+          "empirical_aperture_noise_mjysr_pixels": 0.1418701765316067,
+          "diagnostic_snr": 132.46215258039257,
+          "aperture_complete": true,
+          "centroid_px": [
+            29.296308024294145,
+            29.180867419799878
+          ],
+          "residual_px": 0.14880313156304206,
+          "aperture_sum_mjysr": 18.785991668701172,
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
-          "mjd": 60958.9464403125,
-          "n_frames": 16,
-          "finite_fraction": 1.0
+          "mjd": 60955.58954790697,
+          "n_frames": 43,
+          "finite_fraction": 0.9994254524561907,
+          "predicted_radec": [
+            331.09609049546606,
+            -56.80055298116175
+          ],
+          "predicted_px": [
+            29.179332441561474,
+            29.062644440921055
+          ],
+          "wavelength_um": [
+            0.767,
+            4.99
+          ],
+          "forced_aperture_sum_mjysr_pixels": 16.72530174255371,
+          "blank_apertures": 70,
+          "empirical_aperture_noise_mjysr_pixels": 0.1699161634923223,
+          "diagnostic_snr": 98.43267055231887,
+          "aperture_complete": true,
+          "centroid_px": [
+            29.170771713252364,
+            28.90832546191256
+          ],
+          "residual_px": 0.15455624656223488,
+          "aperture_sum_mjysr": 16.89333152770996,
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
-          "mjd": 61155.77759527779,
-          "n_frames": 18,
-          "finite_fraction": 1.0
+          "mjd": 61155.88718602273,
+          "n_frames": 44,
+          "finite_fraction": 0.9997127262280954,
+          "predicted_radec": [
+            331.09740835206475,
+            -56.80083960953481
+          ],
+          "predicted_px": [
+            28.75693478894095,
+            28.89486136530841
+          ],
+          "wavelength_um": [
+            0.774,
+            4.94
+          ],
+          "forced_aperture_sum_mjysr_pixels": 17.968637466430664,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 0.16105510337988596,
+          "diagnostic_snr": 111.56825887129729,
+          "aperture_complete": true,
+          "centroid_px": [
+            28.64050783018213,
+            28.827354093983523
+          ],
+          "residual_px": 0.13458257096503923,
+          "aperture_sum_mjysr": 17.8463134765625,
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
-          "mjd": 61311.551369500005,
-          "n_frames": 12,
-          "finite_fraction": 1.0
+          "mjd": 61311.39904599999,
+          "n_frames": 31,
+          "finite_fraction": 1.0,
+          "predicted_radec": [
+            331.0980741700365,
+            -56.80122377256476
+          ],
+          "predicted_px": [
+            28.54353306383956,
+            28.66998204425158
+          ],
+          "wavelength_um": [
+            1.095,
+            4.933
+          ],
+          "forced_aperture_sum_mjysr_pixels": 22.254756927490234,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 0.12347173078748172,
+          "diagnostic_snr": 180.2417183719154,
+          "aperture_complete": true,
+          "centroid_px": [
+            28.458293581538406,
+            28.533922009863993
+          ],
+          "residual_px": 0.16055560501122404,
+          "aperture_sum_mjysr": 22.520801544189453,
+          "centroid_role": "diagnostic fit; not an independent detection"
         }
       ],
-      "bandpass_matched": false,
-      "frames": 62,
-      "science_status": "not validated",
+      "bandpass_matched": true,
+      "frames": 148,
+      "render_key": "c266a32c25c63dcf4ae64dc7",
+      "reference": {
+        "parameters": [
+          331.07645259656397,
+          -56.79381206688221,
+          3981.97666296105,
+          -2466.8318147663504,
+          270.6580324694526
+        ],
+        "source_id": "6412596012146801152",
+        "epoch": "J2016.0 TCB",
+        "provenance": "Pinned Gaia DR3; docs/TARGETS.md and bundled Gaia CSV",
+        "radial_velocity_kms": 0,
+        "predictor": "Independent validation implementation; offline builtin Earth ephemeris"
+      },
+      "science_status": "PASS",
+      "gates": {
+        "at_least_two_epochs": true,
+        "reference_verified": true,
+        "centroids_available": true,
+        "finite_astrometry_every_epoch": true,
+        "vector_error_within_limit": true,
+        "each_position_within_0_2_px": true,
+        "source_above_empirical_noise_each_epoch": true,
+        "matched_wavelength_channels": true
+      },
+      "failed_gates": [],
+      "vector_error_px": 0.030757292809155345,
+      "maximum_residual_px": 0.16055560501122404,
+      "diagnostic_snr_5_epochs": 4,
+      "not_established_by_this_assessment": [],
+      "measured_shift_px": 1.0586815242103367,
+      "predicted_shift_px": 1.0551750473091068,
+      "manifest_sha256": "c66731640944c4cf9902b6844bd0612160f7b88077db364803554dee8574e32f",
+      "assessment_complete": true,
       "array_sha256": {
-        "e0.f32": "c99017f135683a9ef68bb1119f44f87a9dd1a551b9ca1942bdd9448e2821d66c",
+        "e0.f32": "c5fcc8e86ad1d58174378c353fdafb7c8ceedd1e9d79d02e83bd5512261a3e22",
         "e0.mask.u8": "8f2914121eaf94cd6d7520c5948f0c8941fa1e3a3b654ec7bf6ac7203a2c9537",
-        "e1.f32": "3d1d2c738228876c19c504dcb8ec222c4d075ffa3f2a78aaab88d9cea99d5342",
+        "e1.f32": "097948ee280bb2a33990ba337070413f6addd14bcea1d0998766781dc813cda7",
         "e1.mask.u8": "8f2914121eaf94cd6d7520c5948f0c8941fa1e3a3b654ec7bf6ac7203a2c9537",
-        "e2.f32": "d4956367a15d8cab2bb7d6f2abd6cc02a351d109a49396eb5735a07af058e40b",
+        "e2.f32": "7724c5433bbced8337457881a0f1e129d47c902f03e5e848c7dbfdd51b026d0c",
         "e2.mask.u8": "8f2914121eaf94cd6d7520c5948f0c8941fa1e3a3b654ec7bf6ac7203a2c9537",
-        "e3.f32": "e1730ebd87310b304c870210abd36fc9b261ca989ebf86c90a07faa1176cfba9",
+        "e3.f32": "4d33a112bb249df2d1799e745f364796bff0adcbe7140395a4e4e6a0b426bb49",
         "e3.mask.u8": "8f2914121eaf94cd6d7520c5948f0c8941fa1e3a3b654ec7bf6ac7203a2c9537"
       },
       "golden_arrays_match": true,
@@ -115,22 +326,122 @@
         {
           "mjd": 60800.745329,
           "n_frames": 3,
-          "finite_fraction": 0.9997127262280954
+          "finite_fraction": 0.9997127262280954,
+          "predicted_radec": [
+            133.76120267326826,
+            -7.24242785342206
+          ],
+          "predicted_px": [
+            28.243543388129503,
+            28.866621302977727
+          ],
+          "wavelength_um": [
+            4.86,
+            5.003
+          ],
+          "forced_aperture_sum_mjysr_pixels": 0.38427814841270447,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 0.18895347281126018,
+          "diagnostic_snr": 2.0337183683125426,
+          "aperture_complete": true,
+          "centroid_failure": "Not fitted: forced aperture does not meet the diagnostic S/N gate."
         },
         {
           "mjd": 60992.24033966666,
           "n_frames": 3,
-          "finite_fraction": 0.9994254524561907
+          "finite_fraction": 0.9994254524561907,
+          "predicted_radec": [
+            133.76024503530957,
+            -7.242400856158138
+          ],
+          "predicted_px": [
+            28.799639508081103,
+            28.882425587468692
+          ],
+          "wavelength_um": [
+            4.514,
+            4.982
+          ],
+          "forced_aperture_sum_mjysr_pixels": 0.6572064161300659,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 0.1614072061638108,
+          "diagnostic_snr": 4.071729086637388,
+          "aperture_complete": true,
+          "centroid_failure": "Not fitted: forced aperture does not meet the diagnostic S/N gate."
         },
         {
           "mjd": 61159.34567933334,
           "n_frames": 3,
-          "finite_fraction": 0.9982763573685722
+          "finite_fraction": 0.9982763573685722,
+          "predicted_radec": [
+            133.75897065901486,
+            -7.242248030941269
+          ],
+          "predicted_px": [
+            29.53966441957346,
+            28.971883775316567
+          ],
+          "wavelength_um": [
+            4.519,
+            4.86
+          ],
+          "forced_aperture_sum_mjysr_pixels": 0.5946190357208252,
+          "blank_apertures": 70,
+          "empirical_aperture_noise_mjysr_pixels": 0.13766925000405789,
+          "diagnostic_snr": 4.319185553079562,
+          "aperture_complete": true,
+          "centroid_failure": "Not fitted: forced aperture does not meet the diagnostic S/N gate."
         }
       ],
       "bandpass_matched": false,
       "frames": 9,
-      "science_status": "not validated",
+      "render_key": "2e4faa28722df2300d0caa9d",
+      "reference": {
+        "parameters": [
+          133.783924,
+          -7.2443404,
+          -8120.0,
+          680.0,
+          439.0
+        ],
+        "source_id": null,
+        "epoch": "MJD 57170 TDB",
+        "provenance": "CatWISE2020 position; unverified literature motion/parallax",
+        "radial_velocity_kms": 0,
+        "predictor": "Independent validation implementation; offline builtin Earth ephemeris"
+      },
+      "science_status": "FAIL",
+      "gates": {
+        "at_least_two_epochs": true,
+        "reference_verified": false,
+        "centroids_available": false,
+        "finite_astrometry_every_epoch": false,
+        "vector_error_within_limit": false,
+        "at_least_two_diagnostic_snr_5_epochs": false,
+        "independent_detection_significance_calibrated": false,
+        "detected_source_gaia_association_checked": false,
+        "matched_wavelength_channels": false
+      },
+      "failed_gates": [
+        "reference_verified",
+        "centroids_available",
+        "finite_astrometry_every_epoch",
+        "vector_error_within_limit",
+        "at_least_two_diagnostic_snr_5_epochs",
+        "independent_detection_significance_calibrated",
+        "detected_source_gaia_association_checked",
+        "matched_wavelength_channels"
+      ],
+      "vector_error_px": null,
+      "maximum_residual_px": null,
+      "diagnostic_snr_5_epochs": 0,
+      "not_established_by_this_assessment": [
+        "reference_verified",
+        "independent_detection_significance_calibrated",
+        "detected_source_gaia_association_checked"
+      ],
+      "manifest_sha256": "7025d4d94cd6c9a1f9771c827d0a0b70d64bb9f217a7008217bfb45cd3e28535",
+      "assessment_complete": true,
       "array_sha256": {
         "e0.f32": "cd049f11f0da9ada9852e8fc93b5297516c6993004e3c93c67cd34beb687d2d1",
         "e0.mask.u8": "7ad64aed5114e0c40c7ba635af71a3327095d807104d95f81397bc10dfecc1f0",
@@ -147,22 +458,133 @@
         {
           "mjd": 60928.24012376471,
           "n_frames": 17,
-          "finite_fraction": 0.997701809824763
+          "finite_fraction": 0.997701809824763,
+          "predicted_radec": [
+            76.95609150252407,
+            30.4011309879857
+          ],
+          "predicted_px": [
+            28.99419260331004,
+            29.000578333386603
+          ],
+          "wavelength_um": [
+            0.747,
+            4.853
+          ],
+          "forced_aperture_sum_mjysr_pixels": 1588.3841552734375,
+          "blank_apertures": 71,
+          "empirical_aperture_noise_mjysr_pixels": 0.46365095610134044,
+          "diagnostic_snr": 3425.8187853844597,
+          "aperture_complete": true,
+          "centroid_px": [
+            28.698547052811726,
+            29.061263042540457
+          ],
+          "residual_px": 0.3018094190951286,
+          "aperture_sum_mjysr": 1642.482666015625,
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
           "mjd": 61103.07999664706,
           "n_frames": 17,
-          "finite_fraction": 0.9982763573685722
+          "finite_fraction": 0.9982763573685722,
+          "predicted_radec": [
+            76.95608781336479,
+            30.401127051168476
+          ],
+          "predicted_px": [
+            28.996055186631278,
+            28.998273854853455
+          ],
+          "wavelength_um": [
+            0.758,
+            4.765
+          ],
+          "forced_aperture_sum_mjysr_pixels": 1425.7840576171875,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 0.39721005174317997,
+          "diagnostic_snr": 3589.4964172232026,
+          "aperture_complete": true,
+          "centroid_px": [
+            28.751815499656143,
+            29.035457810762082
+          ],
+          "residual_px": 0.24705398452712035,
+          "aperture_sum_mjysr": 1469.1240234375,
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
           "mjd": 61294.54285166666,
           "n_frames": 18,
-          "finite_fraction": 0.995403619649526
+          "finite_fraction": 0.995403619649526,
+          "predicted_radec": [
+            76.95609236007004,
+            30.40112336027691
+          ],
+          "predicted_px": [
+            28.993759644838644,
+            28.996113333171724
+          ],
+          "wavelength_um": [
+            0.808,
+            4.946
+          ],
+          "forced_aperture_sum_mjysr_pixels": 983.0298461914062,
+          "blank_apertures": 69,
+          "empirical_aperture_noise_mjysr_pixels": 0.41843130807647333,
+          "diagnostic_snr": 2349.321925049991,
+          "aperture_complete": true,
+          "centroid_px": [
+            28.824353296305524,
+            29.030959756993393
+          ],
+          "residual_px": 0.1729531271081389,
+          "aperture_sum_mjysr": 1018.5123901367188,
+          "centroid_role": "diagnostic fit; not an independent detection"
         }
       ],
       "bandpass_matched": true,
       "frames": 52,
-      "science_status": "not validated",
+      "render_key": "7db51ac7ff15ceb55bf39b70",
+      "reference": {
+        "parameters": [
+          76.956081196,
+          30.401204589,
+          2.641,
+          -27.398,
+          6.406
+        ],
+        "source_id": "156430822114424576",
+        "epoch": "J2016.0 TCB",
+        "provenance": "Pinned Gaia DR3; docs/TARGETS.md and bundled Gaia CSV",
+        "radial_velocity_kms": 0,
+        "predictor": "Independent validation implementation; offline builtin Earth ephemeris"
+      },
+      "science_status": "FAIL",
+      "gates": {
+        "at_least_two_epochs": true,
+        "matched_wavelength_channels": true,
+        "per_band_fluxes_with_validated_errors": false,
+        "target_saturation_checked_per_input": false,
+        "comparison_star_calibration_floor_established": false
+      },
+      "failed_gates": [
+        "per_band_fluxes_with_validated_errors",
+        "target_saturation_checked_per_input",
+        "comparison_star_calibration_floor_established"
+      ],
+      "vector_error_px": 0.12885632736391578,
+      "maximum_residual_px": 0.3018094190951286,
+      "diagnostic_snr_5_epochs": 3,
+      "not_established_by_this_assessment": [
+        "per_band_fluxes_with_validated_errors",
+        "target_saturation_checked_per_input",
+        "comparison_star_calibration_floor_established"
+      ],
+      "measured_shift_px": 0.12940440493649252,
+      "predicted_shift_px": 0.004485942482558043,
+      "manifest_sha256": "6f74900859fc81b0ca6d45ddd6f2c308750f78fcc78dda9c7ec12fb2164b8e7c",
+      "assessment_complete": true,
       "array_sha256": {
         "e0.f32": "546ee191f298b028634c4a6493570d4e72c6ab367ce3bd00a42990bb2ac4b10b",
         "e0.mask.u8": "48d10877fc430df0155a2aa89bb32b1e5bd075ef3df068f87cc0dbad60a3999d",
@@ -179,52 +601,306 @@
         {
           "mjd": 60841.44885,
           "n_frames": 2,
-          "finite_fraction": 0.9945417983338122
+          "finite_fraction": 0.9945417983338122,
+          "predicted_radec": [
+            248.1672407940095,
+            66.75502323665108
+          ],
+          "predicted_px": [
+            28.99750634178861,
+            29.00189462524405
+          ],
+          "wavelength_um": [
+            1.34,
+            4.108
+          ],
+          "forced_aperture_sum_mjysr_pixels": null,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 2.9934009438142337,
+          "diagnostic_snr": null,
+          "aperture_complete": false,
+          "centroid_px": [
+            28.889654311275898,
+            28.661531010104703
+          ],
+          "residual_px": 0.357042645907236,
+          "aperture_sum_mjysr": 0.0,
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
           "mjd": 60933.694661999994,
           "n_frames": 2,
-          "finite_fraction": 0.9936799770180983
+          "finite_fraction": 0.9936799770180983,
+          "predicted_radec": [
+            248.16723649085034,
+            66.75502324898376
+          ],
+          "predicted_px": [
+            28.998500468039097,
+            29.001901844231504
+          ],
+          "wavelength_um": [
+            1.037,
+            3.626
+          ],
+          "forced_aperture_sum_mjysr_pixels": null,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 1.4823033146801075,
+          "diagnostic_snr": null,
+          "aperture_complete": false,
+          "centroid_px": [
+            29.777602341463417,
+            28.867328299140304
+          ],
+          "residual_px": 0.790638835506895,
+          "aperture_sum_mjysr": 3453.41455078125,
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
           "mjd": 61010.025578,
           "n_frames": 2,
-          "finite_fraction": 0.9968399885090491
+          "finite_fraction": 0.9968399885090491,
+          "predicted_radec": [
+            248.1672342908534,
+            66.75502334033985
+          ],
+          "predicted_px": [
+            28.999008716660086,
+            29.001955320925834
+          ],
+          "wavelength_um": [
+            1.217,
+            3.965
+          ],
+          "forced_aperture_sum_mjysr_pixels": null,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 1.4455708290102618,
+          "diagnostic_snr": null,
+          "aperture_complete": false,
+          "centroid_px": [
+            28.781102334201464,
+            28.846003172082888
+          ],
+          "residual_px": 0.2679631770317253,
+          "aperture_sum_mjysr": 13919.470703125,
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
           "mjd": 61084.5426435,
           "n_frames": 2,
-          "finite_fraction": 0.9974145360528583
+          "finite_fraction": 0.9974145360528583,
+          "predicted_radec": [
+            248.16723217201036,
+            66.75502393931018
+          ],
+          "predicted_px": [
+            28.999498216920436,
+            29.002305937667934
+          ],
+          "wavelength_um": [
+            2.387,
+            4.947
+          ],
+          "forced_aperture_sum_mjysr_pixels": null,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 1.8320842461639144,
+          "diagnostic_snr": null,
+          "aperture_complete": false,
+          "centroid_px": [
+            28.988881476838447,
+            29.028016845945036
+          ],
+          "residual_px": 0.027816649230309003,
+          "aperture_sum_mjysr": 10547.73828125,
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
           "mjd": 61117.915276,
           "n_frames": 2,
-          "finite_fraction": 0.9962654409652398
+          "finite_fraction": 0.9962654409652398,
+          "predicted_radec": [
+            248.16723083892765,
+            66.7550242937547
+          ],
+          "predicted_px": [
+            28.99980618890864,
+            29.00251341738648
+          ],
+          "wavelength_um": [
+            2.362,
+            4.521
+          ],
+          "forced_aperture_sum_mjysr_pixels": null,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 1.2428136516320545,
+          "diagnostic_snr": null,
+          "aperture_complete": false,
+          "centroid_px": [
+            29.027253218196016,
+            29.08080852930992
+          ],
+          "residual_px": 0.08296664370580405,
+          "aperture_sum_mjysr": 8515.1640625,
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
           "mjd": 61141.8115285,
           "n_frames": 2,
-          "finite_fraction": 0.9974145360528583
+          "finite_fraction": 0.9974145360528583,
+          "predicted_radec": [
+            248.1672297156999,
+            66.75502452987173
+          ],
+          "predicted_px": [
+            29.00006567969076,
+            29.002651632231217
+          ],
+          "wavelength_um": [
+            1.951,
+            4.743
+          ],
+          "forced_aperture_sum_mjysr_pixels": null,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 1.8205877903654761,
+          "diagnostic_snr": null,
+          "aperture_complete": false,
+          "centroid_px": [
+            28.90378107566261,
+            29.127519246474655
+          ],
+          "residual_px": 0.15767893346831593,
+          "aperture_sum_mjysr": 11407.5615234375,
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
           "mjd": 61212.618274,
           "n_frames": 2,
-          "finite_fraction": 0.9965527147371445
+          "finite_fraction": 0.9965527147371445,
+          "predicted_radec": [
+            248.1672259437357,
+            66.75502496202517
+          ],
+          "predicted_px": [
+            29.000937087931234,
+            29.002904600134762
+          ],
+          "wavelength_um": [
+            1.454,
+            4.232
+          ],
+          "forced_aperture_sum_mjysr_pixels": null,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 1.106865446648791,
+          "diagnostic_snr": null,
+          "aperture_complete": false,
+          "centroid_px": [
+            29.082744891916523,
+            29.04584670041963
+          ],
+          "residual_px": 0.09239340219826894,
+          "aperture_sum_mjysr": 2929.180908203125,
+          "centroid_role": "diagnostic fit; not an independent detection"
         },
         {
           "mjd": 61261.491171,
           "n_frames": 2,
-          "finite_fraction": 0.997701809824763
+          "finite_fraction": 0.997701809824763,
+          "predicted_radec": [
+            248.16722349204906,
+            66.75502499871935
+          ],
+          "predicted_px": [
+            29.001503482472188,
+            29.00292607969683
+          ],
+          "wavelength_um": [
+            0.759,
+            2.604
+          ],
+          "forced_aperture_sum_mjysr_pixels": null,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 0.7847496004494017,
+          "diagnostic_snr": null,
+          "aperture_complete": false,
+          "centroid_failure": "centroid fit failed"
         },
         {
           "mjd": 61285.8947795,
           "n_frames": 2,
-          "finite_fraction": 0.9939672507900029
+          "finite_fraction": 0.9939672507900029,
+          "predicted_radec": [
+            248.16722245373086,
+            66.75502497231001
+          ],
+          "predicted_px": [
+            29.00174335724245,
+            29.002910620597902
+          ],
+          "wavelength_um": [
+            0.967,
+            3.006
+          ],
+          "forced_aperture_sum_mjysr_pixels": null,
+          "blank_apertures": 72,
+          "empirical_aperture_noise_mjysr_pixels": 1.4624837534793245,
+          "diagnostic_snr": null,
+          "aperture_complete": false,
+          "centroid_px": [
+            28.71779517051858,
+            28.89774412996648
+          ],
+          "residual_px": 0.3027978921582879,
+          "aperture_sum_mjysr": 0.0,
+          "centroid_role": "diagnostic fit; not an independent detection"
         }
       ],
       "bandpass_matched": false,
       "frames": 18,
-      "science_status": "not validated",
+      "render_key": "f6896845a308a559036602c3",
+      "reference": {
+        "parameters": [
+          248.167378367,
+          66.755006745,
+          -20.643,
+          6.149,
+          1.251
+        ],
+        "source_id": "1648328016354496384",
+        "epoch": "J2016.0 TCB",
+        "provenance": "Pinned Gaia DR3; docs/TARGETS.md and bundled Gaia CSV",
+        "radial_velocity_kms": 0,
+        "predictor": "Independent validation implementation; offline builtin Earth ephemeris"
+      },
+      "science_status": "FAIL",
+      "gates": {
+        "at_least_two_epochs": true,
+        "matched_wavelength_channels": false,
+        "per_band_fluxes_with_validated_errors": false,
+        "target_saturation_checked_per_input": false,
+        "comparison_star_calibration_floor_established": false,
+        "amplitude_above_20_percent_and_comparison_floor": false,
+        "independently_verified_period_and_phase": false
+      },
+      "failed_gates": [
+        "matched_wavelength_channels",
+        "per_band_fluxes_with_validated_errors",
+        "target_saturation_checked_per_input",
+        "comparison_star_calibration_floor_established",
+        "amplitude_above_20_percent_and_comparison_floor",
+        "independently_verified_period_and_phase"
+      ],
+      "vector_error_px": null,
+      "maximum_residual_px": null,
+      "diagnostic_snr_5_epochs": 0,
+      "not_established_by_this_assessment": [
+        "per_band_fluxes_with_validated_errors",
+        "target_saturation_checked_per_input",
+        "comparison_star_calibration_floor_established",
+        "amplitude_above_20_percent_and_comparison_floor",
+        "independently_verified_period_and_phase"
+      ],
+      "manifest_sha256": "c3911b3dfb4aa5f853277c706559e5cdad82e1cd0fd8a3efaeb6fdd9d2a89035",
+      "assessment_complete": true,
       "array_sha256": {
         "e0.f32": "f70b3158fae2b1f6eafe164c694e05a8036dd2db412ffa3a0a9d033628b98e0c",
         "e0.mask.u8": "c06522c969112c3ba1d8770141ce2d74409a78fab60db4d2a400dab07e04eadd",

@@ -1,4 +1,4 @@
-"""Validate real Barnard demo images through the adopted browser app, with no archive access.
+"""Validate the current five saved targets, with no archive access.
 
 Requires numpy, scipy, astropy and playwright; uses an installed Chrome/Chromium browser.
 python scripts/validate.py --chrome "C:/Program Files/Google/Chrome/Application/chrome.exe"
@@ -176,7 +176,7 @@ def browser_frames(chrome, out, max_per):
         thread.join(timeout=5)
 
 
-def main():
+def legacy_main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--chrome", type=Path)
     parser.add_argument(
@@ -384,6 +384,17 @@ def summarize(results_dir, report_path, capture_root=None):
     print(
         f"Wrote {report_path}; default selection FAIL, recommended 10 and full capture PASS"
     )
+
+
+def main():
+    import sys
+
+    if "--legacy" in sys.argv:
+        sys.argv.remove("--legacy")
+        return legacy_main()
+    from validate_integrated import main as integrated_main
+
+    return integrated_main()
 
 
 if __name__ == "__main__":
