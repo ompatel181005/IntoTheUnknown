@@ -13,6 +13,11 @@
   padding: var(--chrome-top) var(--stage-right, var(--gutter)) var(--chrome-bottom) var(--stage-left, var(--gutter));
 }
 
+/* Room above the dock for its one-line landing hint, clear of the source chip under the dome. */
+.shell[data-dock="true"] .stage {
+  padding-bottom: calc(var(--chrome-bottom) + 12px);
+}
+
 .top {
   position: absolute;
   top: var(--gutter);
@@ -24,6 +29,10 @@
   gap: 10px;
   z-index: 20;
   pointer-events: none;
+}
+
+.top[hidden] {
+  display: none;
 }
 
 .top > * {

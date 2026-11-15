@@ -9,7 +9,10 @@ interface AppShellProps {
   /** Width reserved on the right of the stage (drawer or tool rail), in px. */
   stageRight: number;
   backdrop: ReactNode;
-  /** Hide the playback bar (the mobile bottom sheet takes its place). */
+  /**
+   * A phone bottom sheet is open: it replaces the playback bar, and the top bar steps away so the
+   * dome keeps a usable share of the height between them.
+   */
   hideBottom: boolean;
   /** Extra height reserved at the bottom (mobile bottom sheet), in px. */
   bottomReserve: number;
@@ -35,8 +38,14 @@ export function AppShell({ idle, flying, stageLeft, stageRight, hideBottom, bott
     if (!shell) return;
     const measure = () => {
       const gutter = 16;
+      if (hideBottom) {
+        // The sheet sits flush with the bottom edge; the stage keeps one gutter at the top only.
+        shell.style.setProperty("--chrome-top", `${gutter}px`);
+        shell.style.setProperty("--chrome-bottom", `${Math.round(bottomReserve + gutter / 2)}px`);
+        return;
+      }
       const t = topRef.current?.getBoundingClientRect().height ?? 0;
-      const b = hideBottom ? 0 : (bottomRef.current?.getBoundingClientRect().height ?? 0);
+      const b = bottomRef.current?.getBoundingClientRect().height ?? 0;
       shell.style.setProperty("--chrome-top", `${Math.round(t + gutter * 2)}px`);
       shell.style.setProperty("--chrome-bottom", `${Math.round(Math.max(b, bottomReserve) + gutter * 2)}px`);
     };
@@ -54,11 +63,13 @@ export function AppShell({ idle, flying, stageLeft, stageRight, hideBottom, bott
       data-idle={idle}
       data-app-shell
       data-flying={flying}
+      data-sheet={hideBottom}
+      data-dock={hasBottom && !hideBottom}
       style={{ ["--stage-right" as string]: `${stageRight}px`, ["--stage-left" as string]: `${stageLeft}px` }}
     >
       {backdrop}
       <main className={s.stage}>{stage}</main>
-      <div ref={topRef} className={`${s.top} ${s.chrome}`}>
+      <div ref={topRef} className={`${s.top} ${s.chrome}`} hidden={hideBottom}>
         {top}
       </div>
       {bottom !== null && (

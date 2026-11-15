@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Catalog } from "../types";
 
 const KEY = "spherex-blink.checked-points";
@@ -17,11 +17,11 @@ export function useCatalogSelection(catalog: Catalog | null) {
     if (!catalog) return;
     try { localStorage.setItem(KEY, JSON.stringify([...checked])); } catch { /* Storage is optional. */ }
   }, [catalog, checked]);
-  const toggle = (id: string, on: boolean) => setSaved((previous) => {
+  const toggle = useCallback((id: string, on: boolean) => setSaved((previous) => {
     const next = new Set(previous ?? checked);
     if (on) next.add(id); else next.delete(id);
     return [...next];
-  });
-  const setAll = (on: boolean) => setSaved(on ? catalog?.objects.map((object) => object.id) ?? [] : []);
+  }), [checked]);
+  const setAll = useCallback((on: boolean) => setSaved(on ? catalog?.objects.map((object) => object.id) ?? [] : []), [catalog]);
   return { checked, toggle, setAll };
 }

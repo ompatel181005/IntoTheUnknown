@@ -1,3 +1,16 @@
+// Intl.NumberFormat construction is slow; build each configuration once.
+const numberFormats = new Map<string, Intl.NumberFormat>();
+/** Same output as `n.toLocaleString(locales, options)`, with the formatter cached by its options. */
+export function formatNumber(n: number, options?: Intl.NumberFormatOptions): string {
+  const key = options ? JSON.stringify(options) : "";
+  let fmt = numberFormats.get(key);
+  if (!fmt) {
+    fmt = new Intl.NumberFormat(undefined, options);
+    numberFormats.set(key, fmt);
+  }
+  return fmt.format(n);
+}
+
 const pad = (n: number, w: number) => String(n).padStart(w, "0");
 
 /** 269.44627 -> "17:57:47.1" */
@@ -84,11 +97,11 @@ export function formatParallaxDistance(masVal: number | string | null | undefine
   const distLy = 3261.56 / mas;
   if (distLy >= 2000) {
     const rounded = Math.round(distLy / 100) * 100;
-    return `~${rounded.toLocaleString()} ly`;
+    return `~${formatNumber(rounded)} ly`;
   }
   if (distLy >= 1000) {
     const rounded = Math.round(distLy / 50) * 50;
-    return `~${rounded.toLocaleString()} ly`;
+    return `~${formatNumber(rounded)} ly`;
   }
   if (distLy >= 100) {
     return `~${Math.round(distLy)} ly`;
@@ -123,7 +136,7 @@ export function formatProperMotionMoon(pmVal: number | string | null | undefined
   const years = 1860 / rate;
   if (years >= 100) {
     const rounded = Math.round(years / 10) * 10;
-    return `Moon width in ~${rounded.toLocaleString()} yrs`;
+    return `Moon width in ~${formatNumber(rounded)} yrs`;
   }
   return `Moon width in ~${Math.round(years)} yrs`;
 }

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { formatDataCounts, sortCatalogItems, type CatalogSort, type DataCounts } from "../../lib/catalogSort";
+import { formatDec, formatRa, parseCoords } from "../../lib/format";
 import { GlassPanel, Icon } from "../glass";
 import s from "./HomePanel.module.css";
 
@@ -17,10 +18,7 @@ export interface HomePanelProps {
   checked: ReadonlySet<string>;
   onToggle: (id: string, on: boolean) => void;
   onSetAll: (on: boolean) => void;
-  query: string;
-  onQuery: (q: string) => void;
-  coordsHint?: string | null;
-  onGoToCoords?: () => void;
+  onGoToCoords: (ra: number, dec: number) => void;
   onFly: (id: string) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -58,14 +56,11 @@ function FlyIcon() {
   );
 }
 
-export function HomePanel({
+export const HomePanel = memo(function HomePanel({
   items,
   checked,
   onToggle,
   onSetAll,
-  query,
-  onQuery,
-  coordsHint,
   onGoToCoords,
   onFly,
   open,
@@ -76,6 +71,11 @@ export function HomePanel({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const prevOpenRef = useRef(open);
   const [sort, setSort] = useState<CatalogSort>("frames");
+  // The search text lives here so typing re-renders only this panel, not the whole app.
+  const [query, setQuery] = useState("");
+  const coords = useMemo(() => parseCoords(query), [query]);
+  const coordsHint = coords ? `Go to RA ${formatRa(coords.ra)}, Dec ${formatDec(coords.dec)}` : null;
+  const goToCoords = coords ? () => onGoToCoords(coords.ra, coords.dec) : undefined;
 
   useEffect(() => {
     if (prevOpenRef.current !== open) {
@@ -99,10 +99,10 @@ export function HomePanel({
   const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
       e.preventDefault();
-      onQuery("");
-    } else if (e.key === "Enter" && coordsHint && onGoToCoords) {
+      setQuery("");
+    } else if (e.key === "Enter" && goToCoords) {
       e.preventDefault();
-      onGoToCoords();
+      goToCoords();
     } else if (e.key === "Enter" && filteredItems.length === 1 && checked.has(filteredItems[0].id) && filteredItems[0].clickable) {
       e.preventDefault();
       onFly(filteredItems[0].id);
@@ -157,7 +157,7 @@ export function HomePanel({
               ref={searchInputRef}
               className={s.searchInput}
               value={query}
-              onChange={(e) => onQuery(e.target.value)}
+              onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               placeholder="Search name, kind or RA, Dec"
               autoComplete="off"
@@ -170,7 +170,7 @@ export function HomePanel({
                 className={s.clearBtn}
                 aria-label="Clear search"
                 title="Clear search"
-                onClick={() => onQuery("")}
+                onClick={() => setQuery("")}
               >
                 <Icon name="close" size={14} />
               </button>
@@ -215,7 +215,7 @@ export function HomePanel({
             <button
               type="button"
               className={s.coordsAction}
-              onClick={onGoToCoords}
+              onClick={goToCoords}
             >
               <span className={s.coordsMain}>
                 <Icon name="globe" size={16} />
@@ -265,4 +265,4 @@ export function HomePanel({
       </GlassPanel>
     </div>
   );
-}
+});

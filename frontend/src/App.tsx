@@ -20,7 +20,6 @@ import { APP_NAME } from "./lib/brand";
 import { pointPosition } from "./lib/catalog";
 import availability from "../public/catalog/data-availability.json";
 import { catalogCounts } from "./lib/catalogSort";
-import { formatDec, formatRa, parseCoords } from "./lib/format";
 import type { CatalogObject } from "./types";
 import type { ViewQuery, ViewSource } from "./data/source";
 import { useAsync } from "./hooks/useAsync";
@@ -84,8 +83,7 @@ export default function App({ source }: { source: ViewSource }) {
   const url = useMemo(() => storedUrl.point && storedUrl.ra === null && pointLinkDefaults
     ? { ...storedUrl, ...pointLinkDefaults } : storedUrl, [storedUrl, pointLinkDefaults]);
   const selection = useCatalogSelection(catalog.catalog);
-  const [homeQuery, setHomeQuery] = useState("");
-  const homeCoords = parseCoords(homeQuery);
+  const homeItems = useMemo(() => objects.map((object) => ({ id: object.id, name: object.name, kind: object.kind, clickable: true, counts: catalogCounts(object, availability) })), [objects]);
   const [homePanelOpen, setHomePanelOpen] = useState(() => {
     try {
       const saved = localStorage.getItem(HOME_PANEL_KEY);
@@ -93,10 +91,10 @@ export default function App({ source }: { source: ViewSource }) {
     } catch { /* Use the viewport default when storage is unavailable. */ }
     return !window.matchMedia("(max-width: 768px)").matches;
   });
-  const setHomePanel = (open: boolean) => {
+  const setHomePanel = useCallback((open: boolean) => {
     setHomePanelOpen(open);
     try { localStorage.setItem(HOME_PANEL_KEY, open ? "0" : "1"); } catch { /* Storage is optional. */ }
-  };
+  }, []);
 
   const update = useCallback((patch: Partial<ViewState>) => setUrl((u) => ({ ...u, ...(u.ra === null && u.point ? pointLinkDefaults : {}), ...patch })), [pointLinkDefaults]);
 
@@ -186,6 +184,12 @@ export default function App({ source }: { source: ViewSource }) {
     }
     update({ ra, dec, target: null, point: null, epoch: 0, sel: null, ref: 0 });
   };
+  // HomePanel is memoised, so it gets callbacks that never change and always call the latest handlers.
+  const homeHandlers = useRef({ flyToPoint, pickCoords });
+  useEffect(() => { homeHandlers.current = { flyToPoint, pickCoords }; });
+  const homeFly = useCallback((id: string) => homeHandlers.current.flyToPoint(id), []);
+  const homeGoToCoords = useCallback((ra: number, dec: number) => homeHandlers.current.pickCoords(ra, dec), []);
+  const homeGuide = useCallback(() => setGuideOpen(true), []);
   const pickFromBar = (p: Preset) => {
     if (flightActive) return;
     markFlight("search-start");
@@ -327,7 +331,7 @@ export default function App({ source }: { source: ViewSource }) {
   const guideDone: [boolean, boolean, boolean] = [load.kind !== "idle", pb.played, pb.loops > 0];
   const showGuide = !guideHidden && !(mobile && (drawerOpen || sheetOpen));
 
-  const left = mobile || load.kind === "idle" ? GUTTER : customizeOpen ? PANEL_W + GUTTER * 2 : 44 + GUTTER * 2;
+  const left = mobile || load.kind === "idle" ? GUTTER : customizeOpen ? PANEL_W + 44 + GUTTER * 2 : 44 + GUTTER * 2; // the open handle reaches PANEL_W + 44
   const right = mobile ? GUTTER : drawerOpen ? DRAWER_W + RAIL_W + GUTTER * 3 : RAIL_W + GUTTER * 2;
   // The map and the dome are centred on the screen, so the stage reserves the same space on both sides.
   // Equal insets keep the image and its overlays centred when Details needs more room.
@@ -441,19 +445,16 @@ export default function App({ source }: { source: ViewSource }) {
         <>
           <div hidden={url.ra !== null} aria-hidden={url.ra !== null || flightActive} inert={url.ra !== null || flightActive}>
             <HomePanel
-              items={objects.map((object) => ({ id: object.id, name: object.name, kind: object.kind, clickable: true, counts: catalogCounts(object, availability) }))}
+              items={homeItems}
               checked={selection.checked}
               onToggle={selection.toggle}
               onSetAll={selection.setAll}
-              query={homeQuery}
-              onQuery={setHomeQuery}
-              coordsHint={homeCoords ? `Go to RA ${formatRa(homeCoords.ra)}, Dec ${formatDec(homeCoords.dec)}` : null}
-              onGoToCoords={homeCoords ? () => pickCoords(homeCoords.ra, homeCoords.dec) : undefined}
-              onFly={flyToPoint}
+              onGoToCoords={homeGoToCoords}
+              onFly={homeFly}
               open={homePanelOpen}
               onOpenChange={setHomePanel}
               brand={APP_NAME}
-              onGuide={() => setGuideOpen(true)}
+              onGuide={homeGuide}
             />
             {catalog.status !== "ready" && <span className="home-catalog-status" role="status">{catalog.error ?? "Loading target list…"}</span>}
           </div>

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { LoadedView } from "../../data/source";
 import type { ViewState as LoadState } from "../../hooks/useView";
 import { flightIsActive, getFlightDirection, getFlightStartPose, markFlight, registerDomeLayout, setDomeDestination, subscribeFlight, type FlightPose } from "../../lib/flight";
@@ -11,7 +11,8 @@ import type { Overlays, StretchKind, ViewMode } from "../../lib/url";
 import type { CatalogObject, FovArcmin, GaiaResult } from "../../types";
 import { Orrery } from "../Orrery/Orrery";
 import { GlassButton, GlassPanel, Icon, Term } from "../glass";
-import { buildGrid } from "./grid";
+import { HomeLegend } from "../HomeLegend/HomeLegend";
+import { buildGrid, type GridGeometry } from "./grid";
 import s from "./SkyStage.module.css";
 
 interface SkyStageProps {
@@ -146,6 +147,7 @@ function Home({
           <Icon name="fullscreen" size={18} />
         </button>
       </div>
+      <HomeLegend objects={targets} flying={flying} />
     </section>
   );
 }
@@ -307,17 +309,22 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
   const fovArcmin = fovDeg * 60;
   const diff = mode === "diff" && (m?.epochs.length ?? 0) > 1;
 
+  // Grids are built in dome-relative units, so a dome resize (Details on phones) reuses them. Their
+  // reach only grows for one position: a larger dome keeps the wider grid instead of rebuilding it.
+  const need = box ? gridOverscan(box.side, box.vw, box.vh) : 0;
+  const reachKey = `${ra},${dec},${fovDeg}`;
+  const [reach, setReach] = useState({ key: reachKey, overscan: need });
+  const overscan = reach.key === reachKey ? Math.max(reach.overscan, need) : need;
+  if (reach.key !== reachKey || reach.overscan !== overscan) setReach({ key: reachKey, overscan });
   const outer = useMemo(
-    () => (box && ra !== null && dec !== null ? buildGrid(ra, dec, fovDeg, box, box.vw, box.vh) : null),
-    [box, ra, dec, fovDeg],
+    () => (overscan && ra !== null && dec !== null ? buildGrid(ra, dec, fovDeg, GRID_FRAME, GRID_UNITS * overscan, GRID_UNITS * overscan) : null),
+    [overscan, ra, dec, fovDeg],
   );
   const inner = useMemo(
-    () =>
-      box && ra !== null && dec !== null && props.overlays.grid
-        ? buildGrid(ra, dec, fovDeg, { left: 0, top: 0, side: box.side }, box.side, box.side)
-        : null,
-    [box, ra, dec, fovDeg, props.overlays.grid],
+    () => (ra !== null && dec !== null && props.overlays.grid ? buildGrid(ra, dec, fovDeg, GRID_FRAME, GRID_UNITS, GRID_UNITS) : null),
+    [ra, dec, fovDeg, props.overlays.grid],
   );
+  const unit = box ? box.side / GRID_UNITS : 0;
 
   // Room between the frame and the tool rail on the right (rail 52px + gutters).
   const labelRoom = box ? (box.vw - box.side) / 2 - 150 : 0;
@@ -399,17 +406,17 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
             </mask>
           </defs>
           <g mask="url(#frame-hole)">
-            {outer.lines.map((l, i) => (
-              <path key={i} d={l.d} className={s.gridLine} />
-            ))}
+            <svg width={box.side} height={box.side} viewBox={`0 0 ${GRID_UNITS} ${GRID_UNITS}`} overflow="visible">
+              <GridLines lines={outer.lines} className={s.gridLine} />
+            </svg>
           </g>
           {outer.decLabels.map((l) => (
-            <text key={l.text} x={box.left - 46} y={l.y} className={`${s.gridLabel} mono`} textAnchor="end" dominantBaseline="middle">
+            <text key={l.text} x={box.left - 46} y={l.y * unit} className={`${s.gridLabel} mono`} textAnchor="end" dominantBaseline="middle">
               {l.text}
             </text>
           ))}
           {outer.raLabels.map((l) => (
-            <text key={l.text} x={l.x} y={box.top + box.side + 54} className={`${s.gridLabel} mono`} textAnchor="middle">
+            <text key={l.text} x={l.x * unit} y={box.top + box.side + 54} className={`${s.gridLabel} ${s.raLabel} mono`} textAnchor="middle">
               {l.text}
             </text>
           ))}
@@ -488,11 +495,9 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
                 ny={view.manifest.grid.ny}
                 mask={props.overlays.flags ? (view.masks[index] ?? null) : null}
               />
-              {inner && box && (
-                <svg className={s.overlay} viewBox={`0 0 ${box.side} ${box.side}`} aria-hidden="true">
-                  {inner.lines.map((l, i) => (
-                    <path key={i} d={l.d} className={s.gridOnImage} />
-                  ))}
+              {inner && (
+                <svg className={s.overlay} viewBox={`0 0 ${GRID_UNITS} ${GRID_UNITS}`} aria-hidden="true">
+                  <GridLines lines={inner.lines} className={s.gridOnImage} />
                 </svg>
               )}
               {props.overlays.gaia && view.gaia && <GaiaLayer gaia={view.gaia} index={index} nx={view.manifest.grid.nx} ny={view.manifest.grid.ny} />}
@@ -527,6 +532,21 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
     </div>
   );
 }
+
+/** Grid geometry units per dome width; strokes stay 1 px through non-scaling-stroke. */
+const GRID_UNITS = 1000;
+const GRID_FRAME = { left: 0, top: 0, side: GRID_UNITS };
+
+/** Sky grid reach in dome widths, rounded up to a power of two (at most 8) so small dome resizes keep it. */
+function gridOverscan(side: number, vw: number, vh: number) {
+  if (!(side > 0)) return 0;
+  return 2 ** Math.min(3, Math.max(0, Math.ceil(Math.log2(Math.max(vw, vh) / side))));
+}
+
+/** Path elements only re-render when the grid geometry itself changes. */
+const GridLines = memo(function GridLines({ lines, className }: { lines: GridGeometry["lines"]; className: string }) {
+  return lines.map((l, i) => <path key={i} d={l.d} className={className} />);
+});
 
 /** One hairline rim, with north up and east left. */
 function DomeRing({ left, top, side }: { left: number; top: number; side: number }) {

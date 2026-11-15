@@ -451,9 +451,30 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       dirty = true;
       scheduleFrame();
     });
+    // The home target list is a screen edge for labels too. Its rect (wrap coordinates) is measured on
+    // resize, open/close and the end of its slide, never in the frame loop.
+    const panelRail = document.getElementById("home-panel")?.closest<HTMLElement>("[data-flight-hide]") ?? null;
+    const panelRect = { left: 0, right: 0, top: 0, bottom: 0 };
+    const measurePanel = (wrapBox: DOMRect) => {
+      const box = panelRail?.getBoundingClientRect();
+      const shown = !!box && box.width > 0 && box.right > wrapBox.left;
+      panelRect.left = shown ? box.left - wrapBox.left : 0;
+      panelRect.right = shown ? box.right - wrapBox.left : 0;
+      panelRect.top = shown ? box.top - wrapBox.top : 0;
+      panelRect.bottom = shown ? box.bottom - wrapBox.top : 0;
+    };
+    /** Left edge for a box spanning `top` to `bottom`: the panel's right side where they share rows. */
+    const leftEdge = (top: number, bottom: number) => top < panelRect.bottom && bottom > panelRect.top ? panelRect.right : 0;
+    const remeasurePanel = () => {
+      if (disposed || !wrap.isConnected) return;
+      measurePanel(wrap.getBoundingClientRect());
+      dirty = true;
+      scheduleFrame();
+    };
     const resize = () => {
       if (disposed || !wrap.isConnected) return;
       const wrapBox = wrap.getBoundingClientRect();
+      measurePanel(wrapBox);
       const anchorBox = anchor.getBoundingClientRect();
       const dpr = (window.devicePixelRatio || 1);
       width = wrapBox.width;
@@ -494,6 +515,14 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(wrap);
     resizeObserver.observe(anchor);
+    const panelObserver = new ResizeObserver(remeasurePanel);
+    const panelToggle = new MutationObserver(remeasurePanel);
+    const panelSlid = (event: TransitionEvent) => { if (event.target === panelRail) remeasurePanel(); };
+    if (panelRail) {
+      panelObserver.observe(panelRail);
+      panelToggle.observe(panelRail, { attributes: true, attributeFilter: ["data-open"] });
+      panelRail.addEventListener("transitionend", panelSlid);
+    }
 
     let trigYaw = NaN;
     let trigPitch = NaN;
@@ -690,6 +719,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
           labelRect.top = label.y - label.height / 2 * scale;
           labelRect.bottom = label.y + label.height / 2 * scale;
           if (labelRect.top < 12 || labelRect.bottom > height - 12 || labelGrid.overlaps(candidate, clearance)) continue;
+          if (labelRect.left < leftEdge(labelRect.top, labelRect.bottom) + 12) continue;
           if (strict && !labelInBounds(labelRect)) continue;
           if (pass === 0 && !clearOfAnchors(index, scale, strict ? 4 : 0)) continue;
           label.placement = placement;
@@ -755,7 +785,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       earthLeader[2] = ax;
       earthLeader[3] = ay;
     };
-    const labelInBounds = (candidate: { left: number; right: number; top: number; bottom: number }) => candidate.left >= 12 && candidate.right <= width - 12
+    const labelInBounds = (candidate: { left: number; right: number; top: number; bottom: number }) => candidate.left >= leftEdge(candidate.top, candidate.bottom) + 12 && candidate.right <= width - 12
       && candidate.top >= (width < 769 ? 245 : 200) && candidate.bottom <= height - 60;
     let animationFrame = 0;
     let dragging = false;
@@ -914,7 +944,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
         candidate.right = left + scaledWidth;
         candidate.top = labelY - 9 * labelScale;
         candidate.bottom = labelY + 9 * labelScale;
-        candidate.visible = projected.depth > 0.05 && projected.x > 16 && projected.x < width - 16 && projected.y > 200 && projected.y < height - 60;
+        candidate.visible = projected.depth > 0.05 && projected.x > leftEdge(projected.y, projected.y) + 16 && projected.x < width - 16 && projected.y > 200 && projected.y < height - 60;
       });
       placeEarthLabel(sunPoint.x, sunPoint.y, sunRadius, labelScale, camera.dist);
 
@@ -1572,6 +1602,9 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       window.clearInterval(clock);
       motionPreference.removeEventListener("change", motionChange);
       resizeObserver.disconnect();
+      panelObserver.disconnect();
+      panelToggle.disconnect();
+      panelRail?.removeEventListener("transitionend", panelSlid);
       window.removeEventListener("pointerdown", pointerDown);
       window.removeEventListener("pointermove", pointerMove);
       window.removeEventListener("pointerup", pointerUp);

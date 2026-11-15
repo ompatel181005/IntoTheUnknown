@@ -1,0 +1,67 @@
+/* Bottom-left corner, below the target list and clear of the centred clock and the zoom column. */
+.legend {
+  position: fixed;
+  z-index: 4;
+  left: var(--gutter);
+  bottom: var(--gutter);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  max-width: calc(50vw - 140px);
+  margin: 0;
+  padding: 2px 4px;
+  list-style: none;
+  border-radius: var(--radius-pill);
+  color: var(--text-2);
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.02em;
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The shared data-flight-hide transition also eases this rise. */
+.legend:hover,
+.legend:focus-visible {
+  opacity: 1;
+}
+
+.legend:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.glyph {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  overflow: visible;
+}
+
+/* Same marker as the orrery: a hairline ring at half strength and a stronger centre dot. */
+.ring {
+  fill: none;
+  stroke: var(--text-1);
+  stroke-opacity: 0.5;
+  stroke-width: 1;
+}
+
+.dot {
+  fill: var(--text-1);
+  fill-opacity: 0.85;
+}
+
+/* Phones: the clock takes the bottom-left corner, so the key sits just above it. */
+@media (max-width: 768px) {
+  .legend {
+    bottom: calc(var(--gutter) + 22px);
+    max-width: calc(100vw - 96px);
+  }
+}
