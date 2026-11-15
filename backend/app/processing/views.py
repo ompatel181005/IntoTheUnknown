@@ -122,11 +122,7 @@ def live_frames(req: ViewRequest, job: Job) -> list[dict]:
     job.status = "query"
     try:
         try:
-            colls = query.discover_collections()
-        except Exception:
-            colls = ["spherex_dr1", "spherex_qr3"]  # list_collections is TAP-backed (DECISIONS 2026-11-14)
-        try:
-            rows = query.query_frames_sia(req.ra, req.dec, colls)
+            rows = query.query_frames_sia(req.ra, req.dec, query.collections())
         except Exception:
             rows = query.query_frames_tap(req.ra, req.dec)
     except Exception as e:  # both SIA and TAP failed
@@ -204,9 +200,17 @@ def build(job: Job) -> None:
         gaia_cat = gaia_dr3.catalog_from_rows(gaia)
         source, min_frames = "golden", config.MIN_EPOCH_FRAMES_DEMO
     else:
-        frames = live_frames(req, job)
+        # Gaia can take 30 s or more to answer (or to time out), so it runs beside the cutout download.
+        side = cf.ThreadPoolExecutor(max_workers=1)
+        try:
+            gaia_job = side.submit(
+                contextvars.copy_context().run, gaia_dr3.live_catalog, req.ra, req.dec, req.fov_arcmin
+            )
+            frames = live_frames(req, job)
+            gaia_cat = gaia_job.result()  # None when Gaia is down
+        finally:
+            side.shutdown(wait=False)  # an IRSA error must not wait for Gaia
         gaia = []  # live Gaia query lands with #8; until then live views report astrom_resid_px: null
-        gaia_cat = gaia_dr3.live_catalog(req.ra, req.dec, req.fov_arcmin)  # None when Gaia is down
         source, min_frames = "irsa", config.MIN_EPOCH_FRAMES_LIVE
         origin = {
             "kind": "live",
