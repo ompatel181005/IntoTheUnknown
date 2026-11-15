@@ -38,7 +38,7 @@ const CUSTOMIZE_KEY = "spherex-blink.customize-hidden";
 const GUTTER = 16;
 const RAIL_W = 52;
 const PANEL_W = 284;
-const DRAWER_W = 340;
+const DRAWER_W = 374;
 
 function isTyping(el: EventTarget | null) {
   const t = el as HTMLElement | null;
@@ -317,8 +317,8 @@ export default function App({ source }: { source: ViewSource }) {
   const left = mobile || load.kind === "idle" ? GUTTER : customizeOpen ? PANEL_W + GUTTER * 2 : 44 + GUTTER * 2;
   const right = mobile ? GUTTER : drawerOpen ? DRAWER_W + RAIL_W + GUTTER * 3 : RAIL_W + GUTTER * 2;
   // The map and the dome are centred on the screen, so the stage reserves the same space on both sides.
-  // With the details drawer open there is not enough room, so the dome shifts left instead of shrinking.
-  const centred = !mobile && !drawerOpen;
+  // Equal insets keep the image and its overlays centred when Details needs more room.
+  const centred = !mobile;
   const stageLeft = centred ? Math.max(left, right) : left;
   const stageRight = centred ? Math.max(left, right) : right;
   const sheet = mobile && (drawerOpen || sheetOpen);

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { LoadedView } from "../../data/source";
 import type { ViewState as LoadState } from "../../hooks/useView";
 import { flightIsActive, getFlightDirection, getFlightStartPose, markFlight, registerDomeLayout, setDomeDestination, subscribeFlight, type FlightPose } from "../../lib/flight";
@@ -178,6 +178,10 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
   const previousLayout = useRef<FlightPose | null>(null);
   const flip = useRef<Animation | null>(null);
   const layout = useRef<FlightPose | null>(null);
+  const labelRef = useRef<HTMLDivElement>(null);
+  const labelMotion = useRef<Animation | null>(null);
+  const absorption = useRef<{ animations: Animation[]; reduced: boolean; hidden: boolean } | null>(null);
+  const labelLayout = useRef<{ left: number; top: number; width: number; height: number; hidden: boolean } | null>(null);
 
   useLayoutEffect(() => {
     const col = columnRef.current, frame = frameRef.current;
@@ -213,6 +217,9 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
       unsubscribe();
       unregister();
       flip.current?.cancel();
+      labelMotion.current?.cancel();
+      absorption.current?.animations.forEach(animation => animation.cancel());
+      absorption.current = null;
       col.style.removeProperty("transform");
       col.style.removeProperty("opacity");
       delete col.dataset.flight;
@@ -236,25 +243,60 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
     if (reduced) col.style.opacity = getFlightDirection() === 1 ? "0" : "1";
   }, [frameRef, props.flying, props.ra, props.dec]);
 
-  // FLIP the shared parent after instantaneous layout. Interrupted toggles start at the visible pose.
+  // Read interrupted poses before cancelling either animation, then invert the new layout.
   useLayoutEffect(() => {
-    const col = columnRef.current, frame = frameRef.current;
-    if (!col || !frame || props.load.kind === "idle" || props.flying || flightIsActive()) { previousLayout.current = null; return; }
+    const col = columnRef.current, frame = frameRef.current, label = labelRef.current;
+    if (!col || !frame || props.load.kind === "idle" || props.flying || flightIsActive()) {
+      previousLayout.current = null;
+      labelLayout.current = null;
+      return;
+    }
     const previous = previousLayout.current;
     const matrix = new DOMMatrixReadOnly(getComputedStyle(col).transform);
     const visible = previous ? { x: previous.x + matrix.e, y: previous.y + matrix.f, side: previous.side * matrix.a } : null;
+    const bounds = frame.getBoundingClientRect();
+    const oldLabel = labelLayout.current;
+    const anchor = label ? { left: label.offsetLeft, top: label.offsetTop - 14, width: label.offsetWidth, height: label.offsetHeight, hidden: !props.showLabel } : null;
+    const sameLabel = !anchor ? !oldLabel : oldLabel && Object.keys(anchor).every(key => anchor[key as keyof typeof anchor] === oldLabel[key as keyof typeof anchor]);
+    // Observer renders must not restart the drawer clock when the visible layout is unchanged.
+    if (visible && sameLabel && Math.abs(bounds.x + bounds.width / 2 - visible.x) + Math.abs(bounds.y + bounds.height / 2 - visible.y) + Math.abs(bounds.width - visible.side) < 0.1) return;
+    const labelMatrix = new DOMMatrixReadOnly(label ? getComputedStyle(label).transform : "none");
+    const row = frame.offsetTop;
+    const labelPose = previous && visible && oldLabel ? {
+      x: visible.x + (oldLabel.left - previous.side / 2 + labelMatrix.e) * matrix.a,
+      y: visible.y + (oldLabel.top - previous.side / 2 - row + labelMatrix.f) * matrix.a,
+      scale: labelMatrix.a * matrix.a,
+    } : null;
     flip.current?.cancel();
     const r = frame.getBoundingClientRect();
     const next = { x: r.left + r.width / 2, y: r.top + r.height / 2, side: r.width };
     previousLayout.current = next;
     layout.current = next;
     setDomeDestination(next);
-    if (!visible || Math.abs(visible.x - next.x) + Math.abs(visible.y - next.y) + Math.abs(visible.side - next.side) < 0.1) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    flip.current = col.animate([
-      { transform: `translate3d(${visible.x - next.x}px, ${visible.y - next.y}px, 0) scale(${visible.side / next.side})` },
-      { transform: "translate3d(0, 0, 0) scale(1)" },
-    ], { duration: 180, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const theme = getComputedStyle(col);
+    const duration = parseFloat(theme.getPropertyValue("--dur"));
+    const easing = theme.getPropertyValue("--ease").trim();
+    const changed = visible && Math.abs(visible.x - next.x) + Math.abs(visible.y - next.y) + Math.abs(visible.side - next.side) >= 0.1;
+    if (changed && !reduced) {
+      flip.current = col.animate([
+        { transform: `translate3d(${visible.x - next.x}px, ${visible.y - next.y}px, 0) scale(${visible.side / next.side})` },
+        { transform: "translate3d(0, 0, 0) scale(1)" },
+      ], { duration, easing });
+    }
+    if (!label || !anchor) { labelLayout.current = null; return; }
+    const parent = new DOMMatrixReadOnly(getComputedStyle(col).transform);
+    const start = labelPose && !reduced
+      ? `translate(${(labelPose.x - next.x - parent.e) / parent.a + next.side / 2 - anchor.left}px, ${(labelPose.y - next.y - parent.f) / parent.a + next.side / 2 + row - anchor.top}px) scale(${labelPose.scale / parent.a})`
+      : "translate(0, 0) scale(1)";
+    labelMotion.current?.cancel();
+    labelLayout.current = anchor;
+    if (labelPose && !reduced) {
+      labelMotion.current = label.animate([
+        { transform: start },
+        { transform: "translate(0, 0) scale(1)" },
+      ], { duration, easing });
+    }
   });
   const m = view?.manifest;
   const fovDeg = m ? (m.grid.nx * m.grid.pix_arcsec) / 3600 : props.fov / 60;
@@ -275,10 +317,66 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
 
   // Room between the frame and the tool rail on the right (rail 52px + gutters).
   const labelRoom = box ? (box.vw - box.side) / 2 - 150 : 0;
-  const showLabel = props.showLabel && labelRoom > 160 && box !== null;
+  const showLabel = labelRoom > 160 && box !== null;
+
+  useLayoutEffect(() => {
+    const label = labelRef.current;
+    const leader = columnRef.current?.querySelector<SVGGElement>("[data-label-leader]");
+    if (!label || !leader) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const hidden = !props.showLabel;
+    const lines = Array.from(label.children) as HTMLElement[];
+    const targets = reduced ? [label, leader] : [...lines, ...leader.children];
+    let motion = absorption.current;
+    if (!motion || motion.reduced !== reduced || targets.length !== motion.animations.length ||
+      targets.some((target, i) => (motion!.animations[i].effect as KeyframeEffect).target !== target)) {
+      const duration = reduced ? 150 : 560;
+      const time = motion ? Number(motion.animations[0].currentTime) / (motion.reduced ? 150 : 560) * duration : hidden ? duration : 0;
+      motion?.animations.forEach(animation => animation.cancel());
+      const animations = targets.map((target, i) => {
+        let frames: Keyframe[];
+        if (reduced) frames = [{ opacity: 1 }, { opacity: 0 }];
+        else if (i < lines.length) {
+          const start = Math.min(i * 0.035, 0.16);
+          frames = [
+            { offset: 0, transform: "translate(0, 0) scale(1)", clipPath: "inset(0 0% 0 0)", opacity: 1 },
+            { offset: start, transform: "translate(0, 0) scale(1)", clipPath: "inset(0 0% 0 0)", opacity: 1, easing: "cubic-bezier(0.42, 0, 1, 1)" },
+            { offset: 0.68 + start, transform: `translate(-8px, ${40 - lines[i].offsetTop}px) scale(0.06)`, clipPath: "inset(0 100% 0 0)", opacity: 0 },
+            { offset: 1, transform: `translate(-8px, ${40 - lines[i].offsetTop}px) scale(0.06)`, clipPath: "inset(0 100% 0 0)", opacity: 0 },
+          ];
+        } else if (target.tagName === "path") {
+          frames = [{ offset: 0, strokeDashoffset: 0 }, { offset: 0.82, strokeDashoffset: 0, easing: "cubic-bezier(0.42, 0, 1, 1)" }, { strokeDashoffset: 1 }];
+        } else {
+          frames = [{ offset: 0, opacity: 1 }, { offset: 0.8, opacity: 1 }, { offset: 0.82, opacity: 0 }, { opacity: 0 }];
+        }
+        const animation = target.animate(frames, { duration, fill: "both" });
+        animation.pause();
+        animation.currentTime = time;
+        return animation;
+      });
+      motion = { animations, reduced, hidden: motion?.hidden ?? hidden };
+      if (time > 0 && time < duration) animations.forEach(animation => {
+        animation.playbackRate = hidden ? 1 : -1;
+        animation.play();
+      });
+      absorption.current = motion;
+    }
+    // Keep one playhead per part: changing direction preserves the exact interrupted pose.
+    motion.animations.forEach(animation => {
+      if (motion.hidden !== hidden) {
+        const time = Number(animation.currentTime);
+        animation.playbackRate = hidden ? 1 : -1;
+        animation.currentTime = time;
+        const duration = Number(animation.effect!.getTiming().duration);
+        if (hidden ? time >= duration : time <= 0) animation.pause();
+        else animation.play();
+      }
+    });
+    motion.hidden = hidden;
+  });
 
   return (
-    <div ref={columnRef} className={s.column} data-eyepiece>
+    <div ref={columnRef} className={s.column} data-details={!props.showLabel} data-eyepiece>
       {box && outer && (
         <svg
           className={s.sky}
@@ -405,10 +503,8 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
 
       {showLabel && box && (
         <TargetLabel
-          className=""
-          left={box.left + box.side / 2 + (box.side / 2 + 36) * 0.7071 + 60}
-          top={box.top + box.side / 2 - (box.side / 2 + 36) * 0.7071 - 20}
-          maxWidth={Math.min(280, labelRoom)}
+          ref={labelRef}
+          hidden={!props.showLabel}
           name={props.target?.name ?? props.point?.name ?? "Custom position"}
           ra={ra}
           dec={dec}
@@ -449,23 +545,21 @@ function Leader({ left, top, side }: { left: number; top: number; side: number }
   const cx = left + side / 2;
   const cy = top + side / 2;
   const r = side / 2 + 36;
-  const sx = cx + r * 0.7071;
-  const sy = cy - r * 0.7071;
-  const ex = sx + 34;
-  const ey = sy - 34;
+  const sx = cx + (side / 2 + 10) * 0.7071;
+  const sy = cy - (side / 2 + 10) * 0.7071;
+  const ex = cx + r * 0.7071 + 34;
+  const ey = cy - r * 0.7071 - 34;
   return (
-    <g className={s.leader}>
-      <path d={`M${sx},${sy}L${ex},${ey}H${ex + 18}`} />
+    <g className={s.leader} data-label-leader>
+      <path pathLength={1} d={`M${sx},${sy}L${ex},${ey}H${ex + 18}`} />
       <circle cx={ex + 18} cy={ey} r={2} />
     </g>
   );
 }
 
-function TargetLabel(p: {
-  className: string;
-  left: number;
-  top: number;
-  maxWidth: number;
+function TargetLabel({ ref, ...p }: {
+  ref: RefObject<HTMLDivElement | null>;
+  hidden: boolean;
   name: string;
   ra: number | null;
   dec: number | null;
@@ -474,7 +568,7 @@ function TargetLabel(p: {
   provenance: string | null;
 }) {
   return (
-    <div className={`${s.targetLabel} ${p.className}`} style={{ left: p.left, top: p.top, maxWidth: p.maxWidth }}>
+    <div ref={ref} className={s.targetLabel} data-target-label aria-hidden={p.hidden} inert={p.hidden}>
       <span className={`display ${s.targetName}`}>{p.name}</span>
       {p.ra !== null && p.dec !== null && (
         <span className={`mono ${s.targetCoords}`}>

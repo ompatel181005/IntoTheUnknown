@@ -37,7 +37,6 @@ const ARC_PATH = Array.from({ length: 41 }, (_, i) => {
 }).join("");
 
 const LANDING_HINT_KEY = "spherex:landing-hint-seen";
-const MODE_HINT_PREFIX = "spherex:mode-hint:";
 
 const MODE_HINTS: Record<ViewMode, string> = {
   all: "Watch for anything that jumps in a straight line between passes",
@@ -74,26 +73,26 @@ export function PlaybackBar(p: PlaybackBarProps) {
   const knob = ready ? arc(tOf(p.index)) : null;
   const stateText = p.loading ? "Loading" : !ready ? "No target" : !multi ? "One pass" : p.playing ? "Playing" : "Paused";
 
-  const [activeHint, setActiveHint] = useState<{ id: string; text: string; fading: boolean } | null>(null);
+  const [activeHint, setActiveHint] = useState<{ id: string; text: string; fading: boolean; fast?: boolean } | null>(null);
   const hintTimerRef = useRef<number | null>(null);
   const fadeTimerRef = useRef<number | null>(null);
-  const prevModeRef = useRef<ViewMode>(p.mode);
   const hasLandedRef = useRef<boolean>(false);
 
-  const dismissHint = useCallback((id?: string) => {
+  const dismissHint = useCallback((id?: string, fast: boolean = false) => {
     if (hintTimerRef.current) window.clearTimeout(hintTimerRef.current);
     if (fadeTimerRef.current) window.clearTimeout(fadeTimerRef.current);
     window.setTimeout(() => {
       setActiveHint((prev) => {
         if (!prev) return null;
         if (id && prev.id !== id) return prev;
-        return { ...prev, fading: true };
+        return { ...prev, fading: true, fast };
       });
       fadeTimerRef.current = window.setTimeout(() => {
         setActiveHint(null);
-      }, 400);
+      }, fast ? 120 : 400);
     }, 0);
   }, []);
+
 
   const triggerHint = useCallback((id: string, text: string, durationMs: number) => {
     if (hintTimerRef.current) window.clearTimeout(hintTimerRef.current);
@@ -122,38 +121,12 @@ export function PlaybackBar(p: PlaybackBarProps) {
     }
   }, [ready, p.loading, triggerHint]);
 
-  // When play begins, dismiss the landing hint immediately
+  // When play begins, dismiss the landing hint immediately (standard 400ms fade)
   useEffect(() => {
     if (p.playing && activeHint?.id === "landing") {
-      dismissHint("landing");
+      dismissHint("landing", false);
     }
   }, [p.playing, activeHint?.id, dismissHint]);
-
-  // Trigger mode hint for new mode selection if unvisited
-  const handleMode = useCallback(
-    (nextMode: ViewMode) => {
-      p.onMode(nextMode);
-      const key = `${MODE_HINT_PREFIX}${nextMode}`;
-      if (!safeGetItem(key)) {
-        safeSetItem(key, "1");
-        triggerHint(`mode-${nextMode}`, MODE_HINTS[nextMode], 4000);
-      }
-    },
-    [p, triggerHint],
-  );
-
-  // Also catch mode switches from keyboard shortcuts (B, D, I)
-  useEffect(() => {
-    if (prevModeRef.current !== p.mode) {
-      const nextMode = p.mode;
-      prevModeRef.current = nextMode;
-      const key = `${MODE_HINT_PREFIX}${nextMode}`;
-      if (!safeGetItem(key)) {
-        safeSetItem(key, "1");
-        triggerHint(`mode-${nextMode}`, MODE_HINTS[nextMode], 4000);
-      }
-    }
-  }, [p.mode, triggerHint]);
 
   // Clean up timers on unmount
   useEffect(() => {
@@ -171,12 +144,24 @@ export function PlaybackBar(p: PlaybackBarProps) {
           aria-live="polite"
           className={s.hintBanner}
           data-fading={activeHint.fading}
+          data-dismiss={activeHint.fast ? "fast" : undefined}
         >
           {activeHint.text}
         </div>
       )}
-      <ModeSwitch mode={p.mode} multi={multi} ready={ready} loading={p.loading} onMode={handleMode} />
-      <div className={s.clock}>
+      <ModeSwitch
+        mode={p.mode}
+        multi={multi}
+        ready={ready}
+        loading={p.loading}
+        onMode={p.onMode}
+        onInteraction={() => dismissHint("landing", true)}
+      />
+      <div
+        className={s.clock}
+        onPointerEnter={() => dismissHint("landing", true)}
+        onFocusCapture={() => dismissHint("landing", true)}
+      >
         <div className={s.row}>
           <div className={s.transport}>
             <GlassButton variant="ghost" icon="prev" label="Previous pass" onClick={p.onPrev} disabled={!multi} title={titleFor(ready, multi)} />
@@ -290,80 +275,137 @@ function ModeSwitch({
   ready,
   loading,
   onMode,
+  onInteraction,
 }: {
   mode: ViewMode;
   multi: boolean;
   ready: boolean;
   loading: boolean;
   onMode: (m: ViewMode) => void;
+  onInteraction?: () => void;
 }) {
   const why = ready ? "Needs at least two passes" : "Pick a target";
+
+  const handleTipPosition = useCallback((target: HTMLElement) => {
+    const btn = target.closest('button[role="radio"]');
+    if (!btn) return;
+    const tip = btn.querySelector<HTMLElement>(`[role="tooltip"]`);
+    if (!tip) return;
+    const anchor = tip.parentElement ?? btn;
+    tip.style.left = "50%";
+    tip.style.removeProperty("transform");
+    const parentRect = anchor.getBoundingClientRect();
+    const tr = tip.getBoundingClientRect();
+    const parentCenter = parentRect.left + parentRect.width / 2;
+    const halfWidth = tr.width / 2;
+    let offset = 0;
+    const expectedLeft = parentCenter - halfWidth;
+    const expectedRight = parentCenter + halfWidth;
+    if (expectedLeft < 8) {
+      offset = Math.ceil(8 - expectedLeft);
+    } else if (expectedRight > window.innerWidth - 8) {
+      offset = -Math.ceil(expectedRight - (window.innerWidth - 8));
+    }
+    tip.style.left = offset !== 0 ? `calc(50% + ${offset}px)` : "50%";
+
+    // In horizontal-scrolling containers, if the tip extends past the viewport,
+    // counteract the resulting scroll shift so the tip stays within viewport bounds.
+    const finalTr = tip.getBoundingClientRect();
+    const diff = finalTr.right - (window.innerWidth - 8);
+    if (diff > 0) {
+      const modes = btn.closest<HTMLElement>(`[data-tour="modes"]`);
+      const shift = diff + (modes?.scrollLeft ?? 0);
+      tip.style.setProperty("transform", `translateX(-${shift}px)`);
+    }
+  }, []);
+
+  const onSegmentedPointerOver = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      onInteraction?.();
+      handleTipPosition(e.target as HTMLElement);
+    },
+    [onInteraction, handleTipPosition],
+  );
+
+  const onSegmentedFocus = useCallback(
+    (e: React.FocusEvent<HTMLDivElement>) => {
+      onInteraction?.();
+      handleTipPosition(e.target as HTMLElement);
+    },
+    [onInteraction, handleTipPosition],
+  );
+
   return (
     <GlassPanel pill className={s.modes} data-tour="modes">
-      <Segmented
-        label="View mode"
-        value={mode}
-        onChange={onMode}
+      <div
         className={s.segmented}
-        options={[
-          {
-            value: "all",
-            label: (
-              <span className={s.modeLabel}>
-                <span>Play all</span>
-                <span className={s.modeTip} role="tooltip">
-                  {MODE_HINTS.all}
+        onPointerOver={onSegmentedPointerOver}
+        onFocusCapture={onSegmentedFocus}
+      >
+        <Segmented
+          label="View mode"
+          value={mode}
+          onChange={onMode}
+          options={[
+            {
+              value: "all",
+              label: (
+                <span className={s.modeLabel}>
+                  <span>Play all</span>
+                  <span className={s.modeTip} role="tooltip">
+                    {MODE_HINTS.all}
+                  </span>
                 </span>
-              </span>
-            ),
-            disabled: !ready,
-            title: ready ? MODE_HINTS.all : why,
-          },
-          ...(loading || multi
-            ? [
-                {
-                  value: "blink" as const,
-                  label: (
-                    <span className={s.modeLabel}>
-                      <span>Blink</span>
-                      <span className={s.modeTip} role="tooltip">
-                        {MODE_HINTS.blink}
+              ),
+              disabled: !ready,
+              title: ready ? undefined : why,
+            },
+            ...(loading || multi
+              ? [
+                  {
+                    value: "blink" as const,
+                    label: (
+                      <span className={s.modeLabel}>
+                        <span>Blink</span>
+                        <span className={s.modeTip} role="tooltip">
+                          {MODE_HINTS.blink}
+                        </span>
                       </span>
-                    </span>
-                  ),
-                  disabled: !multi,
-                  title: multi ? MODE_HINTS.blink : why,
-                },
-                {
-                  value: "diff" as const,
-                  label: (
-                    <span className={s.modeLabel}>
-                      <span>Difference</span>
-                      <span className={s.modeTip} role="tooltip">
-                        {MODE_HINTS.diff}
+                    ),
+                    disabled: !multi,
+                    title: multi ? undefined : why,
+                  },
+                  {
+                    value: "diff" as const,
+                    label: (
+                      <span className={s.modeLabel}>
+                        <span>Difference</span>
+                        <span className={s.modeTip} role="tooltip">
+                          {MODE_HINTS.diff}
+                        </span>
                       </span>
-                    </span>
-                  ),
-                  disabled: !multi,
-                  title: multi ? MODE_HINTS.diff : why,
-                },
-              ]
-            : []),
-          {
-            value: "inspect",
-            label: (
-              <span className={s.modeLabel}>
-                <span>Investigate</span>
-                <span className={s.modeTip} role="tooltip">
-                  {MODE_HINTS.inspect}
+                    ),
+                    disabled: !multi,
+                    title: multi ? undefined : why,
+                  },
+                ]
+              : []),
+            {
+              value: "inspect",
+              label: (
+                <span className={s.modeLabel}>
+                  <span>Investigate</span>
+                  <span className={s.modeTip} role="tooltip">
+                    {MODE_HINTS.inspect}
+                  </span>
                 </span>
-              </span>
-            ),
-            disabled: !ready,
-            title: ready ? MODE_HINTS.inspect : why,
-          },
-        ]}
-      />
+              ),
+              disabled: !ready,
+              title: ready ? undefined : why,
+            },
+          ]}
+        />
+      </div>
     </GlassPanel>
   );
 }
