@@ -105,8 +105,14 @@ function PassTab({ view, index, target, position }: DrawerProps) {
               <Tile label="Dec" value={formatDec(position.dec)} mono />
             </>
           )}
-          {target?.facts.map((f) => (
-            <Tile key={f.label} label={f.label} value={f.value} mono />
+          {target?.facts.map((f, i, arr) => (
+            <Tile
+              key={f.label}
+              label={f.label}
+              value={f.value}
+              mono
+              full={arr.length % 2 === 1 && i === arr.length - 1}
+            />
           ))}
         </div>
         {target && <p className={s.note}>Gaia DR3; (lit.) marks literature values.</p>}
