@@ -1,0 +1,430 @@
+{
+  "schema": 1,
+  "generated_at": "2026-11-15T18:21:40.033498+00:00",
+  "catalog_version": "2026-11-15.r1",
+  "objects": {
+    "barnard": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/8955fe655c3e0dd80b3b4c21/manifest.json",
+      "render_key": "8955fe655c3e0dd80b3b4c21",
+      "frames": 148,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "golden"
+    },
+    "eps-ind-b": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/7228801a427650c9aede88d5/manifest.json",
+      "render_key": "7228801a427650c9aede88d5",
+      "frames": 148,
+      "passes": 4,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "golden"
+    },
+    "wise-0855": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/d38e5f47bc8b66a4a3650486/manifest.json",
+      "render_key": "d38e5f47bc8b66a4a3650486",
+      "frames": 51,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "golden"
+    },
+    "rw-aur": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/759efeeb24a6a5efdaf0993b/manifest.json",
+      "render_key": "759efeeb24a6a5efdaf0993b",
+      "frames": 52,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "golden"
+    },
+    "r-dra": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/d6154ebc60a2a8d5f61d8cb6/manifest.json",
+      "render_key": "d6154ebc60a2a8d5f61d8cb6",
+      "frames": 18,
+      "passes": 9,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "golden"
+    },
+    "proxima-cen": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/3c35ae39851ccd373b134b7e/manifest.json",
+      "render_key": "3c35ae39851ccd373b134b7e",
+      "frames": 114,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "kapteyn": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/a65a48029690639749a4e54a/manifest.json",
+      "render_key": "a65a48029690639749a4e54a",
+      "frames": 117,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "groombridge-1830": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/9bb167c822cb5a88aec602e5/manifest.json",
+      "render_key": "9bb167c822cb5a88aec602e5",
+      "frames": 118,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "lacaille-9352": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/1b61b8c7a699d4f4f80c2a18/manifest.json",
+      "render_key": "1b61b8c7a699d4f4f80c2a18",
+      "frames": 120,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "van-maanen": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/97c347c92889cf6297797045/manifest.json",
+      "render_key": "97c347c92889cf6297797045",
+      "frames": 119,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "wolf-359": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/22fa5b760d7dd08aa70c478d/manifest.json",
+      "render_key": "22fa5b760d7dd08aa70c478d",
+      "frames": 119,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "ross-128": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/d46bf6d06463472eb663ef51/manifest.json",
+      "render_key": "d46bf6d06463472eb663ef51",
+      "frames": 117,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "luyten-star": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/1fe7e079bcce2b5a38f2c7da/manifest.json",
+      "render_key": "1fe7e079bcce2b5a38f2c7da",
+      "frames": 120,
+      "passes": 2,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "teegarden": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/ee7cdf1244e04bf8173c5351/manifest.json",
+      "render_key": "ee7cdf1244e04bf8173c5351",
+      "frames": 120,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "lalande-21185": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/e15a292c852a5865cd301acd/manifest.json",
+      "render_key": "e15a292c852a5865cd301acd",
+      "frames": 120,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "gliese-1": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/bfcc3666391018c05eb5f7cf/manifest.json",
+      "render_key": "bfcc3666391018c05eb5f7cf",
+      "frames": 119,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "struve-2398-a": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/65916e10f797786872515094/manifest.json",
+      "render_key": "65916e10f797786872515094",
+      "frames": 82,
+      "passes": 5,
+      "bands": 5,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "struve-2398-b": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/1c282165fbd69182fff6ecd3/manifest.json",
+      "render_key": "1c282165fbd69182fff6ecd3",
+      "frames": 82,
+      "passes": 5,
+      "bands": 5,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "ross-248": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/df0832bd150c64b2fcaf69cd/manifest.json",
+      "render_key": "df0832bd150c64b2fcaf69cd",
+      "frames": 117,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "luhman-16": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/234cfed205dd449798f8201a/manifest.json",
+      "render_key": "234cfed205dd449798f8201a",
+      "frames": 106,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "ugps-0722": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/23f33cbea610d4c57de4235d/manifest.json",
+      "render_key": "23f33cbea610d4c57de4235d",
+      "frames": 112,
+      "passes": 2,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "wise-1828": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/50e0cd107b6b26ee74459068/manifest.json",
+      "render_key": "50e0cd107b6b26ee74459068",
+      "frames": 115,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "wise-0350": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/efe7c7fb806ec90dc30b52d3/manifest.json",
+      "render_key": "efe7c7fb806ec90dc30b52d3",
+      "frames": 120,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "wise-1541": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/c541f81b896137440872a4e2/manifest.json",
+      "render_key": "c541f81b896137440872a4e2",
+      "frames": 117,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "gliese-229-b": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/860c000eca224b7b6deedbe6/manifest.json",
+      "render_key": "860c000eca224b7b6deedbe6",
+      "frames": 119,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "wise-1534": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/324bbc4e699708d7928268ab/manifest.json",
+      "render_key": "324bbc4e699708d7928268ab",
+      "frames": 116,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "wise-0830": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/7a377c45da748476d99a7614/manifest.json",
+      "render_key": "7a377c45da748476d99a7614",
+      "frames": 120,
+      "passes": 2,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "cwise-1249": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/94376b333970492e77f37afa/manifest.json",
+      "render_key": "94376b333970492e77f37afa",
+      "frames": 120,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "gliese-570-d": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/edabb8af5465a7deea2c290c/manifest.json",
+      "render_key": "edabb8af5465a7deea2c290c",
+      "frames": 117,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "scr-1845-b": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/79709e71dc3ac3b14e38c54d/manifest.json",
+      "render_key": "79709e71dc3ac3b14e38c54d",
+      "frames": 110,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "wise-0535": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/1b758f4eedacc57785c437d6/manifest.json",
+      "render_key": "1b758f4eedacc57785c437d6",
+      "frames": 100,
+      "passes": 6,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "wise-2056": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/6caf8e681f8a2e79960f3f41/manifest.json",
+      "render_key": "6caf8e681f8a2e79960f3f41",
+      "frames": 120,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "wolf-940-b": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/d870c6584291fedab841b60b/manifest.json",
+      "render_key": "d870c6584291fedab841b60b",
+      "frames": 113,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "t-tau": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/04312d0562c5f3606150cfc1/manifest.json",
+      "render_key": "04312d0562c5f3606150cfc1",
+      "frames": 120,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "fu-ori": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/ee84d3dece6d17e1e5b9b651/manifest.json",
+      "render_key": "ee84d3dece6d17e1e5b9b651",
+      "frames": 120,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "v1647-ori": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/abf8bdee9dc9f5b6ccb3427c/manifest.json",
+      "render_key": "abf8bdee9dc9f5b6ccb3427c",
+      "frames": 119,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "chi-cyg": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/07f7464dea9442eca375efe2/manifest.json",
+      "render_key": "07f7464dea9442eca375efe2",
+      "frames": 119,
+      "passes": 4,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "r-leo": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/e95bcf89b8896a8447d730f9/manifest.json",
+      "render_key": "e95bcf89b8896a8447d730f9",
+      "frames": 108,
+      "passes": 2,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "cw-leo": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/74474276e96870d6ce7b48a1/manifest.json",
+      "render_key": "74474276e96870d6ce7b48a1",
+      "frames": 120,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "v1057-cyg": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/0b0d148951d01ee6520ee4e5/manifest.json",
+      "render_key": "0b0d148951d01ee6520ee4e5",
+      "frames": 117,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "v1515-cyg": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/91f1fbc294ca52a037a0fb3a/manifest.json",
+      "render_key": "91f1fbc294ca52a037a0fb3a",
+      "frames": 119,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "ex-lup": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/0ebe992d7fc5e405d93a089a/manifest.json",
+      "render_key": "0ebe992d7fc5e405d93a089a",
+      "frames": 120,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "v346-nor": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/0cc44532009cd43760ea424d/manifest.json",
+      "render_key": "0cc44532009cd43760ea424d",
+      "frames": 116,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "z-cma": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/b5bcb20b065751092b138e26/manifest.json",
+      "render_key": "b5bcb20b065751092b138e26",
+      "frames": 116,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "v883-ori": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/e3fb44be84708d26a4242d4b/manifest.json",
+      "render_key": "e3fb44be84708d26a4242d4b",
+      "frames": 120,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "pv-cep": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/8e5b15c9b437995543d6190d/manifest.json",
+      "render_key": "8e5b15c9b437995543d6190d",
+      "frames": 117,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    },
+    "dg-tau": {
+      "manifest_url": "https://stplanetxitu7q4.blob.core.windows.net/frames/r/df7e665b6679cefc621bee28/manifest.json",
+      "render_key": "df7e665b6679cefc621bee28",
+      "frames": 120,
+      "passes": 3,
+      "bands": 6,
+      "has_gaia": true,
+      "source": "irsa"
+    }
+  }
+}
