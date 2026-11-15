@@ -275,7 +275,10 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
     setDomeDestination(next);
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const theme = getComputedStyle(col);
-    const duration = parseFloat(theme.getPropertyValue("--dur"));
+    const fullDuration = parseFloat(theme.getPropertyValue("--dur"));
+    const time = Number(absorption.current?.animations[0].currentTime ?? 0);
+    const reversing = oldLabel && oldLabel.hidden !== !props.showLabel && absorption.current;
+    const duration = reversing ? Math.max(1, props.showLabel ? time : fullDuration - time) : fullDuration;
     const easing = theme.getPropertyValue("--ease").trim();
     const changed = visible && Math.abs(visible.x - next.x) + Math.abs(visible.y - next.y) + Math.abs(visible.side - next.side) >= 0.1;
     if (changed && !reduced) {
@@ -326,23 +329,28 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const hidden = !props.showLabel;
     const lines = Array.from(label.children) as HTMLElement[];
-    const targets = reduced ? [label, leader] : [...lines, ...leader.children];
+    const targets = reduced ? [label, leader] : [...lines.flatMap(line => [line, line.firstElementChild!]), ...leader.children];
     let motion = absorption.current;
     if (!motion || motion.reduced !== reduced || targets.length !== motion.animations.length ||
       targets.some((target, i) => (motion!.animations[i].effect as KeyframeEffect).target !== target)) {
-      const duration = reduced ? 150 : 560;
-      const time = motion ? Number(motion.animations[0].currentTime) / (motion.reduced ? 150 : 560) * duration : hidden ? duration : 0;
+      const duration = reduced ? 150 : 360;
+      const time = motion ? Number(motion.animations[0].currentTime) / (motion.reduced ? 150 : 360) * duration : hidden ? duration : 0;
       motion?.animations.forEach(animation => animation.cancel());
       const animations = targets.map((target, i) => {
         let frames: Keyframe[];
         if (reduced) frames = [{ opacity: 1 }, { opacity: 0 }];
-        else if (i < lines.length) {
-          const start = Math.min(i * 0.035, 0.16);
+        else if (i < lines.length * 2) {
+          const line = lines[Math.floor(i / 2)];
+          const content = i % 2 === 1;
+          const start = Math.min(Math.floor(i / 2) * 0.035, 0.16);
+          // Opposing translations wipe from the right without repainting a text clip-path.
+          const from = content ? "translateX(0%)" : "translate(0, 0) scale(1) translateX(0%)";
+          const to = content ? "translateX(100%)" : `translate(-8px, ${40 - line.offsetTop}px) scale(0.06) translateX(-100%)`;
           frames = [
-            { offset: 0, transform: "translate(0, 0) scale(1)", clipPath: "inset(0 0% 0 0)", opacity: 1 },
-            { offset: start, transform: "translate(0, 0) scale(1)", clipPath: "inset(0 0% 0 0)", opacity: 1, easing: "cubic-bezier(0.42, 0, 1, 1)" },
-            { offset: 0.68 + start, transform: `translate(-8px, ${40 - lines[i].offsetTop}px) scale(0.06)`, clipPath: "inset(0 100% 0 0)", opacity: 0 },
-            { offset: 1, transform: `translate(-8px, ${40 - lines[i].offsetTop}px) scale(0.06)`, clipPath: "inset(0 100% 0 0)", opacity: 0 },
+            { offset: 0, transform: from, opacity: 1 },
+            { offset: start, transform: from, opacity: 1, easing: "cubic-bezier(0.42, 0, 1, 1)" },
+            { offset: 0.68 + start, transform: to, opacity: content ? 1 : 0 },
+            { offset: 1, transform: to, opacity: content ? 1 : 0 },
           ];
         } else if (target.tagName === "path") {
           frames = [{ offset: 0, strokeDashoffset: 0 }, { offset: 0.82, strokeDashoffset: 0, easing: "cubic-bezier(0.42, 0, 1, 1)" }, { strokeDashoffset: 1 }];
@@ -366,7 +374,6 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
       if (motion.hidden !== hidden) {
         const time = Number(animation.currentTime);
         animation.playbackRate = hidden ? 1 : -1;
-        animation.currentTime = time;
         const duration = Number(animation.effect!.getTiming().duration);
         if (hidden ? time >= duration : time <= 0) animation.pause();
         else animation.play();
@@ -569,20 +576,22 @@ function TargetLabel({ ref, ...p }: {
 }) {
   return (
     <div ref={ref} className={s.targetLabel} data-target-label aria-hidden={p.hidden} inert={p.hidden}>
-      <span className={`display ${s.targetName}`}>{p.name}</span>
+      <span className={s.labelLine}><span className={`display ${s.targetName}`}>{p.name}</span></span>
       {p.ra !== null && p.dec !== null && (
-        <span className={`mono ${s.targetCoords}`}>
-          <span>
-            RA <b>{formatRa(p.ra)}</b>
-          </span>
-          <span>
-            DEC <b>{formatDec(p.dec)}</b>
+        <span className={s.labelLine}>
+          <span className={`mono ${s.targetCoords}`}>
+            <span>
+              RA <b>{formatRa(p.ra)}</b>
+            </span>
+            <span>
+              DEC <b>{formatDec(p.dec)}</b>
+            </span>
           </span>
         </span>
       )}
-      {p.sub && <span className={s.targetSub}>{p.sub}</span>}
-      {p.provenance && <span className={`mono ${s.provenance}`}>{p.provenance}</span>}
-      {p.fixture && <span className={`mono ${s.sourceTag}`}>{p.fixture}</span>}
+      {p.sub && <span className={s.labelLine}><span className={s.targetSub}>{p.sub}</span></span>}
+      {p.provenance && <span className={s.labelLine}><span className={`mono ${s.provenance}`}>{p.provenance}</span></span>}
+      {p.fixture && <span className={s.labelLine}><span className={`mono ${s.sourceTag}`}>{p.fixture}</span></span>}
     </div>
   );
 }

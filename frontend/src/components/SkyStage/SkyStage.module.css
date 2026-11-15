@@ -76,6 +76,7 @@
 
 /* Frame column: label row, square image, grid-label row. */
 .column {
+  --dur: 360ms;
   --row: 40px;
   --full-side: calc(100cqh - var(--row) * 2 - 40px);
   --side: min(calc(100cqw - var(--eyepiece-gutter, 170px)), var(--full-side));
@@ -224,8 +225,18 @@
   pointer-events: none;
 }
 
-.targetLabel > * {
+.labelLine {
+  overflow: hidden;
   transform-origin: 0 0;
+}
+
+.labelLine > * {
+  display: block;
+  transform-origin: 0 0;
+}
+
+.labelLine:has(.sourceTag) {
+  justify-self: start;
 }
 
 .targetName {
