@@ -21,8 +21,9 @@ import { usePlayback } from "./hooks/usePlayback";
 import { useView } from "./hooks/useView";
 import { markFlight, prepareReturnFlight, requestTargetFlight } from "./lib/flight";
 import { readFlag, writeFlag } from "./lib/storage";
-import { findPreset, PRESETS, type Preset } from "./lib/targets";
+import { PRESETS, type Preset } from "./lib/targets";
 import { DEFAULTS, parseUrl, toSearch, type Panel, type ViewMode, type ViewState } from "./lib/url";
+import { centeredPreset, sourcePresentation } from "./lib/viewPresentation";
 
 const GUIDE_KEY = "spherex-blink.guide-dismissed";
 const CUSTOMIZE_KEY = "spherex-blink.customize-hidden";
@@ -100,7 +101,7 @@ export default function App({ source }: { source: ViewSource }) {
     (signal) => getLightCurve(view!.viewId, at[0], at[1], signal),
   );
 
-  const preset = findPreset(url.target);
+  const preset = centeredPreset(url.target, url.ra, url.dec);
   const drawerOpen = url.panel !== null;
   const customizeOpen = mobile ? sheetOpen : !customizeHidden;
   const idle = useIdle(pb.playing && !drawerOpen && !guideOpen && !tourOn && !reducedMotion && !(mobile && sheetOpen));
@@ -381,6 +382,7 @@ export default function App({ source }: { source: ViewSource }) {
                 onReset={resetCustomize}
                 epochs={epochs}
                 origin={view?.manifest.origin ?? null}
+                provenance={view ? sourcePresentation(view) : null}
                 collections={view?.manifest.catalog.collections ?? []}
                 loading={load.kind === "loading"}
                 sheet={mobile}

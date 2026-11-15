@@ -9,6 +9,8 @@ export interface LoadedView {
   masks: (Uint8Array | null)[];
   /** True when served from a cache layer (golden snapshot or an already-rendered view). */
   fromCache: boolean;
+  /** Set only when bundled golden snapshot assets actually supplied this view. */
+  cacheLayer?: "snapshot";
   /** Set by non-production sources so the UI can label the data honestly. */
   label?: string;
 }
@@ -102,7 +104,7 @@ async function tryGolden(q: ViewQuery, signal: AbortSignal): Promise<LoadedView 
   const { presetId: _presetId, ...request } = q;
   void _presetId;
   registerGoldenView(manifest.render_key, request);
-  return { viewId: manifest.render_key, manifest, ...arrays, fromCache: true };
+  return { viewId: manifest.render_key, manifest, ...arrays, fromCache: true, cacheLayer: "snapshot" };
 }
 
 export const apiSource: ViewSource = {
