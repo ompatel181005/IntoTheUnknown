@@ -294,3 +294,37 @@ def test_apply_destination_guard_runs_before_blob_credentials(monkeypatch):
     with pytest.raises(recovery.RecoveryError, match="Student subscription"):
         recovery.private_cache(args, "https://example.blob.core.windows.net/frames")
     assert calls == [("student", "tenant")]
+
+
+def test_cli_credential_pins_subscription_after_exact_tenant_guard(monkeypatch):
+    import azure.identity
+    import azure.storage.blob
+    import infra.azure_arm
+
+    guards, credential_calls = [], []
+
+    class Arm:
+        def __init__(self, subscription, tenant):
+            guards.append((subscription, tenant))
+
+        def resource(self, *args):
+            return "/student/storage"
+
+        def request(self, *args):
+            return {"properties": {"primaryEndpoints": {"blob": "https://example.blob.core.windows.net/"}}}
+
+    private = SimpleNamespace(get_container_properties=lambda: {"public_access": None})
+    monkeypatch.setattr(infra.azure_arm, "Arm", Arm)
+    monkeypatch.setattr(
+        azure.identity, "AzureCliCredential", lambda **kwargs: credential_calls.append(kwargs) or object()
+    )
+    monkeypatch.setattr(
+        azure.storage.blob,
+        "BlobServiceClient",
+        lambda *args, **kwargs: SimpleNamespace(get_container_client=lambda name: private),
+    )
+    args = SimpleNamespace(subscription="student", tenant="tenant", resource_group="group")
+    cache = recovery.private_cache(args, "https://example.blob.core.windows.net/frames")
+    assert guards == [("student", "tenant")]
+    assert credential_calls == [{"subscription": "student"}]
+    assert cache.analysis is private

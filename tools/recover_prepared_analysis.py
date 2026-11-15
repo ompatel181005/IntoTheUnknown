@@ -285,9 +285,9 @@ def private_cache(args, base: str):
         raise RecoveryError(
             "Blob destination is not the verified Student subscription storage account"
         )
-    credential = AzureCliCredential(
-        tenant_id=args.tenant, subscription=args.subscription
-    )
+    # Arm already verified this subscription's exact tenant. Azure CLI rejects
+    # token requests that specify both subscription and tenant simultaneously.
+    credential = AzureCliCredential(subscription=args.subscription)
     service = BlobServiceClient(
         account_url,
         credential=credential,
