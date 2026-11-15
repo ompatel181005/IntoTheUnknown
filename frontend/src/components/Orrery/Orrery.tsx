@@ -68,9 +68,8 @@ function cloneCamera(camera: Camera): Camera {
   return { yaw: camera.yaw, pitch: camera.pitch, dist: camera.dist, fade: camera.fade };
 }
 
-// The flight module still requires this legacy field. Home never reads or changes it.
 function flightCamera(camera: Camera): OrreryCameraState {
-  return { ...camera, focus: [0, 0, 0] };
+  return { ...camera };
 }
 
 function homeCamera(): Camera {

@@ -15,7 +15,6 @@ export interface OrreryCameraState {
   pitch: number;
   dist: number;
   fade: number;
-  focus: [number, number, number];
 }
 
 interface DepartureState {
@@ -33,16 +32,15 @@ export interface ReturnFlightState {
 export const initialCamera: OrreryCameraState = {
   yaw: -1.08,
   pitch: 1.15,
-  dist: 28,
+  dist: 38,
   fade: 1,
-  focus: [0, 0, 0],
 };
 let homeCamera = { ...initialCamera };
 let departure: DepartureState | null = null;
 let returnFlight: ReturnFlightState | null = null;
 
 function cloneCamera(camera: OrreryCameraState): OrreryCameraState {
-  return { ...camera, focus: [...camera.focus] };
+  return { ...camera };
 }
 
 export function getHomeCamera(): OrreryCameraState {
@@ -81,7 +79,6 @@ function cameraFacing(ra: number, dec: number, near: boolean): OrreryCameraState
     pitch: Math.atan2(-z, Math.hypot(x, y)),
     dist: near ? 2.5 : homeCamera.dist,
     fade: near ? 0.15 : 1,
-    focus: [...homeCamera.focus],
   };
 }
 

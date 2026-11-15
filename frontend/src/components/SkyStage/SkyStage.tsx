@@ -7,7 +7,7 @@ import { formatDec, formatRa } from "../../lib/format";
 import { renderDifference, renderEpoch, tokenRgb } from "../../lib/stretch";
 import { PRESETS, type Preset } from "../../lib/targets";
 import type { Overlays, StretchKind, ViewMode } from "../../lib/url";
-import type { FovArcmin, GaiaResult } from "../../types";
+import type { CatalogObject, FovArcmin, GaiaResult } from "../../types";
 import { Orrery } from "../Orrery/Orrery";
 import { GlassButton, GlassPanel } from "../glass";
 import { buildGrid } from "./grid";
@@ -47,9 +47,13 @@ interface SkyStageProps {
   onTour: () => void;
 }
 
+const NO_TARGETS: readonly CatalogObject[] = [];
+
 export function SkyStage(props: SkyStageProps) {
   const { load } = props;
-  if (load.kind === "idle") return <Home onPick={props.onOpenFromHome} onFlightStart={props.onFlightStart} onFlightEnd={props.onFlightEnd} onTour={props.onTour} />;
+  // Keep the catalog alive across the dome so a return does not rebuild an empty home first.
+  const catalog = useCatalog();
+  if (load.kind === "idle") return <Home targets={catalog.catalog?.objects ?? NO_TARGETS} onPick={props.onOpenFromHome} onFlightStart={props.onFlightStart} onFlightEnd={props.onFlightEnd} onTour={props.onTour} />;
   const empty = load.kind === "ready" && load.view.manifest.epochs.length === 0;
   return (
     <section className={s.stage} aria-label="Sky view">
@@ -67,16 +71,17 @@ export function SkyStage(props: SkyStageProps) {
 
 /** First visit: a live holographic orrery, with the five targets on the sky around the solar system. */
 function Home({
+  targets,
   onPick,
   onFlightStart,
   onFlightEnd,
 }: {
+  targets: readonly CatalogObject[];
   onPick: (p: Preset, from: { x: number; y: number } | null) => void;
   onFlightStart: (p: Preset) => void;
   onFlightEnd: () => void;
   onTour: () => void;
 }) {
-  const catalog = useCatalog();
   return (
     <section className={s.home} aria-labelledby="home-title">
       <div className={s.homeText}>
@@ -86,7 +91,7 @@ function Home({
       </div>
       <div className={s.homeMap} data-tour="orrery">
         <Orrery
-          targets={catalog.status === "ready" ? catalog.catalog?.objects ?? [] : []}
+          targets={targets}
           onPick={(object, from) => {
             const preset = PRESETS.find((candidate) => candidate.id === object.preset_id);
             if (preset) onPick(preset, from);

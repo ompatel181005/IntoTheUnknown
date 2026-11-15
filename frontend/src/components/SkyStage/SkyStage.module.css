@@ -275,6 +275,12 @@
   outline-offset: 3px;
 }
 
+/* These two glass surfaces also sit over the moving home canvas during a flight. */
+:global([data-app-shell][data-flying="true"]) .zoomButton {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 /* States */
 .loading {
   position: absolute;

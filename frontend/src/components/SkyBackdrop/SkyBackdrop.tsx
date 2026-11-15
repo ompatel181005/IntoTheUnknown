@@ -193,9 +193,10 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
       const dz = (speed * (now - last)) / 1000;
       last = now;
       travel += dir * dz;
-      draw.current(t < 1 ? dir * dz * 6 : 0, travel);
-      if (t < 1) anim.current = requestAnimationFrame(step);
-      else {
+      if (t < 1) {
+        draw.current(dir * dz * 6, travel);
+        anim.current = requestAnimationFrame(step);
+      } else {
         if (backdrop) delete backdrop.dataset.traveling;
         settle.current(travel);
       }
