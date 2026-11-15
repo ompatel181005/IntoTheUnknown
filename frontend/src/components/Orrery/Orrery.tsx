@@ -83,6 +83,10 @@ const TAP_RADIUS = 36;
 // leave again only past the looser bound, so a zoom at the threshold never oscillates.
 const REVEAL_IN = 0.72;
 const REVEAL_OUT = 0.82;
+// Challenge-target names stay pinned up to this zoom-out (fraction of home distance), and
+// return only once back inside the tighter bound.
+const PIN_OUT = 1.45;
+const PIN_IN = 1.3;
 
 /** Zoom-reveal order: brown dwarfs and stars by proper motion, then variables, then the rest. */
 function revealOrder(a: CatalogObject, b: CatalogObject) {
@@ -282,6 +286,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
     const nearDistance = new Float64Array(NEAR_COUNT);
     const coarsePointer = window.matchMedia("(pointer: coarse)");
     let revealing = false;
+    let pinning = true;
     let selected = -1;
     let selectedPlanet = -1;
     const planetNear = new Uint8Array(scene.planets.length);
@@ -796,6 +801,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       const proximity = pointerOnCanvas && !touchLayout && !dragging && activeRef.current && !flying;
       let nearCount = proximity ? markerGrid.nearest(pointerX, pointerY, NEAR_RADIUS, near, nearDistance) : 0;
       revealing = camera.dist <= DEFAULT_DIST * (revealing ? REVEAL_OUT : REVEAL_IN);
+      pinning = camera.dist <= DEFAULT_DIST * (pinning ? PIN_OUT : PIN_IN);
       // Planets other than Earth are named like catalog points: proximity (sharing the nearest
       // two, coded as -(planet + 1)), a first tap, or the zoom reveal, where they come first.
       if (proximity) {
@@ -834,7 +840,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
         label.forced = forced && !label.chosen;
         placeLabel(index, label.placement, labelScale);
         targetCandidates[index].visible = !label.chosen
-          && (label.forced || (!label.edge && (object.preset_id !== null || revealing)));
+          && (label.forced || (!label.edge && ((object.preset_id !== null && pinning) || revealing)));
       }
 
       // Labels the user asked for first, then planets, then pinned challenge targets and zoom reveals.
@@ -993,7 +999,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
         context.strokeStyle = pass === 1 ? presetEdgeColor : edgeColor;
         context.stroke();
       }
-      const fadeStep = Math.min(1, dt / 0.12);
+      const fadeStep = Math.min(1, dt / 0.15);
       for (let index = 0; index < scene.targets.length; index++) {
         const label = targetLabels[index];
         const highlighted = index === hovered || index === selected || scene.targets[index].object.id === focusedRef.current;
