@@ -9,6 +9,7 @@ CACHE_DIR = Path(os.environ.get("CACHE_DIR", ROOT / "backend" / ".cache"))  # us
 # Render cache in Azure Blob through managed identity (infra/README.md). Unset -> local CACHE_DIR served at /frames.
 STORAGE_ACCOUNT_URL = os.environ.get("STORAGE_ACCOUNT_URL", "").rstrip("/")
 FRAMES_CONTAINER = os.environ.get("FRAMES_CONTAINER", "frames")
+STATE_CONTAINER = os.environ.get("STATE_CONTAINER", "state")  # private measurement inputs, never public frames
 FRAMES_PUBLIC_BASE = os.environ.get("FRAMES_PUBLIC_BASE", "").rstrip("/")  # default {STORAGE_ACCOUNT_URL}/{container}
 # Shared secret the new-data watcher sends as X-Refresh-Key. Unset -> POST /internal/refresh answers 503.
 REFRESH_KEY = os.environ.get("REFRESH_KEY", "")

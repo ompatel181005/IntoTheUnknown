@@ -6,11 +6,23 @@ the folder at /frames. Every file is written to a temp name and renamed, so read
 
 import json
 from pathlib import Path
+from uuid import uuid4
 
 
 class LocalCache:
     def __init__(self, root: Path):
         self.root = Path(root)
+        # /frames mounts root, so analysis must be a sibling, never underneath it.
+        self.analysis_root = self.root.with_name(self.root.name + "-analysis")
+
+    def read_analysis(self, rk: str) -> bytes | None:
+        try:
+            return (self.analysis_root / "v1" / f"{analysis_key(rk)}.npz").read_bytes()
+        except FileNotFoundError:
+            return None
+
+    def put_analysis(self, rk: str, data: bytes) -> None:
+        _write(self.analysis_root / "v1" / f"{analysis_key(rk)}.npz", data)
 
     def lookup(self, qk: str) -> dict | None:
         try:
@@ -46,9 +58,18 @@ class LocalCache:
 
 def _write(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_bytes(data)
-    tmp.replace(path)
+    tmp = path.with_name(path.name + f".{uuid4().hex}.tmp")
+    try:
+        tmp.write_bytes(data)
+        tmp.replace(path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def analysis_key(rk: str) -> str:
+    if len(rk) != 24 or any(c not in "0123456789abcdef" for c in rk):
+        raise ValueError("Invalid analysis render key")
+    return rk
 
 
 def safe_name(name: str) -> str:

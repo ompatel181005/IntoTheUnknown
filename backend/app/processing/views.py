@@ -19,7 +19,7 @@ from ..cache import query_key as sky_query_key
 from ..irsa import fetch
 from ..models import ViewRequest
 from ..telemetry import operation, record_cache_hit
-from . import align, photometry, stack
+from . import align, analysis_cache, photometry, stack
 from . import gaia as gaia_dr3
 
 log = logging.getLogger("views")
@@ -60,6 +60,7 @@ class Job:
     # Kept in memory for /spectrum and /lightcurve.
     epochs: list[list[dict]] = field(default_factory=list)
     shape: tuple[int, int] = (0, 0)
+    frames_lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
 
 JOBS: dict[str, Job] = {}
@@ -192,7 +193,7 @@ def select_epochs(groups: list[list[dict]], minimum: int, saved: bool) -> list[l
 
 
 @operation("pipeline", "build", internal=True)
-def build(job: Job) -> None:
+def build(job: Job, expected_render: str | None = None, expected_cache: FrameCache | None = None) -> None:
     req = job.req
     saved = demo_frames(req, job) if req.source != "live" else None
     if saved is None and req.source == "saved":
@@ -241,28 +242,67 @@ def build(job: Job) -> None:
     collections = sorted({f["collection"] for f in frames})
     catalog_version = "+".join(collections) or "none"
     rk = render_key(config.PIPELINE_VERSION, job.qk, [f["obs"] for ep in epochs for f in ep])
+    if expected_render is not None and rk != expected_render:
+        raise ViewError(
+            "MEASUREMENTS_UNAVAILABLE",
+            "The archive frame set has changed since this image was prepared. Its original measurement inputs "
+            "are unavailable. Try a Saved test target or reopen an updated prepared view.",
+        )
     # Always render: alignment can re-grid an epoch, and /spectrum and /lightcurve read those grids from job.epochs.
     manifest, files = _render(job, rk, epochs, w, shape, source, origin, collections, catalog_version, gaia, gaia_cat)
     cache = get_cache()
+    if expected_render is not None:
+        # Recovery must verify the original public image before any storage fallback.
+        # A new local render with the same frame IDs cannot stand in for an unreadable Blob image.
+        try:
+            _verify_render(expected_cache or cache, rk, manifest, files)
+        except Exception as error:
+            raise ViewError(
+                "MEASUREMENTS_UNAVAILABLE",
+                "The original cached image could not be matched to these inputs. "
+                "Its image is still available; try measurements again later.",
+            ) from error
     try:
-        _store(cache, job.qk, rk, manifest, files, catalog_version)
+        _store(cache, job.qk, rk, manifest, files, catalog_version, update_pointer=expected_render is None)
+    except ViewError:
+        raise
     except Exception:
         if isinstance(cache, LocalCache):
             raise
         # Blob trouble must not fail a finished view: keep it on local disk (served at /frames) until a restart.
         log.exception("Blob cache write failed for view %s; keeping the render on local disk", job.qk)
         cache = LocalCache(config.CACHE_DIR)
-        _store(cache, job.qk, rk, manifest, files, catalog_version)
+        _store(cache, job.qk, rk, manifest, files, catalog_version, update_pointer=expected_render is None)
+    try:
+        cache.put_analysis(rk, analysis_cache.encode(rk, epochs, shape))
+    except Exception:
+        # An optional analysis write must not discard a completed image.
+        log.exception("Could not persist measurement inputs for render %s", rk)
     job.epochs, job.shape = epochs, shape
     job.rk, job.cache = rk, cache
     job.manifest_url = cache.manifest_url(rk)
     job.status = "ready"
 
 
-def _store(cache: FrameCache, qk: str, rk: str, manifest: dict, files: dict, catalog_version: str) -> None:
-    if not cache.has_render(rk):  # r/ is write-once
+def _verify_render(cache: FrameCache, rk: str, manifest: dict, files: dict) -> None:
+    previous = json.loads(cache.read(rk, "manifest.json"))
+    same_frames = previous["frames"] == manifest["frames"]
+    same_images = all(cache.read(rk, name) == data for name, (data, _) in files.items() if name.endswith(".f32"))
+    if not same_frames or not same_images:
+        raise ViewError(
+            "MEASUREMENTS_UNAVAILABLE", "The cached image differs from the rebuilt inputs. Reopen an updated view."
+        )
+
+
+def _store(
+    cache: FrameCache, qk: str, rk: str, manifest: dict, files: dict, catalog_version: str, update_pointer: bool = True
+) -> None:
+    if cache.has_render(rk):
+        _verify_render(cache, rk, manifest, files)
+    else:  # r/ is write-once
         cache.put_render(rk, manifest, files)
-    cache.point(qk, rk, catalog_version)
+    if update_pointer:  # legacy recovery must never roll back a pointer refreshed by the watcher
+        cache.point(qk, rk, catalog_version)
 
 
 def _render(
@@ -433,9 +473,31 @@ def create(req: ViewRequest) -> Job:
 
 
 def ensure_frames(job: Job) -> None:
-    """Rebuild the in-memory frames after a restart (the manifest came from the cache)."""
-    if not job.epochs:
-        build(job)
+    """Restore exact aligned inputs after restart; migrate legacy renders once, under admission control."""
+    with job.frames_lock:
+        if job.epochs:
+            return
+        if job.rk and job.cache is not None:
+            try:
+                data = job.cache.read_analysis(job.rk)
+                if data is not None:
+                    manifest = json.loads(job.cache.read(job.rk, "manifest.json"))
+                    job.epochs, job.shape = analysis_cache.decode(data, job.rk, manifest)
+                    return
+            except Exception:
+                log.exception("Measurement cache unreadable for render %s; attempting exact-frame recovery", job.rk)
+        admission = ADMISSION
+        if not admission.acquire(blocking=False):
+            raise ViewError(
+                "QUEUE_FULL", "Measurement inputs are not cached and the renderer is busy. Try again shortly."
+            )
+        try:
+            # Rebuild in a separate job: failed migration must leave the displayed cached view ready and unchanged.
+            restored = Job(qk=job.qk, req=job.req)
+            POOL.submit(contextvars.copy_context().run, build, restored, job.rk, job.cache).result()
+            job.epochs, job.shape = restored.epochs, restored.shape
+        finally:
+            admission.release()
 
 
 # ---------------------------------------------------------------- measurements

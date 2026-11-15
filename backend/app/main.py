@@ -68,10 +68,14 @@ def create_view(req: ViewRequest):
     return ViewCreated(view_id=job.qk, status="queued", status_url=f"/api/views/{job.qk}")
 
 
-def _job(view_id: str) -> views.Job:
+def _job(view_id: str, render_key: str | None = None) -> views.Job:
     job = views.JOBS.get(view_id)
     if not job:
         raise views.ViewError("UNKNOWN_VIEW", "This view is not known to the server. Load it again.")
+    if render_key is not None and job.rk != render_key:
+        raise views.ViewError(
+            "RENDER_CHANGED", "A newer render is available for this field. Reopen it before taking measurements."
+        )
     return job
 
 
@@ -87,8 +91,14 @@ def view_status(view_id: str):
 
 
 @app.get("/api/views/{view_id}/spectrum", response_model=Spectrum)
-def view_spectrum(view_id: str, x: int = Query(..., ge=0), y: int = Query(..., ge=0), epoch: int = 0):
-    return {"points": views.spectrum(_job(view_id), x, y, epoch)}
+def view_spectrum(
+    view_id: str,
+    x: int = Query(..., ge=0),
+    y: int = Query(..., ge=0),
+    epoch: int = 0,
+    render_key: str | None = Query(None, pattern="^[0-9a-f]{24}$"),
+):
+    return {"points": views.spectrum(_job(view_id, render_key), x, y, epoch)}
 
 
 @app.get("/api/views/{view_id}/lightcurve", response_model=LightCurve)
@@ -97,8 +107,9 @@ def view_lightcurve(
     x: float = Query(..., ge=0),
     y: float = Query(..., ge=0),
     r_px: float = Query(2.0, gt=0, lt=4),  # the background annulus starts at 4 px
+    render_key: str | None = Query(None, pattern="^[0-9a-f]{24}$"),
 ):
-    job = _job(view_id)
+    job = _job(view_id, render_key)
     return {"points": views.lightcurve(job, x, y, r_px), "comparison": views.comparison(job, x, y, r_px)}
 
 
@@ -108,9 +119,10 @@ def view_gaia(
     x: float | None = Query(None, ge=0),
     y: float | None = Query(None, ge=0),
     epoch: int = Query(0, ge=0),
+    render_key: str | None = Query(None, pattern="^[0-9a-f]{24}$"),
 ):
     """Gaia overlay (#29): per-star pixel tracks and matches; with x and y, the match label of that source."""
-    return views.gaia_overlay(_job(view_id), x, y, epoch)
+    return views.gaia_overlay(_job(view_id, render_key), x, y, epoch)
 
 
 app.include_router(refresh.router)

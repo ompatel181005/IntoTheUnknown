@@ -48,3 +48,4 @@ scripts/spike_out/
 
 # Backend local render cache
 backend/.cache/
+backend/.cache-analysis/

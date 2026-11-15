@@ -22,6 +22,7 @@
 **/venv
 **/node_modules
 **/.cache
+**/.cache-analysis
 **/.pytest_cache
 **/.ruff_cache
 **/__pycache__
