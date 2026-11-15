@@ -18,6 +18,8 @@ import { useCatalog } from "./hooks/useCatalog";
 import { useCatalogSelection } from "./hooks/useCatalogSelection";
 import { APP_NAME } from "./lib/brand";
 import { pointPosition } from "./lib/catalog";
+import availability from "../public/catalog/data-availability.json";
+import { catalogCounts } from "./lib/catalogSort";
 import { formatDec, formatRa, parseCoords } from "./lib/format";
 import type { CatalogObject } from "./types";
 import type { ViewQuery, ViewSource } from "./data/source";
@@ -439,7 +441,7 @@ export default function App({ source }: { source: ViewSource }) {
         <>
           <div hidden={url.ra !== null} aria-hidden={url.ra !== null || flightActive} inert={url.ra !== null || flightActive}>
             <HomePanel
-              items={objects.map((object) => ({ id: object.id, name: object.name, kind: object.kind, clickable: true }))}
+              items={objects.map((object) => ({ id: object.id, name: object.name, kind: object.kind, clickable: true, counts: catalogCounts(object, availability) }))}
               checked={selection.checked}
               onToggle={selection.toggle}
               onSetAll={selection.setAll}

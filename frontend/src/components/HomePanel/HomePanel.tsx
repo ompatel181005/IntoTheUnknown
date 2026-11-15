@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { formatDataCounts, sortCatalogItems, type CatalogSort, type DataCounts } from "../../lib/catalogSort";
 import { GlassPanel, Icon } from "../glass";
 import s from "./HomePanel.module.css";
 
@@ -8,6 +9,7 @@ export interface HomePanelItem {
   kind: string;
   detail?: string;
   clickable: boolean;
+  counts: DataCounts;
 }
 
 export interface HomePanelProps {
@@ -73,6 +75,7 @@ export function HomePanel({
   const tabRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const prevOpenRef = useRef(open);
+  const [sort, setSort] = useState<CatalogSort>("frames");
 
   useEffect(() => {
     if (prevOpenRef.current !== open) {
@@ -83,15 +86,15 @@ export function HomePanel({
 
   const filteredItems = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
+    const matching = !q ? items : items.filter(
       (item) =>
         item.name.toLowerCase().includes(q) ||
         item.id.toLowerCase().includes(q) ||
         item.kind.toLowerCase().includes(q) ||
         item.kind.replaceAll("_", " ").toLowerCase().includes(q)
     );
-  }, [items, query]);
+    return sortCatalogItems(matching, sort);
+  }, [items, query, sort]);
 
   const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
@@ -174,6 +177,16 @@ export function HomePanel({
           </label>
         </div>
 
+        <div className={s.sortWrap} data-tour="target-sort">
+          <label className={s.sortLabel} htmlFor="target-sort">Sort targets</label>
+          <select id="target-sort" className={s.sortSelect} value={sort} onChange={(e) => setSort(e.target.value as CatalogSort)} aria-describedby="target-sort-note">
+            <option value="frames">Most frames</option>
+            <option value="passes">Most passes</option>
+            <option value="name">Name A–Z</option>
+          </select>
+          <p id="target-sort-note" className={s.sortNote}>Counts show data quantity, not quality. ? = unknown.</p>
+        </div>
+
         <div className={s.countLine}>
           <span className={s.countText}>
             {filteredItems.length} of {items.length} shown
@@ -231,6 +244,7 @@ export function HomePanel({
                     <span className={s.itemName}>{item.name}</span>
                     <span className={s.itemKind}>{item.kind.replaceAll("_", " ")}</span>
                     {item.detail && <span className={s.itemDetail}>{item.detail}</span>}
+                    <span className={s.itemCounts}>{formatDataCounts(item.counts)}</span>
                   </label>
                   <button
                     type="button"

@@ -1,0 +1,26 @@
+[
+  {
+    "width": 1440,
+    "targets": 47,
+    "default_order_verified": true,
+    "selection_preserved": true,
+    "search_and_keyboard": true,
+    "horizontal_overflow": false,
+    "archive_calls": 0,
+    "api_calls": 0,
+    "page_errors": [],
+    "fly_navigation": true
+  },
+  {
+    "width": 320,
+    "targets": 47,
+    "default_order_verified": true,
+    "selection_preserved": true,
+    "search_and_keyboard": true,
+    "horizontal_overflow": false,
+    "archive_calls": 0,
+    "api_calls": 0,
+    "page_errors": [],
+    "fly_navigation": true
+  }
+]

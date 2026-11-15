@@ -17,7 +17,13 @@ export const TOUR: TourStep[] = [
   {
     target: "targets",
     title: "Find a target",
-    text: "Explore 5 featured challenge targets or search by name and coordinates (RA, Dec).",
+    text: "Explore prepared targets or search by name and coordinates (RA, Dec).",
+  },
+  {
+    target: "target-sort",
+    fallback: "targets",
+    title: "Sort available data",
+    text: "Most frames puts targets with more prepared observations first. You can also sort by passes or name. Counts describe quantity, not image quality; unknown counts show a question mark.",
   },
   {
     target: "dome",
