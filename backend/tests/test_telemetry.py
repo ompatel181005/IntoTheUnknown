@@ -4,6 +4,7 @@ import concurrent.futures as cf
 import os
 import subprocess
 import sys
+import threading
 import urllib.error
 from pathlib import Path
 from types import SimpleNamespace
@@ -37,6 +38,11 @@ def test_cache_decisions_distinguish_pending_ready_and_disk(monkeypatch, tmp_pat
     app = FastAPI(telemetry=telemetry.FASTAPI_TELEMETRY)
     app.add_middleware(telemetry.RequestTelemetry)
     monkeypatch.setattr(views, "JOBS", {})
+    # This test deliberately stubs submission without running workers; keep its
+    # synthetic pending jobs from consuming the process-wide real admission pool.
+    monkeypatch.setattr(
+        views, "ADMISSION", threading.BoundedSemaphore(views.config.MAX_RENDER_JOBS + views.config.MAX_QUEUED_JOBS)
+    )
     monkeypatch.setattr(views, "get_cache", lambda: SimpleNamespace(lookup=lambda _: None, manifest_url=str))
     monkeypatch.setattr(views.POOL, "submit", lambda *a: None)
 
