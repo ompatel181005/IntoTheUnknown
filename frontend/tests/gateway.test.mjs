@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import test from "node:test";
 import worker, { ORIGIN } from "../../infra/gateway/worker.mjs";
 
@@ -66,4 +66,3 @@ test("preserves archive errors and safely handles transport failure", async () =
     assert.equal((await unavailable.json()).error.code, "GATEWAY_UNAVAILABLE");
   } finally { globalThis.fetch = original; }
 });
-
