@@ -1,0 +1,14 @@
+{
+  "environment": "Local Chrome / React StrictMode dev build; mocked API responses, real bundled RW Aur images",
+  "posts": 1,
+  "measurement_calls": 2,
+  "render_keys": [
+    [
+      "7db51ac7ff15ceb55bf39b70"
+    ],
+    [
+      "7db51ac7ff15ceb55bf39b70"
+    ]
+  ],
+  "page_errors": []
+}

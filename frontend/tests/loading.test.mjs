@@ -317,6 +317,94 @@ test("dynamic view measurements stay tied to the displayed render when a watcher
   for (const url of urls) assert.equal(new URL(url, "https://example.test").searchParams.get("render_key"), displayed);
 });
 
+test("concurrent panels share one lazy registration and one cancellation does not interrupt the other", async () => {
+  const registration = deferred();
+  let posts = 0;
+  let sharedSignal;
+  const api = await loadCatalogApi(async (url, init) => {
+    if (url === "/api/views") {
+      posts += 1;
+      sharedSignal = init.signal;
+      return registration.promise;
+    }
+    return { ok: true, json: async () => ({ points: [] }) };
+  });
+  const rk = "c".repeat(24);
+  api.registerGoldenView(rk, query());
+  const leaving = new AbortController();
+  const staying = new AbortController();
+  const left = api.getGaiaMatch(rk, 1, 2, 0, leaving.signal);
+  const leftRejected = assert.rejects(left, { name: "AbortError" });
+  const right = api.getLightCurve(rk, 1, 2, staying.signal);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(posts, 1);
+  leaving.abort();
+  await leftRejected;
+  assert.equal(sharedSignal.aborted, false);
+  registration.resolve({ ok: true, json: async () => ({ view_id: "shared", status: "ready" }) });
+  await right;
+  assert.equal(posts, 1);
+});
+
+test("StrictMode-like abandoned setup sends no POST and the next setup registers once", async () => {
+  let posts = 0;
+  const api = await loadCatalogApi(async (url) => {
+    if (url === "/api/views") posts += 1;
+    return { ok: true, json: async () => url === "/api/views" ? { view_id: "new", status: "ready" } : { points: [] } };
+  });
+  const rk = "d".repeat(24);
+  api.registerGoldenView(rk, query());
+  const first = new AbortController();
+  const abandoned = api.getSpectrum(rk, 1, 2, 0, first.signal);
+  const rejected = assert.rejects(abandoned, { name: "AbortError" });
+  first.abort();
+  const next = api.getSpectrum(rk, 1, 2, 0, new AbortController().signal);
+  await Promise.all([rejected, next]);
+  assert.equal(posts, 1);
+});
+
+test("a lone abandoned setup never starts an unused POST", async () => {
+  let posts = 0;
+  const api = await loadCatalogApi(async () => {
+    posts += 1;
+    return { ok: true, json: async () => ({ view_id: "unused", status: "ready" }) };
+  });
+  const rk = "f".repeat(24);
+  api.registerGoldenView(rk, query());
+  const caller = new AbortController();
+  const pending = api.getSpectrum(rk, 1, 2, 0, caller.signal);
+  const rejected = assert.rejects(pending, { name: "AbortError" });
+  caller.abort();
+  await rejected;
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(posts, 0);
+});
+
+test("all subscribers leaving aborts shared registration and permits a later retry", async () => {
+  let posts = 0;
+  let pendingSignal;
+  const api = await loadCatalogApi(async (url, init) => {
+    if (url !== "/api/views") return { ok: true, json: async () => ({ points: [] }) };
+    posts += 1;
+    if (posts === 1) {
+      pendingSignal = init.signal;
+      return new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true }));
+    }
+    return { ok: true, json: async () => ({ view_id: "retry", status: "ready" }) };
+  });
+  const rk = "e".repeat(24);
+  api.registerGoldenView(rk, query());
+  const caller = new AbortController();
+  const result = api.getSpectrum(rk, 1, 2, 0, caller.signal);
+  const rejected = assert.rejects(result, { name: "AbortError" });
+  await new Promise((resolve) => setImmediate(resolve));
+  caller.abort();
+  await rejected;
+  assert.equal(pendingSignal.aborted, true);
+  await api.getSpectrum(rk, 1, 2, 0);
+  assert.equal(posts, 2);
+});
+
 test("direct coordinate catalog loading stays bundled while home remains Blob first with fallback", async () => {
   const calls = [];
   const api = await loadCatalogApi(async (url) => {

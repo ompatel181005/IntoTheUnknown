@@ -8,6 +8,8 @@ export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undef
 // so image loading still works with the API stopped.
 const goldenQueries = new Map<string, ViewRequest>();
 const measurementViews = new Map<string, string>();
+type Registration = { promise: Promise<string>; controller: AbortController; subscribers: number };
+const registrations = new Map<string, Registration>();
 const displayedRenders = new Map<string, string>();
 export function registerMeasurementRender(viewId: string, renderKey: string): void {
   displayedRenders.set(viewId, renderKey);
@@ -18,21 +20,69 @@ export function registerGoldenView(renderId: string, query: ViewRequest): void {
 }
 
 async function measurementViewId(id: string, signal?: AbortSignal): Promise<string> {
+  signal?.throwIfAborted();
   const query = goldenQueries.get(id);
   if (!query) return id;
   const cached = measurementViews.get(id);
   if (cached) return cached;
+  let registration = registrations.get(id);
+  if (!registration) {
+    const controller = new AbortController();
+    const next: Registration = { controller, subscribers: 0, promise: Promise.resolve("") };
+    next.promise = prepareMeasurementView(id, query, controller.signal).finally(() => {
+      if (registrations.get(id) === next) registrations.delete(id);
+    });
+    registrations.set(id, next);
+    registration = next;
+  }
+  const shared = registration;
+  shared.subscribers += 1;
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    shared.subscribers -= 1;
+    if (!shared.subscribers && registrations.get(id) === shared) {
+      registrations.delete(id);
+      shared.controller.abort();
+    }
+  };
+  try {
+    return await abortable(shared.promise, signal, release);
+  } finally {
+    release();
+  }
+}
+
+/** One subscriber can leave without cancelling a measurement another panel still needs. */
+function abortable<T>(pending: Promise<T>, signal?: AbortSignal, onAbort?: () => void): Promise<T> {
+  if (!signal) return pending;
+  signal.throwIfAborted();
+  return new Promise<T>((resolve, reject) => {
+    const aborted = () => { onAbort?.(); cleanup(); reject(signal.reason); };
+    const cleanup = () => signal.removeEventListener("abort", aborted);
+    signal.addEventListener("abort", aborted, { once: true });
+    pending.then((value) => { cleanup(); resolve(value); }, (error) => { cleanup(); reject(error); });
+  });
+}
+
+async function prepareMeasurementView(id: string, query: ViewRequest, signal: AbortSignal): Promise<string> {
+  // StrictMode setup/cleanup happens in the same turn. Let an unused subscription
+  // leave before starting a POST, rather than starting and immediately aborting it.
+  await Promise.resolve();
+  signal.throwIfAborted();
   const created = await createView(query, signal);
   const deadline = Date.now() + 120_000;
   let status = created.status;
   while (status !== "ready") {
-    signal?.throwIfAborted();
+    signal.throwIfAborted();
     if (!created.status_url || Date.now() >= deadline) throw new ApiRequestError("TIMEOUT", "The measurement view is still preparing. Try again shortly.");
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await abortable(new Promise((resolve) => setTimeout(resolve, 300)), signal);
     const current = await getViewStatus(created.status_url, signal);
     if (current.status === "error") throw new ApiRequestError(current.error?.code ?? "PIPELINE_ERROR", current.error?.message ?? "The measurement view could not be prepared.");
     if (current.status === "ready") status = "ready";
   }
+  signal.throwIfAborted();
   measurementViews.set(id, created.view_id);
   return created.view_id;
 }
