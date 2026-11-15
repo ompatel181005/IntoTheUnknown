@@ -137,7 +137,7 @@
       "not_established_by_this_assessment": [],
       "measured_shift_px": 1.6424920753499122,
       "predicted_shift_px": 1.6686659834156135,
-      "manifest_sha256": "c9bdc78310676d05bdfcaaa16fa4bf5887b3bbfdec9124b8e3308b669d5cd01c",
+      "manifest_sha256": "0d30d5a803e90560c123c4c4f12f35c69e1ed99c8686ddb80399682c5db43c87",
       "assessment_complete": true,
       "array_sha256": {
         "e0.f32": "96f82afffd5aca6318683dd7107801af29665a5e0b02ae0fec72216e4356e7ad",
@@ -306,7 +306,7 @@
       "not_established_by_this_assessment": [],
       "measured_shift_px": 1.0586815242103367,
       "predicted_shift_px": 1.0551750473091068,
-      "manifest_sha256": "c66731640944c4cf9902b6844bd0612160f7b88077db364803554dee8574e32f",
+      "manifest_sha256": "527aedb813df7016d981e67319d4121bb9168c6b349fb25b58b5739dcd662ae0",
       "assessment_complete": true,
       "array_sha256": {
         "e0.f32": "c5fcc8e86ad1d58174378c353fdafb7c8ceedd1e9d79d02e83bd5512261a3e22",
@@ -440,7 +440,7 @@
         "independent_detection_significance_calibrated",
         "detected_source_gaia_association_checked"
       ],
-      "manifest_sha256": "7025d4d94cd6c9a1f9771c827d0a0b70d64bb9f217a7008217bfb45cd3e28535",
+      "manifest_sha256": "cd2e91f302dbb6a7b3ce1b7dbd1bd3490facd6c480c351c2c344ecec7e24bd3e",
       "assessment_complete": true,
       "array_sha256": {
         "e0.f32": "cd049f11f0da9ada9852e8fc93b5297516c6993004e3c93c67cd34beb687d2d1",
@@ -583,7 +583,7 @@
       ],
       "measured_shift_px": 0.12940440493649252,
       "predicted_shift_px": 0.004485942482558043,
-      "manifest_sha256": "6f74900859fc81b0ca6d45ddd6f2c308750f78fcc78dda9c7ec12fb2164b8e7c",
+      "manifest_sha256": "02c94791136a8e8d99e66e15c811af901404d59774ee8a656f3b5847e8e0a3d7",
       "assessment_complete": true,
       "array_sha256": {
         "e0.f32": "546ee191f298b028634c4a6493570d4e72c6ab367ce3bd00a42990bb2ac4b10b",
@@ -899,7 +899,7 @@
         "amplitude_above_20_percent_and_comparison_floor",
         "independently_verified_period_and_phase"
       ],
-      "manifest_sha256": "c3911b3dfb4aa5f853277c706559e5cdad82e1cd0fd8a3efaeb6fdd9d2a89035",
+      "manifest_sha256": "13aacb7ad56cb1b11bd73824a02c3f1590c3b109690b6ba5c331945c4b4e4dbc",
       "assessment_complete": true,
       "array_sha256": {
         "e0.f32": "f70b3158fae2b1f6eafe164c694e05a8036dd2db412ffa3a0a9d033628b98e0c",

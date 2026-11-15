@@ -297,6 +297,18 @@ def main():
                         state="visible",
                         timeout=30000,
                     )
+                    # A mounted transparent canvas precedes its first paint and
+                    # the eyepiece fade. Require actual visible pixels before
+                    # recording a successful render or capturing evidence.
+                    page.wait_for_function("""() => {
+                        const c = document.querySelector('canvas[aria-label^="SPHEREx image, epoch"]');
+                        if (!c || c.dataset.ready !== 'true') return false;
+                        for (let e = c; e; e = e.parentElement) {
+                            if (Number(getComputedStyle(e).opacity) < 0.99) return false;
+                        }
+                        const bytes = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+                        return bytes.some((value, index) => index % 4 !== 3 && value > 0);
+                    }""")
                     page.screenshot(path=str(args.out / f"react-{target.id}.png"))
                     reports[target.id]["react_api_offline"] = True
                 browser.close()
