@@ -37,16 +37,19 @@ export function radialScale(radiusAu: number): number {
   return atThirty + 1.5 * Math.log10(radiusAu / 30);
 }
 
-export function mapRadial(vector: Vec3): Vec3 {
+export function mapRadial(vector: Vec3, output: Vec3 = [0, 0, 0]): Vec3 {
   const radius = Math.hypot(vector[0], vector[1], vector[2]);
-  if (!radius) return [0, 0, 0];
+  if (!radius) { output.fill(0); return output; }
   const factor = radialScale(radius) / radius;
-  return [vector[0] * factor, vector[1] * factor, vector[2] * factor];
+  output[0] = vector[0] * factor;
+  output[1] = vector[1] * factor;
+  output[2] = vector[2] * factor;
+  return output;
 }
 
 /** Julian centuries since J2000.0 for a JS date. */
-export function centuries(date: Date): number {
-  return (date.getTime() / 86400000 + 2440587.5 - 2451545.0) / 36525;
+export function centuries(date: Date | number): number {
+  return ((typeof date === "number" ? date : date.getTime()) / 86400000 + 2440587.5 - 2451545.0) / 36525;
 }
 
 function solveKepler(M: number, e: number): number {
@@ -55,26 +58,29 @@ function solveKepler(M: number, e: number): number {
   return E;
 }
 
+/** Mean anomaly in radians, also used to anchor the fading trail to the moving planet. */
+export function meanAnomaly(p: Elements, T: number): number {
+  return ((p.L[0] - p.w[0]) + (p.L[1] - p.w[1]) * T) * D2R;
+}
+
 /** Heliocentric ecliptic J2000 position (au) at mean anomaly offset `dM` radians from the date's (for orbit paths). */
-export function position(p: Elements, T: number, dM = 0): Vec3 {
-  const at = (x: [number, number]) => x[0] + x[1] * T;
-  const a = at(p.a);
-  const e = at(p.e);
-  const i = at(p.i) * D2R;
-  const L = at(p.L);
-  const w = at(p.w);
-  const node = at(p.node) * D2R;
-  const argp = (w - at(p.node)) * D2R;
+export function position(p: Elements, T: number, dM = 0, output: Vec3 = [0, 0, 0]): Vec3 {
+  const a = (p.a[0] + p.a[1] * T);
+  const e = (p.e[0] + p.e[1] * T);
+  const i = (p.i[0] + p.i[1] * T) * D2R;
+  const L = (p.L[0] + p.L[1] * T);
+  const w = (p.w[0] + p.w[1] * T);
+  const node = (p.node[0] + p.node[1] * T) * D2R;
+  const argp = (w - (p.node[0] + p.node[1] * T)) * D2R;
   const M = ((((L - w) * D2R + dM) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
   const E = solveKepler(M, e);
   const xp = a * (Math.cos(E) - e);
   const yp = a * Math.sqrt(1 - e * e) * Math.sin(E);
   const cw = Math.cos(argp), sw = Math.sin(argp), cn = Math.cos(node), sn = Math.sin(node), ci = Math.cos(i), si = Math.sin(i);
-  return [
-    (cw * cn - sw * sn * ci) * xp + (-sw * cn - cw * sn * ci) * yp,
-    (cw * sn + sw * cn * ci) * xp + (-sw * sn + cw * cn * ci) * yp,
-    sw * si * xp + cw * si * yp,
-  ];
+  output[0] = (cw * cn - sw * sn * ci) * xp + (-sw * cn - cw * sn * ci) * yp;
+  output[1] = (cw * sn + sw * cn * ci) * xp + (-sw * sn + cw * cn * ci) * yp;
+  output[2] = sw * si * xp + cw * si * yp;
+  return output;
 }
 
 /** Unit vector for RA/Dec (equatorial), rotated into the ecliptic frame. */

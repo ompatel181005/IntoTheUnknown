@@ -16,6 +16,7 @@ import {
   AU_PER_PARSEC,
   centuries,
   mapRadial,
+  meanAnomaly,
   PLANETS,
   position,
   radialScale,
@@ -61,6 +62,41 @@ const DEFAULT_DIST = 38;
 type Camera = Omit<OrreryCameraState, "focus">;
 const defaultCamera: Camera = { yaw: initialCamera.yaw, pitch: initialCamera.pitch, dist: DEFAULT_DIST, fade: 1 };
 const cinematic = (t: number) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+const ORBIT_STEPS = 128;
+const TRAIL_BANDS = 16;
+const SPRITE_SIZE = 48;
+const PHASE_STEPS = 64;
+const DAY_MS = 86400000;
+
+/** Cached Lambert-lit phases, rotated toward the projected Sun when drawn. */
+function sphereAtlas(color: [number, number, number]) {
+  const atlas = document.createElement("canvas");
+  atlas.width = SPRITE_SIZE * (PHASE_STEPS + 1);
+  atlas.height = SPRITE_SIZE;
+  const context = atlas.getContext("2d")!;
+  const pixels = context.createImageData(atlas.width, atlas.height);
+  for (let phase = 0; phase <= PHASE_STEPS; phase++) {
+    const lightZ = 2 * phase / PHASE_STEPS - 1;
+    const lightX = Math.sqrt(1 - lightZ * lightZ);
+    for (let y = 0; y < SPRITE_SIZE; y++) {
+      for (let x = 0; x < SPRITE_SIZE; x++) {
+        const nx = (x + 0.5 - SPRITE_SIZE / 2) / (SPRITE_SIZE / 2 - 1);
+        const ny = (y + 0.5 - SPRITE_SIZE / 2) / (SPRITE_SIZE / 2 - 1);
+        const radius = Math.hypot(nx, ny);
+        if (radius >= 1) continue;
+        const nz = Math.sqrt(1 - radius * radius);
+        const diffuse = Math.max(0, nx * lightX + nz * lightZ);
+        const shade = (0.16 + 1.05 * diffuse) * (0.65 + 0.35 * Math.sqrt(nz));
+        const offset = (y * atlas.width + phase * SPRITE_SIZE + x) * 4;
+        for (let channel = 0; channel < 3; channel++) pixels.data[offset + channel] = Math.min(255, color[channel] * shade);
+        pixels.data[offset + 3] = 255 * Math.min(1, (1 - radius) * (SPRITE_SIZE / 2 - 1));
+      }
+    }
+  }
+  context.putImageData(pixels, 0, 0);
+  return atlas;
+}
+
 const rgba = (color: [number, number, number], alpha: number) =>
   `rgba(${color[0]},${color[1]},${color[2]},${alpha})`;
 
@@ -95,8 +131,9 @@ function buildScene(targets: readonly CatalogObject[]) {
   const key = JSON.stringify(targets);
   return {
     key,
+    orbitTime: T,
     orbits: PLANETS.map((planet) =>
-      Array.from({ length: 129 }, (_, index) => mapRadial(position(planet, T, (index / 128) * Math.PI * 2))),
+      Array.from({ length: ORBIT_STEPS }, (_, index) => mapRadial(position(planet, T, (index / ORBIT_STEPS) * Math.PI * 2))),
     ),
     planets: PLANETS.map((planet) => ({ name: planet.name, pos: mapRadial(position(planet, T)) })),
     ecliptic: Array.from({ length: 97 }, (_, index): Vec3 => {
@@ -133,6 +170,8 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
   const onFlightStartRef = useRef(onFlightStart);
   const onFlightEndRef = useRef(onFlightEnd);
   const holdRef = useRef(false);
+  // Preserve time across catalog/effect changes and while the home scene is hidden.
+  const timeRef = useRef({ epoch: Date.now(), start: performance.now() });
 
   useEffect(() => {
     activeRef.current = active;
@@ -149,12 +188,35 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
     const context = canvas?.getContext("2d");
     if (!anchor || !wrap || !canvas || !context) return;
 
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let reduce = motionPreference.matches;
+    const simulatedTime = (now: number) => reduce ? Date.now() : timeRef.current.epoch + (now - timeRef.current.start) * DAY_MS / 1000;
+    const clockDate = new Date();
+    let clockSecond = -1;
+    const tickClock = (time: number) => {
+      if (Math.floor(time / 1000) === clockSecond) return;
+      clockSecond = Math.floor(time / 1000);
+      clockDate.setTime(time);
+      if (clockRef.current) clockRef.current.textContent = `Sim ${clockDate.toISOString().slice(0, 19).replace("T", " ")} UTC`;
+    };
     const star = tokenRgb("--star");
     const sun = tokenRgb("--sun");
     const text2 = tokenRgb("--text-2");
     const planetColor = PLANETS.map((planet) => tokenRgb(`--planet-${planet.name.toLowerCase()}`));
-    const dprCap = (navigator.hardwareConcurrency || 8) <= 4 ? 1.25 : 1.5;
+    const sprites = planetColor.map(sphereAtlas);
+    const sunSprite = document.createElement("canvas");
+    sunSprite.width = sunSprite.height = 96;
+    const sunContext = sunSprite.getContext("2d")!;
+    const glow = sunContext.createRadialGradient(48, 48, 0, 48, 48, 48);
+    glow.addColorStop(0, rgba(sun, 1));
+    glow.addColorStop(0.25, rgba(sun, 0.55));
+    glow.addColorStop(1, rgba(sun, 0));
+    sunContext.fillStyle = glow;
+    sunContext.fillRect(0, 0, 96, 96);
+    const trailColors = planetColor.map((color) => Array.from({ length: TRAIL_BANDS }, (_, band) =>
+      rgba(color, 0.015 + 0.5 * (1 - band / (TRAIL_BANDS - 1)) ** 2)));
+    const planetLabels = PLANETS.map((planet) => (planet.name === "Earth" ? "EARTH · SPHEREx" : planet.name.toUpperCase()).split("").join("\u2009"));
+    const planetSizes = [3.4, 4.1, 4.5, 3.7, 6.2, 5.4, 4.7, 4.6];
     const scene = getScene(targets);
     const planetProjection = scene.planets.map((): Projection => ({ x: 0, y: 0, depth: 0, front: false }));
     const planetLabelX = scene.planets.map(() => 0);
@@ -162,6 +224,9 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
     const planetLabelAlign = scene.planets.map((): CanvasTextAlign => "left");
     const targetProjection = scene.targets.map((): Projection => ({ x: 0, y: 0, depth: 0, front: false }));
     const planetLabelOpacity = scene.planets.map(() => 0);
+    const labelOffsetX = scene.planets.map(() => NaN);
+    const labelOffsetY = scene.planets.map(() => NaN);
+    const labelOffsets: readonly (readonly [number, number])[] = [[12, -18], [-12, -18], [12, 18], [-12, 18], [0, -34], [0, 34]];
     const candidates: LabelCandidate[] = [
       ...scene.planets.map((_, index): LabelCandidate => ({ type: "planet", index, priority: index === 2 ? 90 : index > 3 ? 70 : index === 3 ? 60 : index === 1 ? 50 : 40, left: 0, right: 0, top: 0, bottom: 0, visible: false })),
       ...scene.targets.map((_, index): LabelCandidate => ({ type: "target", index, priority: 100, left: 0, right: 0, top: 0, bottom: 0, visible: false })),
@@ -202,7 +267,7 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
       if (disposed || !wrap.isConnected) return;
       const wrapBox = wrap.getBoundingClientRect();
       const anchorBox = anchor.getBoundingClientRect();
-      const dpr = Math.min(dprCap, window.devicePixelRatio || 1);
+      const dpr = (window.devicePixelRatio || 1);
       width = wrapBox.width;
       height = wrapBox.height;
       sceneBox = {
@@ -314,28 +379,36 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
       return Object.assign(output ?? { front: false }, projected, { front: false });
     };
 
-    const drawSceneLine = (points: Vec3[], camera: Camera, color: [number, number, number], alpha: number, lineWidth = 1) => {
-      const frontPath = new Path2D();
-      const backPath = new Path2D();
-      let previous: Projection | null = null;
-      for (const point of points) {
-        const projected = projectScene(point, camera);
-        if (projected.depth < 0.05) {
-          previous = null;
-          continue;
+    const trailPoint = { x: 0, y: 0, depth: 0, front: false };
+    const drawOrbit = (index: number, T: number, camera: Camera) => {
+      const orbit = scene.orbits[index];
+      const phase = (meanAnomaly(PLANETS[index], T) - meanAnomaly(PLANETS[index], scene.orbitTime)) / (2 * Math.PI) * ORBIT_STEPS;
+      let previousX = planetProjection[index].x;
+      let previousY = planetProjection[index].y;
+      let previousDepth = planetProjection[index].depth;
+      let band = -1;
+      context.lineWidth = 1;
+      // Walk backwards in mean anomaly: the bright end always trails the planet.
+      for (let step = 0; step < ORBIT_STEPS; step++) {
+        const distance = phase - Math.floor(phase) + step;
+        const nextBand = Math.min(TRAIL_BANDS - 1, Math.floor(distance / ORBIT_STEPS * TRAIL_BANDS));
+        if (nextBand !== band) {
+          if (band >= 0) context.stroke();
+          context.beginPath();
+          band = nextBand;
+          context.strokeStyle = trailColors[index][band];
         }
-        if (previous) {
-          const path = previous.front ? frontPath : backPath;
-          path.moveTo(previous.x, previous.y);
-          path.lineTo(projected.x, projected.y);
+        const sample = ((Math.floor(phase) - step) % ORBIT_STEPS + ORBIT_STEPS) % ORBIT_STEPS;
+        const point = projectScene(orbit[sample], camera, trailPoint);
+        if (point.depth > 0.05 && previousDepth > 0.05) {
+          context.moveTo(previousX, previousY);
+          context.lineTo(point.x, point.y);
         }
-        previous = projected;
+        previousX = point.x;
+        previousY = point.y;
+        previousDepth = point.depth;
       }
-      context.lineWidth = lineWidth;
-      context.strokeStyle = rgba(color, alpha * 0.35);
-      context.stroke(backPath);
-      context.strokeStyle = rgba(color, alpha);
-      context.stroke(frontPath);
+      context.stroke();
     };
 
     const drawSkyLine = (points: Vec3[], camera: Camera, color: [number, number, number], alpha: number) => {
@@ -395,6 +468,21 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
       animationFrame = 0;
       const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
       lastTime = now;
+      const time = simulatedTime(now);
+      const T = centuries(time);
+      tickClock(time);
+      if (Math.abs(T - scene.orbitTime) * 36525 >= 1) {
+        scene.orbitTime = T;
+        scene.orbits.forEach((orbit, index) => orbit.forEach((point, step) => {
+          position(PLANETS[index], T, step / ORBIT_STEPS * Math.PI * 2, point);
+          mapRadial(point, point);
+        }));
+      }
+      scene.planets.forEach((planet, index) => {
+        position(PLANETS[index], T, 0, planet.pos);
+        mapRadial(planet.pos, planet.pos);
+      });
+      if (!reduce) dirty = true;
       const camera = cam.current;
       const currentFlight = getFlightSample();
 
@@ -481,32 +569,22 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
       }
       drawSkyLine(scene.ecliptic, camera, text2, 0.16);
 
-      scene.orbits.forEach((orbit, index) => {
-        drawSceneLine(orbit, camera, planetColor[index], 0.12, 4);
-        drawSceneLine(orbit, camera, planetColor[index], 0.7, 1);
-      });
+      scene.planets.forEach((planet, index) => projectScene(planet.pos, camera, planetProjection[index]));
+      scene.orbits.forEach((_, index) => drawOrbit(index, T, camera));
       const sunPoint = projectScene([0, 0, 0], camera);
       const sunRadius = Math.min(26, Math.max(10, 18 * DEFAULT_DIST / camera.dist));
-      const glow = context.createRadialGradient(sunPoint.x, sunPoint.y, 0, sunPoint.x, sunPoint.y, sunRadius);
-      glow.addColorStop(0, rgba(sun, 1));
-      glow.addColorStop(0.25, rgba(sun, 0.55));
-      glow.addColorStop(1, rgba(sun, 0));
-      context.fillStyle = glow;
-      context.beginPath();
-      context.arc(sunPoint.x, sunPoint.y, sunRadius, 0, Math.PI * 2);
-      context.fill();
+      context.drawImage(sunSprite, sunPoint.x - sunRadius, sunPoint.y - sunRadius, sunRadius * 2, sunRadius * 2);
 
       const labelScale = Math.min(1.5, Math.max(1, Math.sqrt(DEFAULT_DIST / camera.dist)));
       accepted.length = 0;
       scene.planets.forEach((planet, index) => {
         const projected = projectScene(planet.pos, camera, planetProjection[index]);
-        const earth = planet.name === "Earth";
-        const label = earth ? "EARTH · SPHEREx" : planet.name.toUpperCase();
-        const cacheKey = `planet:${label}`;
+        const label = planetLabels[index];
+        const cacheKey = label;
         context.font = "600 12px 'Manrope Variable', Manrope, system-ui, sans-serif";
         let textWidth = textWidths.get(cacheKey);
         if (textWidth === undefined) {
-          textWidth = context.measureText(label.split("").join("\u2009")).width;
+          textWidth = context.measureText(label).width;
           textWidths.set(cacheKey, textWidth);
         }
         const dx = projected.x - sunPoint.x;
@@ -515,14 +593,18 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
         const horizontal = !innermost && Math.abs(dx) > Math.abs(dy) * 0.65;
         const align: CanvasTextAlign = horizontal ? (dx >= 0 ? "left" : "right") : "center";
         const labelX = horizontal ? projected.x + (dx >= 0 ? 12 : -12) * labelScale : projected.x;
-        const labelY = innermost
+        let labelY = innermost
           ? projected.y + (index === 0 ? -22 : 22) * labelScale
           : horizontal
             ? projected.y - 5 * labelScale
             : projected.y + (dy >= 0 ? 15 : -15) * labelScale;
         const scaledWidth = textWidth * labelScale;
         const rawLeft = align === "left" ? labelX : align === "right" ? labelX - scaledWidth : labelX - scaledWidth / 2;
-        const left = Math.max(12, Math.min(width - 12 - scaledWidth, rawLeft));
+        let left = Math.max(12, Math.min(width - 12 - scaledWidth, rawLeft));
+        if (Number.isFinite(labelOffsetX[index])) {
+          left = projected.x + labelOffsetX[index] * labelScale;
+          labelY = projected.y + labelOffsetY[index] * labelScale;
+        }
         planetLabelX[index] = left;
         planetLabelY[index] = labelY;
         planetLabelAlign[index] = "left";
@@ -600,21 +682,24 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
 
       for (const candidate of candidates) {
         if (!candidate.visible) continue;
+        // Extra clearance before a hidden label returns prevents boundary flicker.
+        const clearance = candidate.type === "planet" && planetLabelOpacity[candidate.index] < 0.5 ? 10 : 6;
         const overlaps = () => accepted.some((other) =>
-          candidate.left < other.right + 6 && candidate.right > other.left - 6
-          && candidate.top < other.bottom + 5 && candidate.bottom > other.top - 5,
+          candidate.left < other.right + clearance && candidate.right > other.left - clearance
+          && candidate.top < other.bottom + clearance && candidate.bottom > other.top - clearance,
         );
-        if (candidate.type === "planet" && overlaps()) {
+        const inBounds = () => candidate.left >= 12 && candidate.right <= width - 12
+          && candidate.top >= (width < 769 ? 245 : 200) && candidate.bottom <= height - 60;
+        if (candidate.type === "planet" && (overlaps() || !inBounds())) {
           const point = planetProjection[candidate.index];
           const w = (candidate.right - candidate.left) / labelScale;
           // Try nearby label positions before fading a lower-priority name.
-          const offsets = [[12, -18], [-12 - w, -18], [12, 18], [-12 - w, 18], [-w / 2, -34], [-w / 2, 34]];
-          for (const [dx, dy] of offsets) {
-            candidate.left = point.x + dx * labelScale;
+          for (const [dx, dy] of labelOffsets) {
+            candidate.left = point.x + (dx < 0 ? dx - w : dx === 0 ? -w / 2 : dx) * labelScale;
             candidate.right = candidate.left + w * labelScale;
             candidate.top = point.y + dy * labelScale - 9 * labelScale;
             candidate.bottom = candidate.top + 18 * labelScale;
-            if (candidate.left < 12 || candidate.right > width - 12 || candidate.top < 210 || candidate.bottom > height - 60) continue;
+            if (!inBounds()) continue;
             if (!overlaps()) {
               planetLabelX[candidate.index] = candidate.left;
               planetLabelY[candidate.index] = (candidate.top + candidate.bottom) / 2;
@@ -627,7 +712,14 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
           candidate.left >= 12 && candidate.right <= width - 12
           && candidate.top >= (width < 769 ? 245 : 200) && candidate.bottom <= height - 60
         ));
-        if (candidate.visible) accepted.push(candidate);
+        if (candidate.visible) {
+          accepted.push(candidate);
+          if (candidate.type === "planet") {
+            const point = planetProjection[candidate.index];
+            labelOffsetX[candidate.index] = (planetLabelX[candidate.index] - point.x) / labelScale;
+            labelOffsetY[candidate.index] = (planetLabelY[candidate.index] - point.y) / labelScale;
+          }
+        }
       }
 
       context.textBaseline = "middle";
@@ -635,15 +727,36 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
         const projected = planetProjection[index];
         if (projected.depth < 0.05) return;
         const earth = planet.name === "Earth";
-        context.fillStyle = rgba(planetColor[index], 1);
-        context.beginPath();
-        context.arc(projected.x, projected.y, (earth ? 3 : 2.4) * labelScale, 0, Math.PI * 2);
-        context.fill();
-        context.strokeStyle = rgba(planetColor[index], 0.9);
-        context.lineWidth = 1;
-        context.beginPath();
-        context.arc(projected.x, projected.y, (earth ? 9 : 7) * labelScale, 0, Math.PI * 2);
-        context.stroke();
+        const radius = planetSizes[index] * Math.min(1.4, Math.max(0.85, (DEFAULT_DIST / projected.depth) ** 0.2));
+        const point = rotate(planet.pos, camera);
+        const length = Math.hypot(point.x, point.y, point.z);
+        const depth = point.y + camera.dist;
+        const horizontal = Math.hypot(point.x, depth);
+        const viewLength = Math.hypot(horizontal, point.z);
+        const lightX = -point.x * camera.dist / (length * horizontal);
+        const lightY = -point.z * depth * camera.dist / (length * horizontal * viewLength);
+        const lightZ = (length * length + point.y * camera.dist) / (length * viewLength);
+        const phase = Math.round((Math.max(-1, Math.min(1, lightZ)) + 1) * PHASE_STEPS / 2);
+        if (index === 5) {
+          context.strokeStyle = rgba(planetColor[index], 0.65);
+          context.lineWidth = 1;
+          context.beginPath();
+          context.ellipse(projected.x, projected.y, radius * 1.85, radius * 0.65, -0.4, Math.PI, Math.PI * 2);
+          context.stroke();
+        }
+        context.save();
+        context.translate(projected.x, projected.y);
+        context.rotate(Math.atan2(-lightY, lightX));
+        context.drawImage(sprites[index], phase * SPRITE_SIZE, 0, SPRITE_SIZE, SPRITE_SIZE, -radius, -radius, radius * 2, radius * 2);
+        context.restore();
+        if (index === 5 || earth) {
+          context.strokeStyle = rgba(planetColor[index], 0.8);
+          context.lineWidth = 1;
+          context.beginPath();
+          if (earth) context.arc(projected.x, projected.y, radius + 4, 0, Math.PI * 2);
+          else context.ellipse(projected.x, projected.y, radius * 1.85, radius * 0.65, -0.4, 0, Math.PI);
+          context.stroke();
+        }
         const candidate = planetCandidates[index];
         const desired = candidate?.visible ? 1 : 0;
         const fade = Math.min(1, dt / 0.15);
@@ -651,7 +764,7 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
         if (!reduce && Math.abs(desired - planetLabelOpacity[index]) > 0.01) dirty = true;
         if (planetLabelOpacity[index] < 0.01) return;
         if (!candidate.visible) {
-          const labelWidth = (textWidths.get(`planet:${earth ? "EARTH · SPHEREx" : planet.name.toUpperCase()}`) ?? 0) * labelScale;
+          const labelWidth = (textWidths.get(planetLabels[index]) ?? 0) * labelScale;
           const labelX = planetLabelX[index];
           const labelY = planetLabelY[index];
           if (accepted.some((other) => labelX < other.right && labelX + labelWidth > other.left
@@ -660,7 +773,7 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
         context.font = `600 ${12 * labelScale}px 'Manrope Variable', Manrope, system-ui, sans-serif`;
         context.textAlign = planetLabelAlign[index];
         context.fillStyle = rgba(star, planetLabelOpacity[index] * 0.95);
-        const label = (earth ? "EARTH · SPHEREx" : planet.name.toUpperCase()).split("").join("\u2009");
+        const label = planetLabels[index];
         context.fillText(label, planetLabelX[index], planetLabelY[index]);
       });
       context.textAlign = "left";
@@ -704,11 +817,18 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
       },
     });
 
-    const tickClock = () => {
-      if (clockRef.current) clockRef.current.textContent = new Date().toISOString().slice(0, 19).replace("T", " ");
+    tickClock(simulatedTime(performance.now()));
+    const clock = window.setInterval(() => {
+      // A visible moving scene publishes its date in the same frame as its positions.
+      if (reduce || (!activeRef.current && !flightIsActive())) tickClock(simulatedTime(performance.now()));
+    }, 1000);
+    const motionChange = () => {
+      reduce = motionPreference.matches;
+      timeRef.current = { epoch: Date.now(), start: performance.now() };
+      dirty = true;
+      scheduleFrame();
     };
-    tickClock();
-    const clock = window.setInterval(tickClock, 1000);
+    motionPreference.addEventListener("change", motionChange);
 
     const pointers = new Map<number, { x: number; y: number }>();
     let previousX = 0;
@@ -784,6 +904,7 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
         zoomBy(1.2);
       } else if (event.key === "0") {
         event.preventDefault();
+        timeRef.current = { epoch: Date.now(), start: performance.now() };
         glideTo(cloneCamera(defaultCamera));
       }
     };
@@ -809,6 +930,7 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
       wakeRef.current = () => undefined;
       cancelAnimationFrame(animationFrame);
       window.clearInterval(clock);
+      motionPreference.removeEventListener("change", motionChange);
       resizeObserver.disconnect();
       window.removeEventListener("pointerdown", pointerDown);
       window.removeEventListener("pointermove", pointerMove);
@@ -847,7 +969,7 @@ export function Orrery({ targets, active, onPick, onFlightStart, onFlightEnd }: 
       <div ref={anchorRef} className={s.anchor}>
         <p className={`${s.hud} mono`}>
           <span>
-            UTC now <span ref={clockRef} />
+            <span ref={clockRef} />
           </span>
         </p>
       </div>
