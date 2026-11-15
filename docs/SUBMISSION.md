@@ -47,7 +47,7 @@ PLAN §10 shots that depend on them are replaced.
 
 | Time | Shot | Caption |
 |---|---|---|
-| 0–3 s | Title card | Team name · "Planet X and SPHEREx" · SPHEREx Blink |
+| 0–3 s | Title card | Team name · "Planet X and SPHEREx" · Into The Unknown |
 | 3–11 s | Barnard's Star, *Blink* between the first and last pass | "Measured 1.64 px · Gaia predicts 1.67 px" |
 | 11–16 s | Same view, *Difference* mode | "A moving star shows as a dark/bright pair" |
 | 16–22 s | R Draconis, *Play all*, then open the brightness panel | "Variable stars change between passes" (no numbers; not validated) |
@@ -58,9 +58,9 @@ No AI-generated images or video are planned. If any are added, they need a visib
 
 ## Draft form text
 
-**Project name:** SPHEREx Blink
+**Project name:** Into The Unknown
 
-**High-level summary:** SPHEREx Blink turns NASA's SPHEREx infrared sky survey into a flip-book. Enter any sky
+**High-level summary:** Into The Unknown turns NASA's SPHEREx infrared sky survey into a flip-book. Enter any sky
 position and it finds every SPHEREx image of that spot, aligns them and plays them pass by pass, so objects that
 move or change brightness stand out. It addresses the challenge by making repeat SPHEREx imaging searchable by
 eye, with blink, difference, per-pixel spectrum and light-curve views, and a shareable URL. On Barnard's Star

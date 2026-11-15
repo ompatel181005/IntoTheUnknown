@@ -1,6 +1,6 @@
-# SPHEREx Blink
+# Into The Unknown
 
-**Every patch of sky, as a little movie.** SPHEREx Blink is our entry for the NASA Space Apps 2026
+**Every patch of sky, as a little movie.** Into The Unknown is our entry for the NASA Space Apps 2026
 **Planet X and SPHEREx** challenge. Give it a position on the sky. It finds every image NASA's SPHEREx
 telescope has taken of that spot, lines them up and plays them as a short flip-book. Anything that moves or
 changes brightness between frames stands out against the fixed background stars.
@@ -18,14 +18,14 @@ That makes SPHEREx well suited to "blinking", the method Clyde Tombaugh used to 
 patch of sky months apart shows nearby stars creeping across the sky, brown dwarfs, pulsating giants and
 solar-system bodies.
 
-The data is public, but it arrives as multi-extension FITS files queried through Python. SPHEREx Blink lets
+The data is public, but it arrives as multi-extension FITS files queried through Python. Into The Unknown lets
 anyone answer "did anything move or change here?" from a web page: citizen scientists, teachers and students,
 and astronomers who want a quick look before downloading anything.
 
 ## 2. How to use
 
-1. **Pick a target.** Click one of the five challenge targets on the sky sphere or in the top bar, or enter an
-   RA, Dec.
+1. **Pick a target.** Click one of the five challenge targets in the home sky, or use the search box for a
+   name or an RA, Dec.
 2. **Press play.** *Play all* steps through the survey passes; *Blink* flips between two; *Difference* subtracts a
    reference pass, so a moving star becomes a dark/bright pair; *Investigate* opens per-pixel measurements.
 3. **Click to measure.** The drawer shows the spectrum and light curve at the clicked pixel.
