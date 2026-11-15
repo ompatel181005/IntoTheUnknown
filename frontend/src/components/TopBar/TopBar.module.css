@@ -179,6 +179,10 @@
   padding: 4px;
 }
 
+.learnLink { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; color: var(--accent); font-size: 12px; text-decoration: none; }
+.learnLink:hover { background: var(--accent-wash); border-radius: var(--radius-pill); }
+@media (max-width: 390px) { .learnLink { max-width: 88px; padding: 0 6px; line-height: 1.25; } }
+
 @media (max-width: 1099px) {
   .bar {
     display: flex;

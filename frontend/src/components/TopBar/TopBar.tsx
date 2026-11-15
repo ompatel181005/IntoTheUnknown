@@ -41,6 +41,7 @@ export function TopBar(props: TopBarProps) {
         <TargetSearch onPreset={props.onPreset} onCoords={props.onCoords} />
       </GlassPanel>
       <GlassPanel pill className={s.end} data-tour="help">
+        <a className={s.learnLink} href="/learn.html">Learn &amp; explore</a>
         <GlassButton variant="ghost" icon="help" label="Guide" onClick={props.onGuide} />
         {props.crumb !== null && (
           <GlassButton
