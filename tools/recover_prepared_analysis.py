@@ -110,7 +110,12 @@ class Resolver:
             if not folders or len(folders) > 4:
                 raise RecoveryError("Missing or excessive processing versions")
             if any(
-                not re.fullmatch(re.escape(prefix) + r"l2b-v\d+-\d{4}-\d{3}/", p)
+                # The official IRSA cutouts notebook also documents l2b_retry
+                # products. Search every discovered supported folder; never
+                # prefer normal processing over retry when both contain obs.
+                not re.fullmatch(
+                    re.escape(prefix) + r"l2b(?:_retry)?-v\d+-\d{4}-\d{3}/", p
+                )
                 for p in folders
             ):
                 raise RecoveryError("Unexpected processing folder layout")

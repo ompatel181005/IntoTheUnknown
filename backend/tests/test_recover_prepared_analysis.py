@@ -63,6 +63,43 @@ def test_multiple_processing_versions_fail_closed():
         resolver.resolve(FRAME)
 
 
+@pytest.mark.parametrize("retry_contains_obs", [False, True])
+def test_documented_retry_folder_is_searched_for_unique_candidate(retry_contains_obs):
+    retry_version = VERSION.replace("l2b-", "l2b_retry-")
+    retry_key = KEY.replace(VERSION, retry_version)
+    responses = iter(
+        [
+            xml(folders=[PREFIX + VERSION + "/", PREFIX + retry_version + "/"]),
+            xml(keys=[] if retry_contains_obs else [KEY]),
+            xml(keys=[retry_key] if retry_contains_obs else []),
+        ]
+    )
+    resolver = recovery.Resolver(reader=lambda *args: next(responses))
+    row = resolver.resolve(FRAME)
+    assert row["url"].endswith(retry_key if retry_contains_obs else KEY)
+    assert resolver.requests == 3
+
+
+def test_normal_and_retry_matching_products_are_ambiguous():
+    retry_version = VERSION.replace("l2b-", "l2b_retry-")
+    responses = iter(
+        [
+            xml(folders=[PREFIX + VERSION + "/", PREFIX + retry_version + "/"]),
+            xml(keys=[KEY]),
+            xml(keys=[KEY.replace(VERSION, retry_version)]),
+        ]
+    )
+    resolver = recovery.Resolver(reader=lambda *args: next(responses))
+    with pytest.raises(recovery.RecoveryError, match="unique"):
+        resolver.resolve(FRAME)
+
+
+def test_unknown_processing_folder_cannot_be_ignored():
+    resolver = recovery.Resolver(reader=lambda *args: xml(folders=[PREFIX + VERSION + "/", PREFIX + "unknown/"]))
+    with pytest.raises(recovery.RecoveryError, match="layout"):
+        resolver.resolve(FRAME)
+
+
 @pytest.mark.parametrize("change", [{"detector": 3}, {"collection": "spherex_qr2"}, {"obs": "../bad"}])
 def test_invalid_identity_fails_before_listing(change):
     resolver = recovery.Resolver(reader=lambda *args: pytest.fail("unexpected network"))
