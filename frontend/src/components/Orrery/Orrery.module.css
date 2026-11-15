@@ -65,3 +65,48 @@
 .orrery[data-active="false"] .canvas {
   pointer-events: none;
 }
+
+/* Earth's info card: follows Earth, never takes pointer input, hidden at rest. */
+.earthCard {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: min(260px, calc(100vw - 24px));
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-chip);
+  background: var(--glass-bg-strong);
+  box-shadow: var(--shadow-float);
+  color: var(--text-1);
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 120ms var(--ease-ui), visibility 0s linear 120ms;
+}
+
+.earthCard[data-open="true"] {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 120ms var(--ease-ui);
+}
+
+.earthTitle {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.earthBody {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .earthCard,
+  .earthCard[data-open="true"] {
+    transition: none;
+  }
+}

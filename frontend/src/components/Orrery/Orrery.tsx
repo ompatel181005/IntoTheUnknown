@@ -191,6 +191,8 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pickRef = useRef<(index: number) => void>(() => undefined);
   const focusedRef = useRef<string | null>(null);
+  const earthFocusRef = useRef(false);
+  const earthCardRef = useRef<HTMLDivElement>(null);
   const clockRef = useRef<HTMLSpanElement>(null);
   const wakeRef = useRef<() => void>(() => undefined);
   const activeRef = useRef(active);
@@ -214,8 +216,9 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
     const anchor = anchorRef.current;
     const wrap = wrapRef.current;
     const canvas = canvasRef.current;
+    const earthCard = earthCardRef.current;
     const context = canvas?.getContext("2d");
-    if (!anchor || !wrap || !canvas || !context) return;
+    if (!anchor || !wrap || !canvas || !earthCard || !context) return;
 
     if (!timeRef.current.epoch) timeRef.current = { epoch: Date.now(), start: performance.now() };
 
@@ -244,10 +247,20 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
     glow.addColorStop(1, rgba(sun, 0));
     sunContext.fillStyle = glow;
     sunContext.fillRect(0, 0, 96, 96);
-    const trailColors = planetColor.map((color) => Array.from({ length: TRAIL_BANDS }, (_, band) =>
-      rgba(color, 0.015 + 0.5 * (1 - band / (TRAIL_BANDS - 1)) ** 2)));
+    // Earth's trail reads a touch brighter: it is SPHEREx's home orbit.
+    const trailColors = planetColor.map((color, planet) => Array.from({ length: TRAIL_BANDS }, (_, band) =>
+      rgba(color, Math.min(0.85, (planet === 2 ? 1.6 : 1) * (0.015 + 0.5 * (1 - band / (TRAIL_BANDS - 1)) ** 2)))));
+    const earthGlow = document.createElement("canvas");
+    earthGlow.width = earthGlow.height = 64;
+    const earthGlowContext = earthGlow.getContext("2d")!;
+    const earthHalo = earthGlowContext.createRadialGradient(32, 32, 0, 32, 32, 32);
+    earthHalo.addColorStop(0, rgba(planetColor[2], 0.38));
+    earthHalo.addColorStop(0.45, rgba(planetColor[2], 0.12));
+    earthHalo.addColorStop(1, rgba(planetColor[2], 0));
+    earthGlowContext.fillStyle = earthHalo;
+    earthGlowContext.fillRect(0, 0, 64, 64);
     const planetLabels = PLANETS.map((planet) => (planet.name === "Earth" ? "EARTH · SPHEREx" : planet.name.toUpperCase()).split("").join("\u2009"));
-    const planetSizes = [3.4, 4.1, 4.5, 3.7, 6.2, 5.4, 4.7, 4.6];
+    const planetSizes = [3.4, 4.1, 5.4, 3.7, 6.2, 5.4, 4.7, 4.6];
     const scene = getScene(visibleTargets);
     if (!visibleTargets.some((target) => target.id === focusedRef.current)) {
       focusedRef.current = null;
@@ -289,6 +302,18 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
     let pinning = true;
     let selected = -1;
     let selectedPlanet = -1;
+    // Earth's info card: hover, first tap or keyboard focus open it; Escape dismisses it.
+    let earthOpen = false;
+    let earthDismissed = false;
+    let earthCardWidth = 0;
+    let earthCardHeight = 0;
+    const earthCardRect = { left: 0, right: 0, top: 0, bottom: 0 };
+    // Earth label state: the chosen direction step (kept while it still fits) and leader ends.
+    let earthTurn = 0;
+    let earthTextScale = 1;
+    const earthLeader = new Float64Array(4);
+    const haloColor = rgba(tokenRgb("--space-0"), 0.95);
+    const EARTH_TURNS = [0, 1, -1, 2, -2, 3, -3, 4] as const;
     const planetNear = new Uint8Array(scene.planets.length);
     const EARTH = 2;
     const targetLabels = scene.targets.map(() => ({
@@ -621,6 +646,62 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
       placeLabel(index, previous, scale);
       return false;
     };
+    /** Does a box touch the circle (x, y, r)? */
+    const boxHitsCircle = (box: LabelCandidate, x: number, y: number, r: number) => {
+      const dx = x - Math.max(box.left, Math.min(box.right, x));
+      const dy = y - Math.max(box.top, Math.min(box.bottom, y));
+      return dx * dx + dy * dy < r * r;
+    };
+    /**
+     * Earth's name sits off the planet along the outward (anti-Sun) direction, turned in 35 degree
+     * steps until it clears the Sun, every planet sphere and the frame. The last good step is tried
+     * first, so the label holds still as the planets move. It shrinks a little when zoomed out.
+     */
+    const placeEarthLabel = (sunX: number, sunY: number, sunRadius: number, scale: number, dist: number) => {
+      const earth = planetProjection[EARTH];
+      const candidate = planetCandidates[EARTH];
+      if (earth.depth <= 0.05) { candidate.visible = false; return; }
+      earthTextScale = scale * Math.max(0.8, Math.min(1, Math.sqrt(DEFAULT_DIST / dist)));
+      const w = (textWidths.get(planetLabels[EARTH]) ?? 0) * earthTextScale, h = 18 * earthTextScale;
+      const radius = planetSizes[EARTH] * 1.4;
+      const base = Math.atan2(earth.y - sunY, earth.x - sunX);
+      let chosen = earthTurn;
+      for (let k = -1; k < EARTH_TURNS.length; k++) {
+        const turn = k < 0 ? earthTurn : EARTH_TURNS[k];
+        if (k >= 0 && turn === earthTurn) continue;
+        const angle = base + turn * 0.61;
+        const ux = Math.cos(angle), uy = Math.sin(angle);
+        const reach = radius + 12 * earthTextScale;
+        const ax = earth.x + ux * reach, ay = earth.y + uy * reach;
+        candidate.left = ux >= 0 ? ax + 3 : ax - 3 - w;
+        candidate.right = candidate.left + w;
+        candidate.top = ay - h / 2;
+        candidate.bottom = ay + h / 2;
+        let clear = labelInBounds(candidate) && !boxHitsCircle(candidate, sunX, sunY, sunRadius * 0.6 + 4);
+        for (let planet = 0; clear && planet < scene.planets.length; planet++) {
+          const point = planetProjection[planet];
+          if (point.depth > 0.05 && boxHitsCircle(candidate, point.x, point.y, planetSizes[planet] * 1.4 + 3)) clear = false;
+        }
+        if (clear) { chosen = turn; break; }
+      }
+      earthTurn = chosen;
+      const angle = base + chosen * 0.61;
+      const ux = Math.cos(angle), uy = Math.sin(angle);
+      const reach = radius + 12 * earthTextScale;
+      const ax = earth.x + ux * reach, ay = earth.y + uy * reach;
+      candidate.left = ux >= 0 ? ax + 3 : ax - 3 - w;
+      candidate.right = candidate.left + w;
+      candidate.top = ay - h / 2;
+      candidate.bottom = ay + h / 2;
+      candidate.visible = true;
+      planetLabelX[EARTH] = candidate.left;
+      planetLabelY[EARTH] = ay;
+      planetLabelAlign[EARTH] = "left";
+      earthLeader[0] = earth.x + ux * (radius + 2);
+      earthLeader[1] = earth.y + uy * (radius + 2);
+      earthLeader[2] = ax;
+      earthLeader[3] = ay;
+    };
     const labelInBounds = (candidate: { left: number; right: number; top: number; bottom: number }) => candidate.left >= 12 && candidate.right <= width - 12
       && candidate.top >= (width < 769 ? 245 : 200) && candidate.bottom <= height - 60;
     let animationFrame = 0;
@@ -645,7 +726,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
         mapRadial(planet.pos, planet.pos);
       });
       if (!reduce) dirty = true;
-      holdRef.current = hovered >= 0 || selected >= 0 || selectedPlanet >= 0 || focusedRef.current !== null;
+      holdRef.current = hovered >= 0 || selected >= 0 || selectedPlanet >= 0 || earthOpen || focusedRef.current !== null;
       const camera = cam.current;
       const currentFlight = getFlightSample();
 
@@ -742,6 +823,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
         candidate.bottom = labelY + 9 * labelScale;
         candidate.visible = projected.depth > 0.05 && projected.x > 16 && projected.x < width - 16 && projected.y > 200 && projected.y < height - 60;
       });
+      placeEarthLabel(sunPoint.x, sunPoint.y, sunRadius, labelScale, camera.dist);
 
       const flight = getFlightSample();
       const flying = flightIsActive();
@@ -757,7 +839,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
         const leftMargin = mobileFrame ? 12 : 316;
         const rightMargin = mobileFrame ? 12 : 72;
         const topMargin = mobileFrame ? 120 : 150;
-        const bottomMargin = mobileFrame ? 150 : 44;
+        const bottomMargin = mobileFrame ? 150 : 60;
         const edge = raw.depth <= 0.05
           || markerX < leftMargin
           || markerX > width - rightMargin
@@ -798,7 +880,8 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
 
       // Proximity labels: the nearest checked points around a fine pointer, never on touch layouts.
       const touchLayout = width < 769 || coarsePointer.matches;
-      const proximity = pointerOnCanvas && !touchLayout && !dragging && activeRef.current && !flying;
+      // An open Earth card replaces proximity names; they return with the usual fade once it closes.
+      const proximity = !earthOpen && pointerOnCanvas && !touchLayout && !dragging && activeRef.current && !flying;
       let nearCount = proximity ? markerGrid.nearest(pointerX, pointerY, NEAR_RADIUS, near, nearDistance) : 0;
       revealing = camera.dist <= DEFAULT_DIST * (revealing ? REVEAL_OUT : REVEAL_IN);
       pinning = camera.dist <= DEFAULT_DIST * (pinning ? PIN_OUT : PIN_IN);
@@ -852,6 +935,11 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
           const forced = !isPlanet && targetLabels[candidate.index].forced;
           const first = forced || (isPlanet && (candidate.index === EARTH || planetNear[candidate.index] === 1));
           if ((first ? 0 : isPlanet ? 1 : 2) !== phase) continue;
+          if (isPlanet && candidate.index === EARTH) {
+            // Earth places itself (placeEarthLabel) and always shows while Earth is in front.
+            if (candidate.visible) labelGrid.insert(candidateIndex);
+            continue;
+          }
           if (isPlanet) {
             // Extra clearance before a hidden label returns prevents boundary flicker.
             const clearance = planetLabelOpacity[candidate.index] < 0.5 ? 10 : 6;
@@ -920,6 +1008,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
           context.ellipse(projected.x, projected.y, radius * 1.85, radius * 0.65, -0.4, Math.PI, Math.PI * 2);
           context.stroke();
         }
+        if (earth) context.drawImage(earthGlow, projected.x - radius * 3, projected.y - radius * 3, radius * 6, radius * 6);
         context.save();
         context.translate(projected.x, projected.y);
         context.rotate(Math.atan2(-lightY, lightX));
@@ -950,13 +1039,40 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
           rect.bottom = labelY + 9 * labelScale;
           if (labelGrid.overlaps(rect, 0)) return;
         }
-        context.font = `600 ${12 * labelScale}px 'Manrope Variable', Manrope, system-ui, sans-serif`;
+        context.font = `600 ${12 * (earth ? earthTextScale : labelScale)}px 'Manrope Variable', Manrope, system-ui, sans-serif`;
         context.textAlign = planetLabelAlign[index];
-        context.fillStyle = rgba(star, planetLabelOpacity[index] * 0.95);
         const label = planetLabels[index];
+        if (earth) {
+          // A hairline leader ties the name to Earth; a dark halo keeps it legible over the sky.
+          context.strokeStyle = rgba(star, planetLabelOpacity[index] * 0.45);
+          context.lineWidth = 1;
+          context.beginPath();
+          context.moveTo(earthLeader[0], earthLeader[1]);
+          context.lineTo(earthLeader[2], earthLeader[3]);
+          context.stroke();
+          context.shadowColor = haloColor;
+          context.shadowBlur = 6;
+          context.fillStyle = rgba(star, planetLabelOpacity[index] * 0.95);
+          context.fillText(label, planetLabelX[index], planetLabelY[index]);
+        }
+        context.fillStyle = rgba(star, planetLabelOpacity[index] * 0.95);
         context.fillText(label, planetLabelX[index], planetLabelY[index]);
+        if (earth) {
+          context.shadowBlur = 0;
+          context.shadowColor = "transparent";
+        }
       });
       context.textAlign = "left";
+
+      if (earthOpen) {
+        // Nothing but Earth's own label may sit under its open card.
+        for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex++) {
+          const candidate = candidates[candidateIndex];
+          if (candidate.visible && !(candidate.type === "planet" && candidate.index === EARTH)
+            && candidate.left < earthCardRect.right && candidate.right > earthCardRect.left
+            && candidate.top < earthCardRect.bottom && candidate.bottom > earthCardRect.top) candidate.visible = false;
+        }
+      }
 
       // Anchors: a hairline ring with a centre dot; off-screen points become edge notches.
       context.lineWidth = 1;
@@ -1039,6 +1155,32 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
         if (!label.chosen) hitGrid.insert(index);
       }
       if (!dragging) setHovered(pointerOnCanvas ? hitTest(pointerX, pointerY) : -1);
+      const earthPoint = planetProjection[2];
+      const earthLabel = planetCandidates[2];
+      const earthVisible = activeRef.current && !flightIsActive() && camera.fade > 0.5 && earthPoint.depth >= 0.05;
+      const earthHover = earthVisible && pointerOnCanvas && !dragging && hovered < 0
+        && ((pointerX - earthPoint.x) ** 2 + (pointerY - earthPoint.y) ** 2 < 256
+          || (earthLabel.visible && pointerX >= earthLabel.left && pointerX <= earthLabel.right
+            && pointerY >= earthLabel.top && pointerY <= earthLabel.bottom));
+      const earthWanted = earthVisible && (earthHover || selectedPlanet === 2 || earthFocusRef.current);
+      if (!earthWanted) earthDismissed = false;
+      const earthNext = earthWanted && !earthDismissed;
+      if (earthNext !== earthOpen) {
+        earthOpen = earthNext;
+        earthCard.dataset.open = String(earthOpen);
+        if (earthOpen) {
+          earthCardWidth = earthCard.offsetWidth;
+          earthCardHeight = earthCard.offsetHeight;
+        }
+      }
+      if (earthOpen) {
+        const cardX = Math.max(12, Math.min(width - 12 - earthCardWidth, earthPoint.x + 18));
+        earthCard.style.translate = `${cardX}px ${earthPoint.y + 22}px`;
+        earthCardRect.left = cardX;
+        earthCardRect.right = cardX + earthCardWidth;
+        earthCardRect.top = earthPoint.y + 22;
+        earthCardRect.bottom = earthPoint.y + 22 + earthCardHeight;
+      }
       context.globalAlpha = 1;
 
       const moving = flightIsActive() || viewGlide || Math.abs(targetDist - camera.dist) > 0.001;
@@ -1197,7 +1339,7 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
         for (let planet = 0; planet < scene.planets.length; planet++) {
           const point = planetProjection[planet];
           const distance = (point.x - event.clientX) ** 2 + (point.y - event.clientY) ** 2;
-          if (planet !== EARTH && point.depth >= 0.05 && distance < best) {
+          if (point.depth >= 0.05 && distance < best) {
             best = distance;
             selectedPlanet = planet;
           }
@@ -1243,6 +1385,13 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
 
     const keydown = (event: KeyboardEvent) => {
       const editing = event.target instanceof Element && event.target.closest('input, select, textarea, [role="dialog"], [contenteditable="true"]');
+      if (event.key === "Escape" && earthOpen) {
+        earthDismissed = true;
+        selectedPlanet = -1;
+        dirty = true;
+        scheduleFrame();
+        return;
+      }
       if (!activeRef.current || editing || event.metaKey || event.ctrlKey || event.altKey || flightIsActive()) return;
       if (event.key === "+" || event.key === "=") {
         event.preventDefault();
@@ -1328,7 +1477,19 @@ export function Orrery({ targets, visibleIds, active, onPick, onFlightStart, onF
               >Fly to {target.name}</button>
             </li>
           ))}
+          <li>
+            <button
+              type="button"
+              aria-describedby="orrery-earth-card"
+              onFocus={() => { earthFocusRef.current = true; wakeRef.current(); }}
+              onBlur={() => { earthFocusRef.current = false; wakeRef.current(); }}
+            >About Earth and SPHEREx</button>
+          </li>
         </ul>
+        <div ref={earthCardRef} id="orrery-earth-card" className={s.earthCard} data-open="false" role="note">
+          <p className={s.earthTitle}>Earth · SPHEREx</p>
+          <p className={s.earthBody}>SPHEREx circles Earth in a low orbit over the poles. From there it maps the whole sky every six months in 102 infrared colours.</p>
+        </div>
       </div>
     </>
   );
