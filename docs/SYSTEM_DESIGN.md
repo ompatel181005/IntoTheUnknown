@@ -32,6 +32,7 @@ flowchart LR
   subgraph User
     B[Browser<br/>React frontend]
   end
+  GW[Sites HTTPS gateway<br/>space.omnp.me]
   subgraph Azure
     CA[Container App ca-planetx-api<br/>FastAPI + built site]
     BL[(Blob public frames<br/>stplanetxitu7q4)]
@@ -47,6 +48,8 @@ flowchart LR
   end
   GH[GitHub Actions] --> ACR --> CA
   B -- API calls --> CA
+  B -- short-domain requests --> GW
+  GW -- fixed Azure origin --> CA
   B -- public manifests + arrays --> BL
   CA -- write renders --> BL
   CA -- persist and restore analysis --> ST
@@ -69,6 +72,7 @@ flowchart LR
 | Watcher (`functions/`) | Azure Functions, daily at 06:00 UTC | Detects new SPHEREx data and asks the API to refresh the pinned views |
 | Upstream archives | NASA/IPAC IRSA, AWS S3 mirror, ESA and ARI Gaia TAP | Frame lists, image pixels, Gaia DR3 star positions |
 | CI/CD | GitHub Actions + Azure Container Registry | Tests, builds and deploys every push to `main` |
+| Short-domain gateway | Sites HTTPS edge | Serves space.omnp.me with active HTTPS and forwards to the existing Azure origin |
 
 ## Request flow
 

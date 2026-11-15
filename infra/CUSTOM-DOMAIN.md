@@ -1,56 +1,65 @@
-# A short project address on omnp.me
+# Project address: space.omnp.me
 
-Proposed address: **https://space.omnp.me**. This is pending the owner's DNS
-records and managed-certificate binding. Do not advertise it as live until the
-checks below pass. The existing generated Azure hostname remains available.
+The app, API, images, measurement state and watcher remain on Azure. The existing
+Container Apps environment is **Express**, which rejected custom hostnames with
+`ExpressCustomDomainsNotSupported`. A tested Sites HTTPS gateway forwards public
+requests to the generated Azure app hostname. The owner explicitly approved
+publishing this small gateway source/artifact through Sites.
 
-The domain uses `dns1.registrar-servers.com` / `dns2.registrar-servers.com`.
-The owner adds the following in Namecheap's Domain List > Manage > Advanced DNS,
-with Automatic TTL, retaining existing records for the main site and email:
+**https://space.omnp.me is live.** The gateway and custom hostname are active,
+the certificate validates normally, and Chrome verifies sorting at 1440px and
+320px plus the same-origin saved-view API. DNS and ownership records are verified
+at Namecheap. The original generated Azure address remains available.
+
+## DNS
+
+Retain the main site's and email records. These records belong only to `space`:
 
 | Type | Host | Value |
 | --- | --- | --- |
-| CNAME | `space` | `ca-planetx-api.politesand-6f83d8b5.westus.azurecontainerapps.io` |
-| TXT | `asuid.space` | Copy `properties.customDomainVerificationId` from the current Container App; this is a public DNS verification value, not a secret. |
+| CNAME | `space` | `custom-domains.chatgpt.site.` |
+| TXT | `_openai-site-verification.space` | The value returned by Sites add_custom_domain for this project |
+| TXT | `_cf-custom-hostname.space` | The Cloudflare ownership value returned by that same call |
 
-Obtain that value using the existing Student-scoped helpers:
+The old Azure `asuid.space` TXT may remain, but the CNAME now targets Sites.
+No Namecheap password or account API credential is needed by the gateway.
 
-```bash
-source infra/env.sh
-require_az
-azs containerapp show -g "$RG" -n "$API" --query properties.customDomainVerificationId -o tsv
-```
+## Deployment and source
 
-After both records resolve, configure the domain and Azure-managed HTTPS:
+- Sites project: `appgprj_6af9fb1ad7208191b83bdc6841f14c1f`.
+- Public gateway URL: https://logica-space-gateway.excellentray16.chatgpt.site
+- Published source commit: `d66572c4009d4bdda0534e965d7fcb921dbeac7d`.
+- Exact gateway worker source is recorded at [gateway/worker.mjs](gateway/worker.mjs).
+- Four transport/privacy tests run with the frontend Node tests.
 
-```bash
-azs containerapp hostname add -g "$RG" -n "$API" --hostname space.omnp.me
-azs containerapp hostname bind -g "$RG" -n "$API" --hostname space.omnp.me --environment "$CAE" --validation-method CNAME
-```
+The fixed upstream is the existing generated Container App hostname. The gateway
+streams HTML, scripts, image arrays and public API responses; forwards POST bodies,
+conditional and range headers; and rewrites Azure-local redirects to the public
+host. It strips incoming session cookies, authorization and platform headers, and
+removes response cookies. It does not contain application data, Azure credentials
+or storage keys. Watcher administration keeps using the Azure origin.
 
-Azure's managed certificate is free and renews automatically while its
-requirements remain satisfied. The CNAME must point directly to the generated
-app hostname. If CAA restrictions exist, permit DigiCert for this subdomain.
-The public DNS check on 2026-11-15 found no root CAA records; no CAA change is
-needed for that observed state. Reference:
-[official Azure instructions](https://learn.microsoft.com/en-us/azure/container-apps/custom-domains-managed-certificates).
+Normal GitHub CI/CD still updates the Azure app. The gateway forwards the current
+application without a second frontend build. To edit the gateway, use the Sites
+source workflow for this exact project ID, build a matching archive from pushed
+source, and deploy its saved version. Never store short-lived source credentials
+in this repository or command arguments.
 
-Validation gates:
+## Verification gates
 
-- DNS CNAME and ownership TXT match the current app.
-- Azure reports a secured hostname with an issued managed certificate.
-- HTTPS certificate validates normally; the home page and `/learn.html` load.
-- A prepared image paints; same-origin `/api/views` and measurements succeed.
-- A subsequent normal image deployment retains the hostname and certificate ID.
+1. Authoritative CNAME and both TXT values match the Sites domain response.
+2. Sites reports the hostname/certificate active.
+3. Normal HTTPS validation succeeds; home and Learn load in Chrome.
+4. Prepared images paint and same-origin measurements succeed.
+5. The homepage sorting works at desktop and 320px, with no archive request.
 
-`deploy_app.py` reads existing ingress bindings and passes them to the ARM
-template's `customDomains` array. New apps default to an empty array. This
-preserves every configured hostname, including a pending disabled binding,
-without placing a certificate/private key in GitHub. Repeated image deployments
-must use the updated helper; manually deploying the template with its default
-empty array would remove existing bindings.
+## Azure deployment preservation
 
-Domain activation does not require a new host, a frontend rebuild or a CORS
-change: the site uses relative same-origin API URLs and Blob permits public
-image reads from the custom origin. Shortening the address does not change
-archive latency.
+`deploy_app.py` passes existing ingress custom-domain/certificate bindings through
+the ARM template. This prevents their removal on environments which support them;
+it cannot enable custom domains on Express. The current Express app has no direct
+custom-domain binding. New standard environments require separate provisioning
+and review; no environment migration was performed here.
+
+Official references: [Express limitations](https://learn.microsoft.com/en-us/azure/container-apps/express-overview)
+and [Azure managed domains](https://learn.microsoft.com/en-us/azure/container-apps/custom-domains-managed-certificates).

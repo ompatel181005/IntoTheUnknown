@@ -364,6 +364,22 @@ restrictions must permit DigiCert, and ingress must remain publicly reachable
 for validation/renewal. Public DNS showed no root CAA restriction on this date.
 The runbook is [CUSTOM-DOMAIN.md](../infra/CUSTOM-DOMAIN.md).
 
+## 2026-11-15: Express rejected custom domains; approved Sites gateway (#97)
+
+The live hostname-add call returned ExpressCustomDomainsNotSupported. Official
+[Express documentation](https://learn.microsoft.com/en-us/azure/container-apps/express-overview)
+confirms direct custom domains are unsupported. No environment migration was
+performed. The user explicitly approved publication of a fixed-origin HTTPS
+gateway through Sites. Only the small proxy source and
+hosting metadata were published; application/data hosting remains on Azure.
+
+The gateway streams data, preserves public API bodies/range requests and drops
+Sites/session credentials. Its four transport/privacy tests pass. Native
+publication succeeded; Chrome verified its home and same-origin saved-view API.
+Namecheap CNAME and both new TXT values are verified. Custom HTTPS is active;
+Chrome passed normal TLS, home/sorting at 1440px and 320px, and a same-origin
+saved-view POST returning ready/200. Instructions are in infra/CUSTOM-DOMAIN.md.
+
 ## 2026-11-15: metadata deadlines allow observed normal SIA latency (#101)
 
 The 20 s socket-read timeout added in #83 was shorter than recorded Azure SIA
