@@ -7,9 +7,9 @@ import { formatDec, formatRa } from "../../lib/format";
 import { renderDifference, renderEpoch, tokenRgb } from "../../lib/stretch";
 import { PRESETS, type Preset } from "../../lib/targets";
 import type { Overlays, StretchKind, ViewMode } from "../../lib/url";
-import type { CatalogObject, FovArcmin, GaiaResult } from "../../types";
+import type { CatalogObject, FovArcmin } from "../../types";
 import { Orrery } from "../Orrery/Orrery";
-import { GlassButton, GlassPanel } from "../glass";
+import { GlassButton, GlassPanel, Icon } from "../glass";
 import { buildGrid } from "./grid";
 import s from "./SkyStage.module.css";
 
@@ -27,9 +27,9 @@ interface SkyStageProps {
   gain: number;
   /** Reference pass for Difference. */
   refIndex: number;
-  overlays: Overlays;
-  /** Gaia predictions for this view. Null until the backend serves /gaia. */
-  gaia: GaiaResult | null;
+  overlays: Pick<Overlays, "flags" | "grid">;
+  flying: boolean;
+  onFullscreen: () => void;
   /** Show the leader-line label beside the dome (hidden when a panel covers it). */
   showLabel: boolean;
   /** Selected grid pixel, FITS orientation (row 0 = south). */
@@ -53,7 +53,7 @@ export function SkyStage(props: SkyStageProps) {
   const { load } = props;
   // Keep the catalog alive across the dome so a return does not rebuild an empty home first.
   const catalog = useCatalog();
-  if (load.kind === "idle") return <Home targets={catalog.catalog?.objects ?? NO_TARGETS} onPick={props.onOpenFromHome} onFlightStart={props.onFlightStart} onFlightEnd={props.onFlightEnd} onTour={props.onTour} />;
+  if (load.kind === "idle") return <Home targets={catalog.catalog?.objects ?? NO_TARGETS} onPick={props.onOpenFromHome} onFlightStart={props.onFlightStart} onFlightEnd={props.onFlightEnd} onTour={props.onTour} flying={props.flying} onFullscreen={props.onFullscreen} />;
   const empty = load.kind === "ready" && load.view.manifest.epochs.length === 0;
   return (
     <section className={s.stage} aria-label="Sky view">
@@ -75,13 +75,31 @@ function Home({
   onPick,
   onFlightStart,
   onFlightEnd,
+  flying,
+  onFullscreen,
 }: {
   targets: readonly CatalogObject[];
   onPick: (p: Preset, from: { x: number; y: number } | null) => void;
   onFlightStart: (p: Preset) => void;
   onFlightEnd: () => void;
   onTour: () => void;
+  flying: boolean;
+  onFullscreen: () => void;
 }) {
+  useEffect(() => {
+    if (!flying) return;
+    const onKey = (event: KeyboardEvent) => {
+      const editing = event.target instanceof Element && event.target.closest('input, select, textarea, dialog, [contenteditable="true"]');
+      if (editing || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (!["+", "=", "-", "_", "0"].includes(event.key)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    // Keep zoom shortcuts inactive through the panel fade after the camera lands.
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [flying]);
+
   return (
     <section className={s.home} aria-labelledby="home-title">
       <div className={s.homeText}>
@@ -103,7 +121,7 @@ function Home({
           onFlightEnd={onFlightEnd}
         />
       </div>
-      <div className={s.zoomControls} aria-label="Orrery zoom controls">
+      <div className={s.zoomControls} aria-label="Orrery zoom controls" data-flight-hide inert={flying}>
         <button
           type="button"
           className={s.zoomButton}
@@ -119,6 +137,9 @@ function Home({
           onClick={() => window.dispatchEvent(new CustomEvent("spherex:orrery-zoom", { detail: -1 }))}
         >
           −
+        </button>
+        <button type="button" className={s.zoomButton} aria-label="Full screen" onClick={onFullscreen}>
+          <Icon name="fullscreen" size={18} />
         </button>
       </div>
     </section>
@@ -356,8 +377,6 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
                 nx={view.manifest.grid.nx}
                 ny={view.manifest.grid.ny}
                 mask={props.overlays.flags ? (view.masks[index] ?? null) : null}
-                gaia={props.overlays.gaia ? props.gaia : null}
-                epochIndex={index}
               />
               {inner && box && (
                 <svg className={s.overlay} viewBox={`0 0 ${box.side} ${box.side}`} aria-hidden="true">
@@ -624,13 +643,11 @@ interface OverlayProps {
   nx: number;
   ny: number;
   mask: Uint8Array | null;
-  gaia: GaiaResult | null;
-  epochIndex: number;
 }
 
-/** Flag boxes, Gaia rings and the motion trail. Each draws only when its data exists. */
-function OverlayLayer({ nx, ny, mask, gaia, epochIndex }: OverlayProps) {
-  if (!mask && !gaia) return null;
+/** Flag boxes draw only when mask data exists. */
+function OverlayLayer({ nx, ny, mask }: OverlayProps) {
+  if (!mask) return null;
   const flagged: [number, number][] = [];
   if (mask) {
     for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) if (mask[(ny - 1 - y) * nx + x]) flagged.push([x, y]);
@@ -643,22 +660,6 @@ function OverlayLayer({ nx, ny, mask, gaia, epochIndex }: OverlayProps) {
           <path d={`M${x + 0.1},${y + 0.9}L${x + 0.9},${y + 0.1}`} />
         </g>
       ))}
-      {gaia?.stars.map((st) => {
-        const p = st.track_px[epochIndex];
-        if (!p) return null;
-        const [x, y] = [p[0] + 0.5, ny - p[1] - 0.5];
-        return (
-          <g key={st.source_id}>
-            <polyline
-              points={st.track_px.map(([tx, ty]) => `${tx + 0.5},${ny - ty - 0.5}`).join(" ")}
-              fill="none"
-              stroke="var(--mover)"
-              strokeWidth={0.15}
-            />
-            <circle cx={x} cy={y} r={1.6} fill="none" stroke={st.matched[epochIndex] ? "var(--match)" : "var(--mover)"} strokeWidth={0.18} />
-          </g>
-        );
-      })}
     </svg>
   );
 }

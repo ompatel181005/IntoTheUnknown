@@ -9,6 +9,7 @@ interface TopBarProps {
   /** Shown as a breadcrumb after the app name. */
   crumb: string | null;
   onHome: () => void;
+  homeDisabled: boolean;
   onPreset: (p: Preset) => void;
   onCoords: (ra: number, dec: number) => void;
   onShare: () => void;
@@ -20,29 +21,38 @@ interface TopBarProps {
 export function TopBar(props: TopBarProps) {
   return (
     <header className={s.bar}>
-      <button type="button" className={s.brand} onClick={props.onHome} title="Whole sky">
-        <Mark />
-        <span className={s.name}>{APP_NAME}</span>
-        {props.crumb && (
-          <span className={s.crumb}>
-            <span aria-hidden="true">›</span> {props.crumb}
-          </span>
-        )}
-      </button>
+      {props.crumb === null ? (
+        <div className={s.brand}>
+          <Mark />
+          <span className={s.name}>{APP_NAME}</span>
+        </div>
+      ) : (
+        <button type="button" className={s.brand} onClick={props.onHome} disabled={props.homeDisabled} title="Whole sky">
+          <Mark />
+          <span className={s.name}>{APP_NAME}</span>
+          {props.crumb && (
+            <span className={s.crumb}>
+              <span aria-hidden="true">›</span> {props.crumb}
+            </span>
+          )}
+        </button>
+      )}
       <GlassPanel pill className={s.center}>
         <TargetSearch onPreset={props.onPreset} onCoords={props.onCoords} />
       </GlassPanel>
       <GlassPanel pill className={s.end} data-tour="help">
         <GlassButton variant="ghost" icon="help" label="Guide" onClick={props.onGuide} />
-        <GlassButton
-          variant="ghost"
-          icon="share"
-          onClick={props.onShare}
-          disabled={props.shareDisabled}
-          title={props.shareDisabled ? "Pick a target" : "Share link"}
-        >
-          <span className={s.shareLabel}>Share</span>
-        </GlassButton>
+        {props.crumb !== null && (
+          <GlassButton
+            variant="ghost"
+            icon="share"
+            onClick={props.onShare}
+            disabled={props.shareDisabled}
+            title={props.shareDisabled ? "Pick a target" : "Share link"}
+          >
+            <span className={s.shareLabel}>Share</span>
+          </GlassButton>
+        )}
       </GlassPanel>
     </header>
   );

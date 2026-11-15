@@ -45,7 +45,7 @@ export function PlaybackBar(p: PlaybackBarProps) {
 
   return (
     <div className={s.dock} data-tour="time">
-      <ModeSwitch mode={p.mode} multi={multi} ready={ready} onMode={p.onMode} />
+      <ModeSwitch mode={p.mode} multi={multi} ready={ready} loading={p.loading} onMode={p.onMode} />
       <div className={s.clock}>
         <div className={s.row}>
           <div className={s.transport}>
@@ -140,7 +140,7 @@ function Crescent() {
   );
 }
 
-function ModeSwitch({ mode, multi, ready, onMode }: { mode: ViewMode; multi: boolean; ready: boolean; onMode: (m: ViewMode) => void }) {
+function ModeSwitch({ mode, multi, ready, loading, onMode }: { mode: ViewMode; multi: boolean; ready: boolean; loading: boolean; onMode: (m: ViewMode) => void }) {
   const why = ready ? "Needs at least two passes" : "Pick a target";
   return (
     <GlassPanel pill className={s.modes} data-tour="modes">
@@ -151,8 +151,10 @@ function ModeSwitch({ mode, multi, ready, onMode }: { mode: ViewMode; multi: boo
         className={s.segmented}
         options={[
           { value: "all", label: "Play all", disabled: !ready, title: ready ? "Play every pass" : why },
-          { value: "blink", label: "Blink", disabled: !multi, title: multi ? "Alternate two passes (B)" : why },
-          { value: "diff", label: "Difference", disabled: !multi, title: multi ? "Compare with the reference pass (D)" : why },
+          ...(loading || multi ? [
+            { value: "blink" as const, label: "Blink", disabled: !multi, title: multi ? "Alternate two passes (B)" : why },
+            { value: "diff" as const, label: "Difference", disabled: !multi, title: multi ? "Compare with the reference pass (D)" : why },
+          ] : []),
           { value: "inspect", label: "Investigate", disabled: !ready, title: ready ? "Open measurements" : why },
         ]}
       />

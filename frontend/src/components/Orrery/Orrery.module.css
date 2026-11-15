@@ -179,30 +179,11 @@
   pointer-events: none;
 }
 
-.live {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-1);
-  font-weight: 600;
-}
-
-.liveDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--text-2);
-}
-
 @media (max-width: 768px) {
   .hud {
     left: 16px;
     translate: 0;
     font-size: 10px;
-  }
-
-  .live {
-    display: none;
   }
 
   .kind {

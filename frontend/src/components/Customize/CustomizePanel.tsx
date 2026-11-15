@@ -179,22 +179,24 @@ export function CustomizePanel({ open, onOpenChange, values: v, onChange, onRese
                 ]}
               />
             </Field>
-            <Field label="Compare against" hint="Blink and Difference">
-              <select
-                className={`${s.select} mono`}
-                value={String(v.ref)}
-                onChange={(e) => onChange({ ref: Number(e.target.value) })}
-                disabled={epochs.length < 2}
-                aria-label="Reference pass for Blink and Difference"
-              >
-                {epochs.length === 0 && <option value="0">First pass</option>}
-                {epochs.map((e) => (
-                  <option key={e.i} value={e.i}>
-                    Pass {e.i + 1} · {e.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            {(loading || epochs.length > 1) && (
+              <Field label="Compare against" hint="Blink and Difference">
+                <select
+                  className={`${s.select} mono`}
+                  value={String(v.ref)}
+                  onChange={(e) => onChange({ ref: Number(e.target.value) })}
+                  disabled={epochs.length < 2}
+                  aria-label="Reference pass for Blink and Difference"
+                >
+                  {epochs.length === 0 && <option value="0">First pass</option>}
+                  {epochs.map((e) => (
+                    <option key={e.i} value={e.i}>
+                      Pass {e.i + 1} · {e.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
           </section>
         )}
       </div>

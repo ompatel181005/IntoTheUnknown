@@ -823,10 +823,6 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
     <>
       <div ref={anchorRef} className={s.anchor}>
         <p className={`${s.hud} mono`}>
-          <span className={s.live}>
-            <span className={s.liveDot} aria-hidden="true" />
-            Sky context
-          </span>
           <span>
             UTC now <span ref={clockRef} />
           </span>

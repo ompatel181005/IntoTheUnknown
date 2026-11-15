@@ -13,18 +13,6 @@ const SECTIONS: { value: Section; label: string }[] = [
   { value: "data", label: "Data" },
 ];
 
-const KEYS: [string, string][] = [
-  ["Space", "Play or pause"],
-  ["← →", "Previous or next pass"],
-  ["B", "Blink"],
-  ["D", "Difference"],
-  ["C", "Toggle Customize"],
-  ["I", "Open details"],
-  ["Arrows, Enter", "Move cursor; Enter measures"],
-  ["?", "Open this guide"],
-  ["Esc", "Close panels"],
-];
-
 // Detailed notes per target, adapted from the initialammar guide. (lit.) marks values not yet verified.
 const NOTES: Record<string, string> = {
   barnard:
@@ -40,7 +28,7 @@ const NOTES: Record<string, string> = {
 };
 
 /** About, how to use, the science and the data, in one dialog. */
-export function Guide({ onClose, onTour }: { onClose: () => void; onTour: () => void }) {
+export function Guide({ onClose, onTour, hasTarget, multi }: { onClose: () => void; onTour: () => void; hasTarget: boolean; multi: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [section, setSection] = useState<Section>("about");
 
@@ -50,6 +38,12 @@ export function Guide({ onClose, onTour }: { onClose: () => void; onTour: () => 
   }, []);
 
   const panelId = `guide-${section}`;
+  const keys = [
+    ...(hasTarget && multi ? [["Space", "Play or pause"], ["← →", "Previous or next pass"], ["B", "Blink"], ["D", "Difference"]] : []),
+    ...(hasTarget ? [["C", "Toggle Customize"], ["I", "Open details"], ["Arrows, Enter", "Move cursor; Enter measures"]] : []),
+    ["?", "Open this guide"],
+    ["Esc", "Close panels"],
+  ];
   return (
     <dialog ref={ref} className={s.dialog} aria-labelledby="guide-title" onClose={onClose} onCancel={onClose}>
       <div className={s.head}>
@@ -103,7 +97,7 @@ export function Guide({ onClose, onTour }: { onClose: () => void; onTour: () => 
             </dl>
             <h3>Keyboard</h3>
             <dl className={s.keys}>
-              {KEYS.map(([k, v]) => (
+              {keys.map(([k, v]) => (
                 <div key={k} className={s.keyRow}>
                   <dt>
                     <kbd className="mono">{k}</kbd>
@@ -126,7 +120,7 @@ export function Guide({ onClose, onTour }: { onClose: () => void; onTour: () => 
               </div>
             ))}
             <h3>New movers</h3>
-            <p>A distant object may leave a small silver and amber pair in Difference mode. Compare it with Gaia and known asteroids.</p>
+            <p>A distant object may leave a small silver and amber pair in Difference mode. Compare it with known asteroids.</p>
           </>
         )}
         {section === "data" && (

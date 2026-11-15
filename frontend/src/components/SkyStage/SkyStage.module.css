@@ -211,7 +211,7 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   justify-items: center;
-  gap: 4px;
+  gap: var(--gutter);
   overflow: clip;
   cursor: grab;
   touch-action: none;
@@ -246,13 +246,15 @@
 .zoomControls {
   position: fixed;
   z-index: 4;
-  right: 76px;
-  bottom: calc(var(--chrome-bottom) + 12px);
+  right: var(--gutter);
+  bottom: var(--gutter);
   display: grid;
   gap: 8px;
 }
 
 .zoomButton {
+  display: grid;
+  place-items: center;
   width: 36px;
   height: 36px;
   padding: 0;
@@ -275,7 +277,7 @@
   outline-offset: 3px;
 }
 
-/* These two glass surfaces also sit over the moving home canvas during a flight. */
+/* The round controls also sit over the moving home canvas during a flight. */
 :global([data-app-shell][data-flying="true"]) .zoomButton {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
@@ -342,10 +344,6 @@
 
   .gridLabel {
     display: none;
-  }
-
-  .zoomControls {
-    right: 16px;
   }
 
 }

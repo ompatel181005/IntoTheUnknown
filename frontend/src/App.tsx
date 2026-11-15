@@ -215,12 +215,10 @@ export default function App({ source }: { source: ViewSource }) {
     });
 
   const available = {
-    gaia: false, // Needs GET /api/views/{id}/gaia (issue #29).
     flags: !!view && view.masks.some((m) => m !== null),
     grid: !!view,
   };
   const overlays = {
-    gaia: url.overlays.gaia && available.gaia,
     flags: url.overlays.flags && available.flags,
     grid: url.overlays.grid && available.grid,
   };
@@ -237,6 +235,7 @@ export default function App({ source }: { source: ViewSource }) {
         return;
       }
       if (k === "?") return setGuideOpen(true);
+      if (url.ra === null || flightActive) return;
       if ((k === " " || k === "ArrowLeft" || k === "ArrowRight") && ownsKeys(e.target)) return;
       if (k === " ") {
         e.preventDefault();
@@ -302,6 +301,7 @@ export default function App({ source }: { source: ViewSource }) {
           <TopBar
             crumb={url.ra === null ? null : (preset?.name ?? "Custom position")}
             onHome={goHome}
+            homeDisabled={flightActive}
             onPreset={pickFromBar}
             onCoords={pickCoords}
             onShare={share}
@@ -335,7 +335,8 @@ export default function App({ source }: { source: ViewSource }) {
           gain={url.gain}
           refIndex={ref}
           overlays={overlays}
-          gaia={null}
+          flying={flightActive}
+          onFullscreen={fullscreen}
           showLabel={!drawerOpen}
           sel={url.sel}
           onSelect={select}
@@ -389,7 +390,7 @@ export default function App({ source }: { source: ViewSource }) {
               sheet={mobile}
             />
           )}
-          {!mobile && !flightActive && (
+          {url.ra !== null && !mobile && !flightActive && (
             <Toolbar
               groups={[
                 [
@@ -397,8 +398,7 @@ export default function App({ source }: { source: ViewSource }) {
                 ],
                 [
                   { id: "grid", label: "Coordinate grid", icon: "grid", pressed: overlays.grid, disabled: !available.grid, onClick: () => toggleOverlay("grid") },
-                  { id: "gaia", label: "Gaia positions", icon: "gaia", pressed: overlays.gaia, disabled: !available.gaia, onClick: () => toggleOverlay("gaia") },
-                  { id: "flags", label: "Flagged pixels", icon: "flag", pressed: overlays.flags, disabled: !available.flags, onClick: () => toggleOverlay("flags") },
+                  ...(!view || available.flags ? [{ id: "flags", label: "Flagged pixels", icon: "flag" as const, pressed: overlays.flags, disabled: !available.flags, onClick: () => toggleOverlay("flags") }] : []),
                   { id: "invert", label: "Invert", icon: "invert", pressed: url.invert, disabled: !view, onClick: () => update({ invert: !url.invert }) },
                 ],
                 [
@@ -423,7 +423,7 @@ export default function App({ source }: { source: ViewSource }) {
               onSelectEpoch={pb.seek}
             />
           )}
-          {guideOpen && <Guide onClose={() => setGuideOpen(false)} onTour={startTour} />}
+          {guideOpen && <Guide onClose={() => setGuideOpen(false)} onTour={startTour} hasTarget={url.ra !== null && !flightActive} multi={epochs.length > 1} />}
           {tourOn && <Tour prepare={prepareTour} onClose={() => setTourOn(false)} />}
           <Toast message={toast} />
         </>
