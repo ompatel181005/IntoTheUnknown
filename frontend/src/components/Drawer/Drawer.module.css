@@ -2,7 +2,7 @@
   position: absolute;
   z-index: 30;
   top: var(--chrome-top);
-  right: calc(var(--gutter) * 2 + 52px);
+  right: calc(var(--gutter) * 2 + 54px);
   width: 374px;
   height: fit-content;
   max-height: calc(100dvh - var(--chrome-top) - var(--chrome-bottom) - 16px);

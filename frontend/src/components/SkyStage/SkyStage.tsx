@@ -377,7 +377,7 @@ function Eyepiece(props: SkyStageProps & { view: LoadedView | null; children?: R
           )}
         </div>
         <div className={s.bottomRow}>
-          {!showLabel && ra !== null && dec !== null && (
+          {!showLabel && (!outer || outer.raLabels.length === 0) && ra !== null && dec !== null && (
             <span className={`${s.positionReadout} mono`}>RA {formatRa(ra)} <span>DEC {formatDec(dec)}</span></span>
           )}
         </div>

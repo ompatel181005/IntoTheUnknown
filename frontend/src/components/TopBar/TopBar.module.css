@@ -100,8 +100,8 @@
   position: absolute;
   z-index: 60;
   top: calc(100% + 9px);
-  left: 0;
-  right: 0;
+  left: -5px;
+  right: -5px;
   max-height: min(360px, calc(100dvh - 110px));
   overflow-y: auto;
   padding: 4px;

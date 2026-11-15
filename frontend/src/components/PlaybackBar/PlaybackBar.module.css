@@ -47,13 +47,14 @@
 .row {
   display: grid;
   grid-template-columns: auto 1fr auto auto auto;
-  align-items: center;
+  align-items: baseline;
   gap: 18px;
 }
 
 .transport {
   display: flex;
   align-items: center;
+  align-self: center;
   gap: 2px;
 }
 

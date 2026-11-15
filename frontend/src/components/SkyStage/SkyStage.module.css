@@ -140,7 +140,6 @@
 }
 
 .scale {
-  transform: translateY(-16px);
   display: inline-flex;
   align-items: center;
   gap: 8px;

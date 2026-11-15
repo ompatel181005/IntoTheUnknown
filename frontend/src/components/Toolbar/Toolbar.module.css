@@ -91,6 +91,10 @@
   translate: 0 -50%;
 }
 
+.rail:has([aria-expanded="true"]) .button::after {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .rail {
     display: none;
