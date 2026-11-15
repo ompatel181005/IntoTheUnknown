@@ -1,8 +1,9 @@
 # Watcher activation (#7)
 
-This is a reviewed provisioning/deployment path, not evidence of a live host.
-Run it with the human's Student Azure login after the code checks pass. No cloud
-resources were changed while preparing this implementation.
+Provisioning, OneDeploy and host indexing were verified on 2026-11-15 using the
+human's Student Azure login. Both functions index and authentication checks pass.
+The protected handler executed but IRSA TAP returned HTTP502, so a successful
+metadata refresh remains pending. [Recorded live checks](watcher-live-checks.json).
 
 The watcher checks collection metadata plus newest frames at the two ecliptic
 poles and five pinned targets. It publishes `frames/meta/catalog.json`, keeps its
@@ -26,9 +27,10 @@ workspace or Insights account. `watcher.json` creates:
 | Existing `id-planetx-github` | Website Contributor on this Function app and Reader on its plan; no role-assignment or storage grant. Azure CLI reads the plan SKU before OneDeploy. |
 
 Blob Data Owner is a **data role**, not ARM Owner. The host containers are
-precreated to permit narrow container scopes. Host startup and timer execution
-must still be verified live; do not widen permissions automatically after an
-error. The storage preflight refuses `allowSharedKeyAccess` other than `false`.
+precreated to permit narrow container scopes. Host startup and blob leases were
+verified with these scopes. The scheduled timer's next run remains to be observed;
+do not widen permissions automatically after an error. The storage preflight
+refuses `allowSharedKeyAccess` other than `false`.
 Host settings use `AzureWebJobsStorage__accountName`, `__credential=managedidentity`
 and `__clientId`; `AZURE_CLIENT_ID` selects the same identity for the watcher SDK.
 Flex deployment storage also explicitly selects that user identity.

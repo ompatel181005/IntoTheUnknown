@@ -204,7 +204,9 @@ user identity and private host/package containers, and limits Flex to Python3.11
 containers; state/frames/package receive Blob Data Contributor. Container-scoped
 host startup remains a live verification gate. A dedicated main-only code workflow
 receives Website Contributor only on the Function app through the existing OIDC
-identity. No subscription/RG role or storage shared key is added.
+identity, plus Reader on the watcher plan because Azure CLI
+[reads its SKU before deploying](https://github.com/Azure/azure-cli/blob/azure-cli-2.92.0/src/azure-cli/azure/cli/command_modules/appservice/custom.py#L733-L760).
+No subscription/RG role or storage shared key is added.
 
 Current official migration guidance allows maximumInstanceCount 1-1000, although
 an older ARM quickstart still has minimum40. The provider accepted 1, but protected
