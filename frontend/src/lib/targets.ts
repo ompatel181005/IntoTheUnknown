@@ -44,8 +44,8 @@ export const PRESETS: readonly Preset[] = [
     what: "A pair of T-type brown dwarfs orbiting ε Indi A.",
     watch: "Moves east-southeast between passes.",
     facts: [
-      { label: "Motion", value: "4.68″/yr · PA 122°" },
-      { label: "Parallax", value: "270.7 mas" },
+      { label: "Motion", value: "4.71″/yr · PA 122°" },
+      { label: "Parallax", value: "274.99 mas" },
       { label: "Gaia G", value: "18.03" },
     ],
   },
@@ -69,7 +69,7 @@ export const PRESETS: readonly Preset[] = [
     watch: "Watch for irregular dimming.",
     facts: [
       { label: "Motion", value: "0.03″/yr (static)" },
-      { label: "Parallax", value: "6.4 mas" },
+      { label: "Parallax", value: "5.4541 mas" },
       { label: "Gaia G", value: "12.18" },
     ],
   },
