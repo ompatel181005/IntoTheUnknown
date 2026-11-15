@@ -1,4 +1,4 @@
-"""Full Container App ARM redeploy, preserving REFRESH_KEY without CLI secret args."""
+"""Full Container App redeploy, preserving the refresh secret and existing domain bindings."""
 
 import argparse
 import os
@@ -19,6 +19,12 @@ def main():
     app_id = arm.resource(group, "Microsoft.App/containerApps", app)
     current = arm.request("GET", app_id + f"?api-version={APP_API}", missing_ok=True)
     secret = deployment_refresh_secret(arm, app_id, current)
+    # Full ARM deployments replace ingress settings. Retain secured and pending
+    # hostname bindings, including their certificate IDs, across image updates.
+    ingress = (current or {}).get("properties", {}).get("configuration", {}).get(
+        "ingress"
+    ) or {}
+    custom_domains = ingress.get("customDomains") or []
     arm.deploy(
         group,
         "core-app",
@@ -37,9 +43,12 @@ def main():
             "minReplicas": args.min_replicas,
             "applicationInsightsName": os.environ["AI"],
             "refreshKey": secret,
+            "customDomains": custom_domains,
         },
     )
-    print("Container App deployed with REFRESH_KEY stored as a secret.")
+    print(
+        "Container App deployed with its refresh secret and custom-domain bindings preserved."
+    )
 
 
 if __name__ == "__main__":

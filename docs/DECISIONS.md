@@ -344,3 +344,22 @@ lists DR1 and QR3 and links cloud access; the
 [Astropy cloud FITS guide](https://docs.astropy.org/en/stable/io/fits/usage/cloud.html)
 documents subset access. This change caches existing cutouts/analysis only;
 it does not retrieve full frames. Owner: ompatel181005 (Codex).
+
+## 2026-11-15: custom-domain bindings survive image deployments (#97)
+
+The user owns omnp.me and requested a shorter subdomain. Proposed space.omnp.me
+uses the existing public Container App and Azure's managed HTTPS certificate.
+The domain's DNS is outside Azure on registrar-servers.com; the owner must add
+the CNAME and ownership TXT. No new hosting resource is needed. Activation and
+HTTPS verification remain pending until DNS resolves.
+
+The current full ARM template replaces ingress settings and omitted custom
+domains. Preserve current hostname/certificate bindings as a template parameter
+on normal redeployment, including pending Disabled bindings. New apps default
+to no custom domains. Regression tests exercise the actual deployment helper.
+Official requirements were rechecked in
+[Azure's managed-certificate guide](https://learn.microsoft.com/en-us/azure/container-apps/custom-domains-managed-certificates):
+subdomain CNAME must target the generated app hostname directly, root CAA
+restrictions must permit DigiCert, and ingress must remain publicly reachable
+for validation/renewal. Public DNS showed no root CAA restriction on this date.
+The runbook is [CUSTOM-DOMAIN.md](../infra/CUSTOM-DOMAIN.md).

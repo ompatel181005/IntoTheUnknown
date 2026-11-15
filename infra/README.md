@@ -54,6 +54,11 @@ After deployment, check revision readiness, `/api/health`, all five presets and 
 
 ## Automatic CI/CD
 
+For a short address under the user-owned `omnp.me`, follow
+[the custom-domain runbook](CUSTOM-DOMAIN.md). Existing hostname and certificate
+bindings are carried forward by `deploy_app.py` on image deployments. DNS and
+managed HTTPS activation are separate verification gates.
+
 The `build-image.yml` workflow now runs for every push to `main`, with manual dispatch retained. It checks backend/frontend/functions/capture/infrastructure code, regenerates the five saved snapshots with archive access blocked, logs in through GitHub OIDC, builds and pushes a commit-tagged image, deploys its exact digest, then checks health and all five preset manifests. Verification failure attempts to restore the previous image. Deployments are serialized; a push superseded by newer main is built but not deployed.
 
 One-time setup: `bash infra/06-ci-identity.sh` after core/app provisioning. This creates dedicated identity `id-planetx-github`, validates a federation restricted to this repository's main branch, and stores only Azure IDs in Actions secrets. It grants registry AcrPush/Reader, app-scoped Container Apps Contributor, Managed Identity Operator on the runtime identity, and environment Reader. It has no resource-group Contributor or Blob data role. The runtime identity remains separate. No client password or periodically refreshed ACR token is needed. [Microsoft's managed-identity federation guide](https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust-user-assigned-managed-identity).
