@@ -22,7 +22,7 @@ import {
   raDecToEcliptic,
   type Vec3,
 } from "../../lib/orbits";
-import { loadStarfield, type Starfield } from "../../lib/starfield";
+import { drawStarfield, loadStarfield, type Starfield } from "../../lib/starfield";
 import { galacticToEq } from "../../lib/sky";
 import { tokenRgb } from "../../lib/stretch";
 import type { CatalogObject } from "../../types";
@@ -55,7 +55,6 @@ interface LabelCandidate {
 
 const FLY_MS = 700;
 const COMMIT_AT = 0.78;
-const GALAXY_GLOWS = [[38, 0.018], [20, 0.028], [7, 0.05]] as const;
 const FOV_RADIANS = Math.PI / 3;
 const MIN_DIST = 2.5;
 const MAX_DIST = 120;
@@ -105,12 +104,9 @@ function buildScene(targets: readonly CatalogObject[]) {
       const angle = (index / 96) * Math.PI * 2;
       return [Math.cos(angle), Math.sin(angle), 0];
     }),
-    galaxy: Array.from({ length: 361 }, (_, longitude) => {
-      const point = galacticToEq(longitude, 0);
-      return {
-        p: raDecToEcliptic(point.ra, point.dec),
-        w: 0.35 + 0.65 * Math.max(0, Math.cos(longitude * Math.PI / 180)) ** 2,
-      };
+    galaxy: [[0, 0], [90, 0], [0, 90]].map(([longitude, latitude]) => {
+      const point = galacticToEq(longitude, latitude);
+      return raDecToEcliptic(point.ra, point.dec);
     }),
     targets: targetPoints,
   };
@@ -219,6 +215,11 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
     let sceneBox = { left: 0, top: 0, width: 0, height: 0 };
     let scheduleFrame = () => undefined;
     let bitmapDpr = 0;
+    // Diffuse light needs only a small reusable raster, not full-resolution blur or strokes.
+    const galaxyCanvas = document.createElement("canvas");
+    const galaxyContext = galaxyCanvas.getContext("2d");
+    let galaxyImage: ImageData | null = null;
+    let galaxyRays = new Float32Array(0);
     let stars: Starfield | null = null;
     let starProjection = new Float32Array(0);
     void loadStarfield().then((field) => {
@@ -242,6 +243,32 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
         height: anchorBox.height,
       };
       focalLength = height / (2 * Math.tan(FOV_RADIANS / 2));
+      if (galaxyContext) {
+        const gw = Math.max(1, Math.ceil(width / 16));
+        const gh = Math.max(1, Math.ceil(height / 16));
+        if (galaxyCanvas.width !== gw || galaxyCanvas.height !== gh || !galaxyImage) {
+          galaxyCanvas.width = gw;
+          galaxyCanvas.height = gh;
+          galaxyImage = galaxyContext.createImageData(gw, gh);
+          galaxyRays = new Float32Array(gw * gh * 3);
+          for (let i = 0; i < gw * gh; i++) {
+            galaxyImage.data[i * 4] = star[0];
+            galaxyImage.data[i * 4 + 1] = star[1];
+            galaxyImage.data[i * 4 + 2] = star[2];
+          }
+        }
+        for (let y = 0; y < gh; y++) {
+          for (let x = 0; x < gw; x++) {
+            const rx = ((x + 0.5) * width / gw - sceneBox.left - sceneBox.width / 2) / focalLength;
+            const rz = (sceneBox.top + sceneBox.height / 2 - (y + 0.5) * height / gh) / focalLength;
+            const length = Math.hypot(rx, 1, rz);
+            const i = (y * gw + x) * 3;
+            galaxyRays[i] = rx / length;
+            galaxyRays[i + 1] = 1 / length;
+            galaxyRays[i + 2] = rz / length;
+          }
+        }
+      }
       const pixelWidth = Math.round(width * dpr);
       const pixelHeight = Math.round(height * dpr);
       if (canvas.width !== pixelWidth || canvas.height !== pixelHeight || bitmapDpr !== dpr) {
@@ -473,37 +500,34 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
       dirty = false;
       context.clearRect(0, 0, width, height);
       context.globalAlpha = camera.fade;
-      const skyMarginX = width * 0.2;
-      const skyMarginY = height * 0.2;
-      const maxSkySegment = Math.max(width, height) * 0.35;
-
       cameraTrig(camera);
       const centerX = sceneBox.left + sceneBox.width / 2;
       const centerY = sceneBox.top + sceneBox.height / 2;
-      // Project the galaxy once; each brightness path is shared by its three glow widths.
-      const galaxyPaths = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
-      for (let index = 1; index < scene.galaxy.length; index++) {
-        const a = projectSky(scene.galaxy[index - 1].p, camera);
-        const b = projectSky(scene.galaxy[index].p, camera);
-        if (a.depth <= 0.04 || b.depth <= 0.04) continue;
-        if (Math.hypot(b.x - a.x, b.y - a.y) > maxSkySegment) continue;
-        const aOutside = a.x < -skyMarginX || a.x > width + skyMarginX || a.y < -skyMarginY || a.y > height + skyMarginY;
-        const bOutside = b.x < -skyMarginX || b.x > width + skyMarginX || b.y < -skyMarginY || b.y > height + skyMarginY;
-        if (aOutside && bOutside) continue;
-        const path = galaxyPaths[Math.min(3, Math.floor(scene.galaxy[index].w * 4))];
-        path.moveTo(a.x, a.y);
-        path.lineTo(b.x, b.y);
-      }
-      context.lineCap = "round";
-      for (const [lineWidth, alpha] of GALAXY_GLOWS) {
-        for (let bucket = 0; bucket < 4; bucket++) {
-          const middle = (bucket + 0.5) / 4;
-          context.lineWidth = lineWidth * (0.5 + middle * 0.5);
-          context.strokeStyle = rgba(star, alpha * (0.4 + middle));
-          context.stroke(galaxyPaths[bucket]);
+      if (galaxyImage && galaxyContext) {
+        const centre = rotate(scene.galaxy[0], camera);
+        const gx0 = centre.x, gx1 = centre.y, gx2 = centre.z;
+        const tangent = rotate(scene.galaxy[1], camera);
+        const gy0 = tangent.x, gy1 = tangent.y, gy2 = tangent.z;
+        const pole = rotate(scene.galaxy[2], camera);
+        const gz0 = pole.x, gz1 = pole.y, gz2 = pole.z;
+        const pixels = galaxyImage.data;
+        for (let i = 0, pixel = 3; i < galaxyRays.length; i += 3, pixel += 4) {
+          const rx = galaxyRays[i], ry = galaxyRays[i + 1], rz = galaxyRays[i + 2];
+          const gx = rx * gx0 + ry * gx1 + rz * gx2;
+          const gy = rx * gy0 + ry * gy1 + rz * gy2;
+          const latitude = rx * gz0 + ry * gz1 + rz * gz2;
+          const inner = ((1 + gx) * 0.5) ** 2;
+          // Cubic falloff gives an 8 to 15 degree half-width, with zero slope at the edges.
+          const support = 0.3 + 0.23 * inner;
+          const falloff = Math.max(0, 1 - (latitude / support) ** 2);
+          // Decorative, sky-locked mottling, not a survey intensity map.
+          const clouds = 0.82 + 0.1 * Math.sin(18 * gy + 7 * gx + 22 * latitude)
+            + 0.08 * Math.sin(31 * gy - 13 * gx + 45 * latitude);
+          pixels[pixel] = 255 * (0.012 + 0.045 * inner) * falloff ** 3 * clouds;
         }
+        galaxyContext.putImageData(galaxyImage, 0, 0);
+        context.drawImage(galaxyCanvas, 0, 0, width, height);
       }
-      context.lineCap = "butt";
 
       if (stars) {
         const xyz = stars.xyz;
@@ -516,20 +540,7 @@ export function Orrery({ targets, onPick, onFlightStart, onFlightEnd }: OrreryPr
           starProjection[i + 1] = centerY - focalLength * (y * sp + xyz[i + 2] * cp) / depth;
           starProjection[i + 2] = depth;
         }
-        for (const bucket of stars.buckets) {
-          context.beginPath();
-          const r = bucket.radius;
-          for (let i = bucket.start * 3; i < bucket.end * 3; i += 3) {
-            const x = starProjection[i], y = starProjection[i + 1];
-            if (starProjection[i + 2] <= 0.04 || x < -r || x > width + r || y < -r || y > height + r) continue;
-            context.moveTo(x + r, y);
-            context.arc(x, y, r, 0, Math.PI * 2);
-          }
-          context.globalAlpha = camera.fade * bucket.alpha;
-          context.fillStyle = bucket.color;
-          context.fill();
-        }
-        context.globalAlpha = camera.fade;
+        drawStarfield(context, stars, starProjection, 3, width, height, camera.fade);
       }
       drawSkyLine(scene.ecliptic, camera, text2, 0.16);
 

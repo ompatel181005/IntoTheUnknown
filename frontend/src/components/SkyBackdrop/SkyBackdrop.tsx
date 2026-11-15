@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { flightFocus, getHomeCamera, markFlight } from "../../lib/flight";
-import { loadStarfield, type Starfield } from "../../lib/starfield";
+import { drawStarfield, loadStarfield, type Starfield } from "../../lib/starfield";
 import s from "./SkyBackdrop.module.css";
 
 const TRAVEL_MS = 1000;
@@ -98,41 +98,7 @@ export function SkyBackdrop({ dim, travelKey }: { dim: boolean; travelKey: strin
         projected[j + 3] = cy + geometry[i + 1] / z0 * f;
       }
       ctx.lineCap = "round";
-      for (const bucket of field.buckets) {
-        ctx.beginPath();
-        const r = bucket.radius;
-        for (let i = bucket.start * 4; i < bucket.end * 4; i += 4) {
-          const x = projected[i], y = projected[i + 1];
-          if (!Number.isFinite(x) || x < -50 || y < -50 || x > w + 50 || y > h + 50) continue;
-          if (moving) {
-            ctx.moveTo(projected[i + 2], projected[i + 3]);
-            ctx.lineTo(x, y);
-          } else {
-            ctx.moveTo(x + r, y);
-            ctx.arc(x, y, r, 0, Math.PI * 2);
-          }
-        }
-        ctx.globalAlpha = bucket.alpha;
-        if (moving) {
-          ctx.strokeStyle = bucket.color;
-          ctx.lineWidth = bucket.radius * 2;
-          ctx.stroke();
-        } else {
-          ctx.fillStyle = bucket.color;
-          ctx.fill();
-          if (bucket.alpha > 0.6) {
-            ctx.beginPath();
-            for (let i = bucket.start * 4; i < bucket.end * 4; i += 4) {
-              const x = projected[i], y = projected[i + 1];
-              if (!Number.isFinite(x) || x < -8 || y < -8 || x > w + 8 || y > h + 8) continue;
-              ctx.moveTo(x + r * 4, y);
-              ctx.arc(x, y, r * 4, 0, Math.PI * 2);
-            }
-            ctx.globalAlpha = bucket.alpha * 0.08;
-            ctx.fill();
-          }
-        }
-      }
+      drawStarfield(ctx, field, projected, 4, w, h, 1, moving);
       ctx.globalAlpha = 1;
     };
     settle.current = (travel) => {
