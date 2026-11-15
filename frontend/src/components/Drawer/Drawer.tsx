@@ -57,7 +57,7 @@ export function Drawer(p: DrawerProps) {
     >
       <div className={s.head} ref={tabsRef}>
         <Tabs label="Details" value={p.panel} onChange={p.onPanel} tabs={TABS.map((t) => ({ ...t, panelId }))} />
-        <GlassButton variant="ghost" icon="close" label="Close details" onClick={p.onClose} />
+        <GlassButton className={s.closeBtn} variant="ghost" icon="close" label="Close details" onClick={p.onClose} />
       </div>
       <div className={s.body} id={panelId} role="tabpanel" aria-labelledby={`tab-${p.panel}`}>
         {p.panel === "pass" && <PassTab {...p} />}
@@ -98,47 +98,53 @@ function PassTab({ view, index, target, position }: DrawerProps) {
         </h3>
         <p className={`display ${s.name}`}>{target?.name ?? "Custom position"}</p>
         {target && <p className={s.hint}>{target.what}</p>}
-        <dl className={s.kv}>
+        <div className={s.grid}>
           {position && (
             <>
-              <Row k="RA" v={formatRa(position.ra)} />
-              <Row k="Dec" v={formatDec(position.dec)} />
+              <Tile label="RA" value={formatRa(position.ra)} mono />
+              <Tile label="Dec" value={formatDec(position.dec)} mono />
             </>
           )}
-          {target?.facts.map((f) => <Row key={f.label} k={f.label} v={f.value} />)}
-        </dl>
+          {target?.facts.map((f) => (
+            <Tile key={f.label} label={f.label} value={f.value} mono />
+          ))}
+        </div>
         {target && <p className={s.note}>Gaia DR3; (lit.) marks literature values.</p>}
       </section>
       <section className={s.section} aria-labelledby="d-epoch">
         <h3 id="d-epoch" className={`micro ${s.sectionTitle}`}>
           This pass
         </h3>
-        <dl className={s.kv}>
-          <Row k="Epoch" v={`${String(e.i + 1).padStart(2, "0")} / ${String(m.epochs.length).padStart(2, "0")}`} />
-          <Row k="Date" v={mjdToDate(e.t_mean_mjd)} />
-          <Row k="Frames" v={String(e.n_frames)} />
-          <Row k="Detector" v={e.detectors.map((d) => `D${d}`).join(" ")} />
-          <Row k="Wavelength" v={`λ ${e.lambda_um[0].toFixed(2)}–${e.lambda_um[1].toFixed(2)} µm`} />
-          <div className={s.row}>
-            <dt className="micro">Flagged px</dt>
-            <dd className="mono">
+        <div className={s.grid}>
+          <div className={`${s.tile} ${s.tileFull}`}>
+            <span className={s.tileLabel}>Pass {String(e.i + 1).padStart(2, "0")} / {String(m.epochs.length).padStart(2, "0")}</span>
+            <span className={`${s.tileValue} mono`}>{mjdToDate(e.t_mean_mjd)}</span>
+          </div>
+          <Tile label="Frames" value={`${e.n_frames} frames`} mono />
+          <Tile label="Detectors" value={e.detectors.map((d) => `D${d}`).join(" ")} mono />
+          <Tile label="Wavelength" value={`λ ${e.lambda_um[0].toFixed(2)}-${e.lambda_um[1].toFixed(2)} µm`} mono />
+          <Tile label="Release" value={m.catalog.collections.join(" + ")} mono />
+          <div className={s.tile}>
+            <span className={s.tileLabel}>Flagged px</span>
+            <span className={`${s.tileValue} mono`}>
               <span className={flaggedTotal ? s.flagCount : undefined}>{flaggedTotal}</span>
               {flagged.length > 0 && <span className={s.flagList}>{flagged.map(([k, n]) => `${k} ${n}`).join(" · ")}</span>}
-            </dd>
+            </span>
           </div>
-          <Row k="Release" v={m.catalog.collections.join(" + ")} />
-          {m.bandpass_matched === false && <Row k="Colours" v="not matched across passes" />}
-        </dl>
+          {m.bandpass_matched === false && (
+            <Tile label="Colours" value="Not matched across passes" mono={false} />
+          )}
+        </div>
       </section>
     </>
   );
 }
 
-function Row({ k, v }: { k: string; v: string }) {
+function Tile({ label, value, mono = true, full = false }: { label: string; value: React.ReactNode; mono?: boolean; full?: boolean }) {
   return (
-    <div className={s.row}>
-      <dt className="micro">{k}</dt>
-      <dd className="mono">{v}</dd>
+    <div className={`${s.tile}${full ? ` ${s.tileFull}` : ""}`}>
+      <span className={s.tileLabel}>{label}</span>
+      <span className={`${s.tileValue}${mono ? " mono" : ""}`}>{value}</span>
     </div>
   );
 }

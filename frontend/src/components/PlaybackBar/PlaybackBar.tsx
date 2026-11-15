@@ -65,10 +65,11 @@ export function PlaybackBar(p: PlaybackBarProps) {
           </div>
           <span className={`display ${s.date}`}>{e ? e.label : "----"}</span>
           <span className={s.state} data-playing={p.playing} aria-live="polite">
+            <span className={s.stateDot} aria-hidden="true" />
             {stateText}
           </span>
           <span className={`mono ${s.epoch}`}>
-            Pass {e ? pad2(e.i + 1) : "--"} / {ready ? pad2(p.epochs.length) : "--"}
+            PASS {e ? pad2(e.i + 1) : "--"} / {ready ? pad2(p.epochs.length) : "--"}
           </span>
           <GlassButton
             variant="ghost"
@@ -113,14 +114,11 @@ export function PlaybackBar(p: PlaybackBarProps) {
           </ol>
           {knob && (
             <span className={s.knob} style={{ left: `${(knob.x / W) * 100}%`, top: `${(knob.y / H) * 100}%` }} aria-hidden="true">
-              <Crescent />
+              <TargetReticle />
             </span>
           )}
         </nav>
       </div>
-      <p className={`${s.status} mono`} role="status" title={p.status ?? undefined}>
-        {p.status}
-      </p>
     </div>
   );
 }
@@ -131,11 +129,11 @@ function titleFor(ready: boolean, multi: boolean) {
   return undefined;
 }
 
-function Crescent() {
+function TargetReticle() {
   return (
-    <svg width="22" height="22" viewBox="0 0 26 26">
-      <circle cx="13" cy="13" r="11" fill="var(--space-1)" stroke="var(--accent)" strokeWidth="1.5" />
-      <path d="M16 6a7.6 7.6 0 1 0 0 14 6 6 0 0 1 0-14z" fill="var(--accent)" />
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r="8" fill="var(--space-1)" stroke="var(--accent)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+      <circle cx="10" cy="10" r="2.5" fill="var(--accent)" />
     </svg>
   );
 }

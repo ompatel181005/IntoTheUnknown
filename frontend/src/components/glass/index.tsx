@@ -97,8 +97,25 @@ interface TabsProps<T extends string> {
 }
 
 export function Tabs<T extends string>({ label, value, tabs, onChange }: TabsProps<T>) {
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") return;
+    e.preventDefault();
+    const i = tabs.findIndex((t) => t.value === value);
+    let nextIndex = i;
+    if (e.key === "ArrowRight") nextIndex = (i + 1) % tabs.length;
+    else if (e.key === "ArrowLeft") nextIndex = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === "Home") nextIndex = 0;
+    else if (e.key === "End") nextIndex = tabs.length - 1;
+    const next = tabs[nextIndex];
+    if (next) {
+      onChange(next.value);
+      const nextBtn = document.getElementById(`tab-${next.value}`);
+      nextBtn?.focus();
+    }
+  };
+
   return (
-    <div role="tablist" aria-label={label} className={s.tabs}>
+    <div role="tablist" aria-label={label} className={s.tabs} onKeyDown={onKeyDown}>
       {tabs.map((t) => (
         <button
           key={t.value}

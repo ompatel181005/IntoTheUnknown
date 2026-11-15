@@ -2,13 +2,13 @@
 :root {
   --space-0: #05070a;
   --space-1: #0a0d12;
-  /* Glass: see-through, blurred, with a glossy top sheen. Text contrast is checked over the starfield. */
-  --glass-bg: rgba(16, 20, 30, 0.5);
-  --glass-bg-strong: rgba(14, 17, 25, 0.82); /* any panel that can sit over the science image */
-  --glass-border: rgba(220, 226, 235, 0.16);
-  --glass-highlight: rgba(255, 255, 255, 0.12);
-  --glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.02) 38%, rgba(255, 255, 255, 0) 60%);
-  --glass-blur: 22px;
+  /* Glass: grounded in space-0, calibrated blur without acrylic specular shine. */
+  --glass-bg: rgba(7, 10, 15, 0.78);
+  --glass-bg-strong: rgba(5, 7, 10, 0.92); /* deep cosmic black for panels over imagery */
+  --glass-border: rgba(163, 172, 185, 0.14);
+  --glass-highlight: rgba(255, 255, 255, 0.03);
+  --glass-sheen: none;
+  --glass-blur: 10px;
   --text-1: #e6e9ee;
   --text-2: #a3acb9;
   --accent: #8ab4ff;
@@ -54,7 +54,7 @@
   --hover-wash: rgba(220, 226, 235, 0.08);
   --accent-wash: rgba(138, 180, 255, 0.14);
   --flag-wash: rgba(248, 113, 113, 0.12);
-  --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 4px 20px rgba(0, 0, 0, 0.65);
   --gutter: 16px;
   --drawer-w: 340px;
   --target-min: 44px;

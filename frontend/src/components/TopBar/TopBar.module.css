@@ -107,8 +107,7 @@
   padding: 4px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-panel);
-  /* Nearly opaque: the blur cannot reach the page through the glass field above it. */
-  background: rgba(10, 13, 20, 0.96);
+  background: var(--glass-bg-strong);
   box-shadow: var(--shadow-float);
   backdrop-filter: blur(var(--glass-blur));
 }
@@ -158,7 +157,9 @@
   flex: none;
   color: var(--text-2);
   font-size: 11px;
-  letter-spacing: 0.02em;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 

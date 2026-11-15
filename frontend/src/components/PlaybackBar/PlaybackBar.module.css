@@ -7,6 +7,17 @@
 
 .modes {
   padding: 3px;
+  border-radius: var(--radius-panel);
+}
+
+.modes button[role="radio"] {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-chip);
 }
 
 .segmented {
@@ -19,8 +30,8 @@
   width: 100%;
   max-width: 760px;
   padding: 6px 12px 0;
-  border-radius: 28px;
-  background: radial-gradient(ellipse at 50% 60%, var(--space-0) 30%, transparent 75%);
+  border-radius: var(--radius-panel);
+  background: linear-gradient(0deg, rgba(5, 7, 10, 0.82) 0%, rgba(5, 7, 10, 0.35) 65%, transparent 100%);
 }
 
 .row {
@@ -50,26 +61,45 @@
   letter-spacing: 0.04em;
 }
 
-/* Eyes time control: a large, light status word that glows while playing. */
 .state {
-  font-size: 22px;
-  font-weight: 300;
-  letter-spacing: 0.18em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
   color: var(--text-2);
-  transition:
-    color 500ms var(--ease-ui),
-    filter 500ms var(--ease-ui);
+  transition: color var(--dur) var(--ease);
 }
 
 .state[data-playing="true"] {
-  color: var(--accent);
-  filter: drop-shadow(0 0 2px var(--accent));
+  color: var(--text-1);
+}
+
+.stateDot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-2);
+  opacity: 0.4;
+}
+
+.state[data-playing="true"] .stateDot {
+  background: var(--match);
+  opacity: 1;
+  box-shadow: 0 0 6px var(--match);
 }
 
 .epoch {
-  font-size: 12px;
-  letter-spacing: 0.12em;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
   color: var(--text-2);
+  font-variant-numeric: tabular-nums;
 }
 
 .customize {
@@ -91,9 +121,9 @@
 
 .arcLine {
   fill: none;
-  stroke: var(--text-2);
-  stroke-opacity: 0.55;
-  stroke-width: 1.2;
+  stroke: var(--grid-line-strong);
+  stroke-opacity: 0.6;
+  stroke-width: 1;
   vector-effect: non-scaling-stroke;
 }
 
@@ -129,11 +159,12 @@
 }
 
 .dot {
-  width: 9px;
-  height: 9px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--space-1);
-  border: 1.5px solid var(--text-2);
+  background: var(--text-2);
+  opacity: 0.6;
+  border: 0;
 }
 
 .tick[aria-current="true"] {
@@ -149,20 +180,19 @@
 }
 
 .tickDate {
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
   white-space: nowrap;
 }
 
-/* The current pass rides the arc. */
+/* The current pass marker as a hairline ring with an inner dot. */
 .knob {
-  width: 36px;
-  height: 36px;
+  width: 24px;
+  height: 24px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-wash) 37%, transparent 70%);
-  box-shadow: 0 0 12px 4px rgba(0, 0, 0, 0.4);
   position: absolute;
   translate: -50% -50%;
   margin-top: 0;
@@ -170,26 +200,16 @@
   transition:
     left 150ms var(--ease-ui),
     top 150ms var(--ease-ui);
-  filter: drop-shadow(0 0 8px var(--accent-wash));
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
 }
 
 .status {
-  position: fixed;
-  left: var(--gutter);
-  bottom: var(--gutter);
-  max-width: calc((100vw - 760px) / 2 - 2 * var(--gutter));
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.6;
-  letter-spacing: 0.06em;
-  color: var(--text-2);
+  display: none;
 }
 
 @media (max-width: 1100px) {
   .status {
-    position: static;
-    max-width: 100%;
-    text-align: center;
+    display: none;
   }
 }
 
