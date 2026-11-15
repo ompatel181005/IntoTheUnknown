@@ -48,7 +48,7 @@
       "kind": "brown_dwarf",
       "ra_deg": 133.79513,
       "dec_deg": -7.24515,
-      "ref_epoch": 2000.0,
+      "ref_epoch": 2010.33,
       "parallax_mas": 439.0,
       "parallax_err_mas": 2.4,
       "distance_pc": null,
