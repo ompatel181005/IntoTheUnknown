@@ -19,12 +19,16 @@ export function useView(source: ViewSource, query: ViewQuery | null, attempt: nu
     if (!query || !key) return;
     const ac = new AbortController();
     source
-      .load(query, (p) => setProgress({ key, p }), ac.signal)
+      .load(query, (p) => {
+        if (!ac.signal.aborted) setProgress({ key, p });
+      }, ac.signal)
       .then(
-        (view) => setSettled({ key, kind: "ready", view }),
+        (view) => {
+          if (!ac.signal.aborted) setSettled({ key, kind: "ready", view });
+        },
         (e: unknown) => {
-          const err = e as { name?: string; code?: string; message?: string };
-          if (err.name === "AbortError") return;
+          const err = (e ?? {}) as { name?: string; code?: string; message?: string };
+          if (ac.signal.aborted || err.name === "AbortError") return;
           setSettled({
             key,
             kind: "error",
