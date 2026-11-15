@@ -11,7 +11,7 @@ The production Dockerfile builds React and runs FastAPI on port 8000. The defaul
 | Log Analytics | Container platform logs | Workspace created and linked to the environment |
 | Application Insights | API latency, ready-cache hits and archive operation failures | Opt-in instrumentation and KQL in #26; live verification required after activation |
 | Blob Storage | Persistent render cache and watcher state | Live account and containers verified; backend integration belongs to #12 |
-| Functions | Future catalog watcher | Deployment and refresh API integration pending |
+| Functions + dedicated watcher identity + private host/package containers | Metadata watcher and five pinned Live refresh requests | Reviewed FC1 activation/template and scoped OIDC code deployment; [activation runbook](WATCHER-ACTIVATION.md); live host verification pending |
 | Blob website / Static Web Apps | Alternative frontend hosts | Off by default; SWA blocked by recorded region policy |
 
 Cosmos DB and Front Door are outside this deployment. Golden snapshots let presets render when API requests fail **while the web host remains reachable**. They do not cover host outages or cold starts. Measurements require the API. Maximum replicas stays at one while jobs live in process memory. Local render cache can disappear on restart.

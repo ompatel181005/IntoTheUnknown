@@ -194,3 +194,28 @@ Owner: dflow11
 Decision: Himanshu's two-level Blob cache (`backend/app/cache/blob.py`) is the render cache whenever `STORAGE_ACCOUNT_URL` is set: renders go to `frames/r/<rk>/`, pointers to `frames/q/<qk>.json`, and `manifest_url` is the public Blob URL, so the browser loads arrays from Blob. Unset, it is the local folder served at `/frames`, as before. Added while bringing the branch up to date: `gaia.json` is stored with the render and `/api/views/{id}/gaia` reads the render back through the cache (`read`); the Blob client retries once with 5 s connect and 20 s read timeouts; a failed Blob write keeps that view on local disk instead of failing it; every build renders, and only the upload is skipped when the render already exists.
 Why: The container's disk is wiped on every deploy, so each custom position was rebuilt from the archive after every merge to main. Main gained the alignment check and the Gaia overlay after the branch was cut, and both wrote to or read from the local folder. Not tested against the real storage account before merging (no Azure CLI on the merging machine): the tests use a fake container, and the first real check is the deployed app.
 Owner: Himanshu-1804 (cache), dflow11 (merge onto main)
+
+
+## 2026-11-15: watcher activation uses MI storage and Flex OneDeploy (#7)
+
+The activation template reuses project storage/Insights, adds a dedicated watcher
+user identity and private host/package containers, and limits Flex to Python3.11,
+2048MB/max1/no always-ready. Host Blob Data Owner is scoped to precreated host
+containers; state/frames/package receive Blob Data Contributor. Container-scoped
+host startup remains a live verification gate. A dedicated main-only code workflow
+receives Website Contributor only on the Function app through the existing OIDC
+identity. No subscription/RG role or storage shared key is added.
+
+Current official migration guidance allows maximumInstanceCount 1-1000, although
+an older ARM quickstart still has minimum40. The low-frequency watcher chooses1;
+HTTP throttling under load is acceptable and live provider validation remains
+required. Official Flex guidance explicitly supports config-zip remote builds
+through OneDeploy without local Core Tools. References, exact commands and live
+gates are in [WATCHER-ACTIVATION.md](../infra/WATCHER-ACTIVATION.md).
+
+The shared refresh secret is generated/recovered only in memory and passed as a
+secure ARM parameter/CAsecretRef/Function setting. Full manual API deployment
+preserves it; unwired bootstrap initializes safely, while withheld/dangling keys
+or cross-app disagreement fail closed. A refresh202 is accepted work, not proof
+of completed frames; the existing watcher targets metadata plus five pinned Live
+views, not all47 catalog renders. No cloud activation is claimed by this change.

@@ -1,0 +1,63 @@
+name: Test and deploy watcher
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'functions/**'
+      - 'infra/watcher.py'
+      - '.github/workflows/deploy-watcher.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: watcher-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require a main commit
+        run: git merge-base --is-ancestor HEAD origin/main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check watcher
+        working-directory: functions
+        run: |
+          pip install -r requirements.txt pytest ruff
+          ruff check .
+          pytest -q
+      - name: Package committed runtime files
+        run: |
+          python - <<'PY'
+          import os, sys
+          from pathlib import Path
+          sys.path.insert(0, 'infra')
+          from watcher import package_functions
+          package_functions(Path(os.environ['RUNNER_TEMP']) / 'watcher.zip')
+          PY
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy through Flex OneDeploy with remote Linux build
+        run: |
+          az functionapp deployment source config-zip --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --resource-group rg-planetx --name func-planetx-itu7q4 \
+            --src "$RUNNER_TEMP/watcher.zip" --build-remote true --timeout 600 --only-show-errors -o none

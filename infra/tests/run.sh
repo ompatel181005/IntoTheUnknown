@@ -29,9 +29,18 @@ run_case() { # label expected-exit script [ENV=value ...]
       printf '{"ok":true}\n'
     }
     export -f curl
+    # Python ARM payloads are tested independently with mocked HTTP; do not call Azure here.
+    python() {
+      if [[ $1 == */deploy_app.py || $1 == *\\deploy_app.py ]]; then
+        printf 'python-deploy-app %s\n' "$*" >> "$FAKE_LOG"
+      else
+        command python "$@"
+      fi
+    }
+    export -f python
     cd "$REPO"
     local args=()
-    [[ $script != 30-app.sh ]] || args+=("${APP_MODE:---plan}")
+    [[ $script != 30-app.sh && $script != 40-watcher.sh ]] || args+=("${APP_MODE:---plan}")
     bash "infra/$script" ${args[@]+"${args[@]}"}  # bash 3.2: empty array + set -u
   ) >"$CASE_DIR/output" 2>&1 || rc=$?
   if [[ $rc -ne $expected ]] || [[ -s $CASE_DIR/calls.unpinned || -s $CASE_DIR/calls.leak ]]; then
@@ -117,7 +126,7 @@ has 'invalid image digest' output
 lacks '^acr build|^containerapp update' calls
 run_case 'deploy-only updates existing app with managed identity and verifies health' 0 30-app.sh APP_MODE=--deploy-only FAKE_EXISTS=yes
 lacks '^acr build|^containerapp create' calls
-has '^deployment group create .*--name core-app .*identityResourceId=/subscriptions/' calls
+has '^python-deploy-app .*--identity-id /subscriptions/' calls
 has '^role assignment create .*--role AcrPull --scope /subscriptions/.*/registries/' calls
 has '^role assignment create .*--role Storage Blob Data Contributor --scope /subscriptions/.*/storageAccounts/' calls
 lacks '^containerapp identity assign .*--system-assigned' calls
@@ -161,4 +170,11 @@ done
 run_case 'CI setup refuses foreign legacy prefix before changes' 1 06-ci-identity.sh FAKE_GH_PREFIX=repo:other/project
 lacks '^identity .*create|^role assignment create' calls
 lacks 'secret set|variable set' calls.gh
+
+run_case 'watcher default plan performs no Azure calls' 0 40-watcher.sh
+has 'PLAN ONLY' output
+[[ ! -s $CASE_DIR/calls ]] || { echo 'FAIL: watcher plan called Azure'; exit 1; }
+run_case 'watcher refuses nonreviewed region before credentials or mutations' 1 40-watcher.sh APP_MODE=--apply LOC=eastus
+has 'Reviewed watcher region is westus' output
+
 printf '\n%s offline scenarios passed; no Azure or GitHub requests made.\n' "$passed"

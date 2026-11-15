@@ -66,6 +66,7 @@ jobs:
           npm ci --no-audit --no-fund
           npm run lint
           npm run build
+          node --experimental-vm-modules --test tests/*.test.mjs
       - name: Functions checks
         working-directory: functions
         run: |
@@ -73,7 +74,7 @@ jobs:
           pytest -q
       - name: Capture and infrastructure checks
         run: |
-          pytest -q scripts/tests
+          pytest -q scripts/tests tools/tests infra/tests
           bash infra/check-scripts.sh
           bash infra/tests/run.sh
       - name: Refresh and validate saved snapshots without archive downloads

@@ -23,7 +23,7 @@ App: one React + FastAPI container, port 8000, 1 vCPU / 2 GiB
 Scale: $MIN_REPLICAS minimum / 1 maximum (jobs currently live in one process)
 Identity: dedicated user-assigned; AcrPull on $ACR, Blob Data Contributor on $SA
 Cache: local ephemeral files; golden snapshots are bundled in the image
-Watcher, Blob-backed render cache and Application Insights SDK wiring remain separate work.
+Full ARM redeploy preserves the watcher refresh secret; unwired bootstrap securely initializes it.
 EOF
 [[ $MODE != --plan ]] || exit 0
 
@@ -87,13 +87,10 @@ done
 # Full ARM create/update preserves the explicit environment. Live CLI PATCH updates failed
 # with ExpressSystemAssignedIdentityNotSupported; the dedicated user identity works for both paths.
 LOCATION=$(azsq containerapp env show -g "$RG" -n "$CAE" --query location -o tsv | norm_regions)
-azs deployment group create -g "$RG" --name core-app \
-  --template-file "$(native_path "$INFRA_DIR/containerapp.json")" \
-  --parameters "appName=$API" "location=$LOCATION" "environmentId=$ENV_ID" \
-    "identityResourceId=$IDENTITY_ID" "identityClientId=$CLIENT_ID" \
-    "image=$IMAGE" "registryServer=$ACR.azurecr.io" "storageAccountUrl=https://$SA.blob.core.windows.net" \
-    "framesContainer=$FRAMES_CONTAINER" "stateContainer=$STATE_CONTAINER" "minReplicas=$MIN_REPLICAS" \
-    "applicationInsightsName=$AI" -o none
+# Python sends secure ARM parameters in memory; never place REFRESH_KEY in argv or a file.
+export AZ_SUBSCRIPTION_ID AZ_TENANT_ID RG API ACR SA FRAMES_CONTAINER STATE_CONTAINER AI
+python "$(native_path "$INFRA_DIR/deploy_app.py")" --image "$IMAGE" --location "$LOCATION" \
+  --environment-id "$ENV_ID" --identity-id "$IDENTITY_ID" --client-id "$CLIENT_ID" --min-replicas "$MIN_REPLICAS"
 HOST=$(azsq containerapp show -g "$RG" -n "$API" --query properties.configuration.ingress.fqdn -o tsv)
 [[ -n $HOST ]] || die 'Deployment returned no public hostname.'
 info "Public app: https://$HOST"

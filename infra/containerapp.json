@@ -13,6 +13,7 @@
     "applicationInsightsName": {"type": "string", "defaultValue": "appi-planetx"},
     "framesContainer": {"type": "string", "defaultValue": "frames"},
     "stateContainer": {"type": "string", "defaultValue": "state"},
+    "refreshKey": {"type": "secureString"},
     "minReplicas": {"type": "int", "defaultValue": 0, "minValue": 0, "maxValue": 1}
   },
   "resources": [{
@@ -30,7 +31,7 @@
       "workloadProfileName": "Consumption",
       "configuration": {
         "activeRevisionsMode": "Single",
-        "secrets": [{"name": "application-insights", "value": "[reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').ConnectionString]"}],
+        "secrets": [{"name": "application-insights", "value": "[reference(resourceId('Microsoft.Insights/components', parameters('applicationInsightsName')), '2020-02-02').ConnectionString]"}, {"name": "refresh-key", "value": "[parameters('refreshKey')]"}],
         "registries": [{"server": "[parameters('registryServer')]", "identity": "[parameters('identityResourceId')]"}],
         "ingress": {"external": true, "targetPort": 8000, "transport": "auto", "allowInsecure": false}
       },
@@ -40,6 +41,7 @@
           "image": "[parameters('image')]",
           "resources": {"cpu": 1.0, "memory": "2Gi"},
           "env": [
+            {"name": "REFRESH_KEY", "secretRef": "refresh-key"},
             {"name": "APPLICATIONINSIGHTS_CONNECTION_STRING", "secretRef": "application-insights"},
             {"name": "AZURE_CLIENT_ID", "value": "[parameters('identityClientId')]"},
             {"name": "STORAGE_ACCOUNT_URL", "value": "[parameters('storageAccountUrl')]"},
