@@ -23,6 +23,59 @@ from validate import measure, predict
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _sidecar_names(manifest: dict) -> list[str]:
+    """Return safe sidecar basenames referenced by manifest extras."""
+    extras = manifest.get("extras") or {}
+    if not isinstance(extras, dict):
+        raise ValueError("manifest extras must be an object")
+    names = []
+    for name in extras.values():
+        if name is None:
+            continue
+        if (
+            not isinstance(name, str)
+            or name in ("", ".", "..")
+            or "/" in name
+            or "\\" in name
+            or ":" in name
+            or "\x00" in name
+        ):
+            raise ValueError(f"invalid manifest sidecar path: {name!r}")
+        names.append(name)
+    return names
+
+
+def _sidecar_pairs(manifest: dict, source_dir: Path, golden_dir: Path) -> list[tuple[Path, Path]]:
+    """Resolve and preflight every referenced sidecar before copying or publishing a manifest."""
+    pairs = []
+    for name in _sidecar_names(manifest):
+        source = source_dir / name
+        golden = golden_dir / name
+        if not source.is_file():
+            raise FileNotFoundError(f"referenced render sidecar is missing: {source}")
+        pairs.append((source, golden))
+    return pairs
+
+
+def _export_sidecars(manifest: dict, source_dir: Path, golden_dir: Path) -> None:
+    """Copy referenced sidecars, replacing old files, and verify their contents."""
+    pairs = _sidecar_pairs(manifest, source_dir, golden_dir)
+    for source, golden in pairs:
+        golden.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, golden)
+        if source.read_bytes() != golden.read_bytes():
+            raise AssertionError(f"Exported sidecar differs from render: {source.name}")
+
+
+def _validate_sidecars(manifest: dict, source_dir: Path, golden_dir: Path) -> None:
+    """Require every referenced static sidecar to exist and match this render."""
+    for source, golden in _sidecar_pairs(manifest, source_dir, golden_dir):
+        if not golden.is_file():
+            raise AssertionError(f"Missing golden sidecar: {golden}")
+        if source.read_bytes() != golden.read_bytes():
+            raise AssertionError(f"Stale golden sidecar: {golden}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--chrome", type=Path)
@@ -103,6 +156,8 @@ def main():
             if args.export_golden:
                 dest = ROOT / "frontend/public/golden" / target.id
                 dest.mkdir(parents=True, exist_ok=True)
+                # Preflight and export sidecars before publishing a manifest that references them.
+                _export_sidecars(manifest, path.parent, dest)
                 # Arrays are replaced before the manifest, so a first load never sees missing files.
                 for epoch in manifest["epochs"]:
                     for key in ("image", "mask"):
@@ -118,8 +173,9 @@ def main():
                 )
             golden = ROOT / "frontend/public/golden" / target.id
             static = json.loads((golden / "manifest.json").read_text())
-            for key in ("render_key", "grid", "epochs", "stretch", "bandpass_matched"):
+            for key in ("render_key", "grid", "epochs", "stretch", "bandpass_matched", "extras"):
                 assert static[key] == manifest[key], f"Stale golden {target.id}: {key}"
+            _validate_sidecars(manifest, path.parent, golden)
             hashes = {}
             for epoch in manifest["epochs"]:
                 for key in ("image", "mask"):
